@@ -14,7 +14,7 @@ export function ProtectedRoute({ roles, redirectTo = '/login' }: Props) {
 
   if (roles && user && !roles.includes(user.role)) {
     // Authenticated but wrong role — send to their home
-    const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
+    const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
     return <Navigate to={isOrganizer ? '/organizer/dashboard' : '/dashboard'} replace />;
   }
 

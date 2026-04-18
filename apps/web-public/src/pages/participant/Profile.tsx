@@ -40,6 +40,43 @@ const INDUSTRY_SECTORS = [
   'Other',
 ];
 
+const SEX_OPTIONS = [
+  { value: 'MALE', label: 'Male' },
+  { value: 'FEMALE', label: 'Female' },
+];
+
+const AGE_BRACKET_OPTIONS = [
+  { value: 'AGE_19_OR_LOWER', label: '19 or below' },
+  { value: 'AGE_20_TO_34', label: '20 – 34' },
+  { value: 'AGE_35_TO_49', label: '35 – 49' },
+  { value: 'AGE_50_TO_64', label: '50 – 64' },
+  { value: 'AGE_65_OR_HIGHER', label: '65 or above' },
+];
+
+const EMPLOYMENT_CATEGORY_OPTIONS = [
+  { value: 'SELF_EMPLOYED', label: 'Self-employed' },
+  { value: 'EMPLOYED_GOVT', label: 'Employed – Government' },
+  { value: 'EMPLOYED_PRIVATE', label: 'Employed – Private' },
+  { value: 'GENERAL_PUBLIC', label: 'General Public' },
+];
+
+const SOCIAL_CLASSIFICATION_OPTIONS = [
+  { value: 'ABLED', label: 'Abled' },
+  { value: 'PWD', label: 'Person with Disability (PWD)' },
+  { value: 'FOUR_PS', label: '4Ps Beneficiary' },
+  { value: 'YOUTH', label: 'Youth' },
+  { value: 'SENIOR_CITIZEN', label: 'Senior Citizen' },
+  { value: 'INDIGENOUS_PERSON', label: 'Indigenous Person' },
+  { value: 'OFW', label: 'OFW' },
+  { value: 'OTHERS', label: 'Others' },
+];
+
+const CLIENT_TYPE_OPTIONS = [
+  { value: 'CITIZEN', label: 'Citizen' },
+  { value: 'BUSINESS', label: 'Business' },
+  { value: 'GOVERNMENT', label: 'Government' },
+];
+
 export function ProfilePage() {
   const qc = useQueryClient();
   const [saved,   setSaved]   = useState(false);
@@ -142,6 +179,89 @@ export function ProfilePage() {
               value={values.middleName ?? ''}
               onChange={(e) => set('middleName', e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Name Suffix</label>
+              <input
+                className="input"
+                placeholder="Jr., Sr., III, etc."
+                value={(values as any).nameSuffix ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, nameSuffix: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label">Sex</label>
+              <select
+                className="input"
+                value={(values as any).sex ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value || null }))}
+              >
+                <option value="">Select…</option>
+                {SEX_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Age Bracket</label>
+              <select
+                className="input"
+                value={(values as any).ageBracket ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, ageBracket: e.target.value || null }))}
+              >
+                <option value="">Select…</option>
+                {AGE_BRACKET_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Client Type</label>
+              <select
+                className="input"
+                value={(values as any).clientType ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, clientType: e.target.value || null }))}
+              >
+                <option value="">Select…</option>
+                {CLIENT_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Employment Category</label>
+              <select
+                className="input"
+                value={(values as any).employmentCategory ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, employmentCategory: e.target.value || null }))}
+              >
+                <option value="">Select…</option>
+                {EMPLOYMENT_CATEGORY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Social Classification</label>
+              <select
+                className="input"
+                value={(values as any).socialClassification ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, socialClassification: e.target.value || null }))}
+              >
+                <option value="">Select…</option>
+                {SOCIAL_CLASSIFICATION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>

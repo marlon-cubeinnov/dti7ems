@@ -18,6 +18,9 @@ enum UserRole {
   ENTERPRISE_REPRESENTATIVE
   PROGRAM_MANAGER
   EVENT_ORGANIZER
+  DIVISION_CHIEF
+  REGIONAL_DIRECTOR
+  PROVINCIAL_DIRECTOR
   SYSTEM_ADMIN
   SUPER_ADMIN
 
@@ -66,6 +69,14 @@ model UserProfile {
   province         String?
   cityMunicipality String? @map("city_municipality")
   barangay         String?
+
+  // DTI Demographics (FM-CT-2A, FM-CSF-ACT)
+  nameSuffix             String? @map("name_suffix")
+  sex                    String? // MALE, FEMALE
+  ageBracket             String? @map("age_bracket") // AGE_19_OR_LOWER, AGE_20_TO_34, AGE_35_TO_49, AGE_50_TO_64, AGE_65_OR_HIGHER
+  employmentCategory     String? @map("employment_category") // SELF_EMPLOYED, EMPLOYED_GOVT, EMPLOYED_PRIVATE, GENERAL_PUBLIC
+  socialClassification   String? @map("social_classification") // ABLED, PWD, FOUR_PS, YOUTH, SENIOR_CITIZEN, INDIGENOUS_PERSON, OFW, OTHERS
+  clientType             String? @map("client_type") // CITIZEN, BUSINESS, GOVERNMENT
 
   // Professional
   jobTitle                String? @map("job_title")

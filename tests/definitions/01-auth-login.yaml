@@ -1,0 +1,73 @@
+name: auth-login-happy-path
+description: >
+  Validate the standard login flow for a registered EMS user.
+  Tests both Participant and Organizer login routes and verifies
+  role-based redirect behavior.
+persona: Participant
+tags: [auth, smoke, happy-path]
+
+steps:
+  - id: AUTH-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Navigate to Login Page
+      caption: Open the EMS login page and verify the form renders correctly.
+      manual_hint: >
+        The login page is located at /login. Users can also reach it by clicking
+        "Sign In" in the top navigation bar.
+
+  - id: AUTH-001A
+    action: assert
+    assertions:
+      - type: hasText
+        target: h1
+        value: Welcome back
+      - type: visible
+        target: "input#email"
+      - type: visible
+        target: "input#password"
+      - type: visible
+        target: "button[type=submit]"
+    doc_metadata:
+      title: Verify Login Form Elements
+      caption: Confirm all login form fields (email, password, submit button) are present.
+      manual_hint: The form heading reads "Welcome back". All fields are required.
+
+  - id: AUTH-002
+    action: type
+    target: "input#email"
+    value: "participant1@test.com"
+    doc_metadata:
+      title: Enter Email Address
+      caption: Type the registered email address into the email field.
+      manual_hint: Use the email address you registered with. Credential management is done by the System Admin.
+
+  - id: AUTH-003
+    action: type
+    target: "input#password"
+    value: "TestPass123!"
+    doc_metadata:
+      title: Enter Password
+      caption: Enter the account password into the password field.
+      manual_hint: Passwords must be at least 8 characters long.
+
+  - id: AUTH-004
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Submit Login Form
+      caption: Click the "Sign In" button to authenticate and enter the system.
+      manual_hint: After successful login, participants are redirected to /dashboard, organizers to /organizer/dashboard.
+    state: Success
+
+  - id: AUTH-005
+    action: assert
+    assertions:
+      - type: visible
+        target: "nav, aside, [data-testid='sidebar']"
+    doc_metadata:
+      title: Verify Dashboard Loads
+      caption: Confirm the user is redirected to their role-appropriate dashboard.
+      manual_hint: The sidebar navigation confirms the user is authenticated. The dashboard displays upcoming events and quick actions.
+    state: Success

@@ -94,8 +94,8 @@ const DEFAULT_ROLES: { name: string; label: string; description: string; isSyste
   },
   {
     name: 'PROGRAM_MANAGER',
-    label: 'Program Manager',
-    description: 'DTI program manager. Can create and manage events, view reports, and manage participants.',
+    label: 'Technical Staff',
+    description: 'DTI technical staff accountable for the implementation of training processes and activities. Identifies training needs, prepares proposals, and identifies resource persons/facilitators.',
     isSystem: true,
     permissions: [
       'users.view_own', 'users.edit_own', 'events.view', 'events.create', 'events.edit_own',
@@ -106,14 +106,44 @@ const DEFAULT_ROLES: { name: string; label: string; description: string; isSyste
   },
   {
     name: 'EVENT_ORGANIZER',
-    label: 'Event Organizer',
-    description: 'DTI event organizer. Can create and manage own events, check-in participants, and issue certificates.',
+    label: 'Facilitator',
+    description: 'Person assigned to lead or run the training activity, ensuring all objectives are met and all participants\' needs are addressed.',
     isSystem: true,
     permissions: [
-      'users.view_own', 'users.edit_own', 'events.view', 'events.create', 'events.edit_own',
+      'users.view_own', 'users.edit_own', 'events.view', 'events.edit_own',
       'participants.manage', 'participants.export', 'attendance.scan_qr', 'attendance.manual',
       'attendance.view', 'certificates.issue', 'surveys.view_results',
       'checklists.manage', 'checklists.view', 'reports.view',
+    ],
+  },
+  {
+    name: 'DIVISION_CHIEF',
+    label: 'Technical Divisions Chief',
+    description: 'Evaluates submitted training proposals based on client training needs, guidelines, and the approved Annual WFP. Marks proposals for review and endorses to PD/RD.',
+    isSystem: true,
+    permissions: [
+      'users.view_own', 'users.edit_own', 'events.view',
+      'reports.view', 'reports.export',
+    ],
+  },
+  {
+    name: 'REGIONAL_DIRECTOR',
+    label: 'Provincial/Regional Director',
+    description: 'Provincial Director or Regional Director responsible for final approval or rejection of training proposals in accordance with COA Rules and Guidelines.',
+    isSystem: true,
+    permissions: [
+      'users.view_own', 'users.edit_own', 'events.view',
+      'reports.view', 'reports.export',
+    ],
+  },
+  {
+    name: 'PROVINCIAL_DIRECTOR',
+    label: 'Provincial Director',
+    description: 'Provincial Director responsible for reviewing and approving training proposals at the provincial level.',
+    isSystem: true,
+    permissions: [
+      'users.view_own', 'users.edit_own', 'events.view',
+      'reports.view', 'reports.export',
     ],
   },
   {

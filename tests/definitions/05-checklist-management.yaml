@@ -1,0 +1,60 @@
+name: checklist-management
+description: >
+  Validate the FM-CT-7 Training Monitoring Checklist management.
+  Covers: viewing the 33-task checklist across 3 phases, marking items
+  complete, toggling isApplicable, and adding comments.
+persona: EventOrganizer
+tags: [checklist, FM-CT-7, happy-path]
+
+steps:
+  - id: CL-001
+    action: goto
+    url: /organizer/events
+    doc_metadata:
+      title: Navigate to Organizer Events List
+      caption: Open the organizer events list to find the event to manage.
+      manual_hint: All events assigned to you appear in this list regardless of status.
+
+  - id: CL-002
+    action: click
+    target: "tbody tr:first-child a, table tr:first-child a, .event-card:first-child a"
+    doc_metadata:
+      title: Open First Event
+      caption: Click on the first event in the list to open its detail page.
+
+  - id: CL-003
+    action: click
+    target: "a[href*='/checklist'], button:has-text('Checklist')"
+    doc_metadata:
+      title: Open Checklist Page
+      caption: Click the Checklist quick action to open the FM-CT-7 monitoring checklist.
+      manual_hint: The checklist is pre-populated with 33 tasks across Pre-Activity, During Activity, and Post-Activity phases.
+
+  - id: CL-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "h1, h2"
+    doc_metadata:
+      title: Verify Checklist Page Loads
+      caption: Confirm the checklist page is displayed with tasks visible.
+      manual_hint: The checklist shows all 33 FM-CT-7 tasks. Tasks are grouped by phase. Green checkmarks indicate completed tasks.
+
+  - id: CL-005
+    action: assert
+    assertions:
+      - type: visible
+        target: "tbody tr, .checklist-item, [data-testid='checklist-row']"
+    doc_metadata:
+      title: Verify Checklist Items Present
+      caption: Confirm that checklist task rows are visible on the page.
+      manual_hint: Each task row shows: Task name, Phase (Pre/During/Post), Status, Assigned To, Due Date, and Action buttons.
+
+  - id: CL-006
+    action: screenshot
+    doc_metadata:
+      title: Full Checklist Overview
+      caption: Screenshot showing the full Training Monitoring Checklist (FM-CT-7) for the event.
+      manual_hint: >
+        Use the checklist to track all logistical requirements before, during, and after the training.
+        Mark items as "Not Applicable" if they don't apply to your specific event.

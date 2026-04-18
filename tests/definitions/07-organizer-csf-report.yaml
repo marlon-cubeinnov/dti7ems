@@ -1,0 +1,57 @@
+name: organizer-csf-report
+description: >
+  Validate the organizer CSF Report page (FM-CSF-ACT-RPT).
+  Covers: SQD breakdown table, adjectival ratings, Citizen's Charter distribution,
+  demographic disaggregation (sex, age bracket, client type), speaker summary,
+  and comments/feedback section.
+persona: EventOrganizer
+tags: [csf-report, FM-CSF-ACT-RPT, organizer, happy-path]
+
+steps:
+  - id: CSFR-001
+    action: goto
+    url: /organizer/events
+    doc_metadata:
+      title: Navigate to Organizer Events
+      caption: Open the events list to select an event with completed CSF surveys.
+      manual_hint: CSF reports are only available for events that have received at least one survey submission.
+
+  - id: CSFR-002
+    action: click
+    target: "tbody tr:first-child a, .event-card:first-child a"
+    doc_metadata:
+      title: Open Event Detail
+      caption: Click on an event to open its detail and access report links.
+
+  - id: CSFR-003
+    action: click
+    target: "a[href*='/csf-report'], button:has-text('CSF Report')"
+    doc_metadata:
+      title: Open CSF Report
+      caption: Click the CSF Report quick action to open the full FM-CSF-ACT-RPT report.
+      manual_hint: The CSF Report shows aggregate results from all submitted survey responses for this event.
+
+  - id: CSFR-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "table, [data-testid='sqd-table']"
+    doc_metadata:
+      title: Verify SQD Breakdown Table Present
+      caption: Confirm the 9 SQD dimension breakdown table is visible in the report.
+      manual_hint: >
+        The SQD table shows for each dimension: mean rating, adjectival description, and count of responses.
+        Adjectival scale: 90–100% = Outstanding, 80–89% = Very Satisfactory, 70–79% = Satisfactory,
+        60–69% = Fair, Below 60% = Unsatisfactory.
+
+  - id: CSFR-005
+    action: screenshot
+    doc_metadata:
+      title: CSF Report — Full Report View
+      caption: Full view of the FM-CSF-ACT-RPT Client Satisfaction Feedback Report.
+      manual_hint: >
+        This report is the official DTI CSF Report (FM-CSF-ACT-RPT). It includes:
+        event summary, SQD ratings with adjectival scale, Citizen's Charter distribution,
+        demographic breakdown by sex/age/client-type, speaker performance ratings,
+        and verbatim feedback comments.
+    state: Success

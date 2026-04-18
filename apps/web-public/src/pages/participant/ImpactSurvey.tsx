@@ -44,6 +44,22 @@ export function ImpactSurveyPage() {
   const [employeeCountAfter, setEmployeeCountAfter] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  // FM-CT-5 effectiveness fields
+  const [appliedLearnings, setAppliedLearnings] = useState<boolean | null>(null);
+  const [benefits, setBenefits] = useState<Record<string, boolean>>({});
+  const [benefitSalesPct, setBenefitSalesPct] = useState('');
+  const [benefitProfitPct, setBenefitProfitPct] = useState('');
+  const [benefitCostPct, setBenefitCostPct] = useState('');
+  const [benefitOthers, setBenefitOthers] = useState('');
+  const [needsProductDev, setNeedsProductDev] = useState(false);
+  const [needsLoanAdvisory, setNeedsLoanAdvisory] = useState(false);
+  const [needsOthers, setNeedsOthers] = useState('');
+  const [futureTraining, setFutureTraining] = useState('');
+  const [trainingEffective, setTrainingEffective] = useState<boolean | null>(null);
+  const [ineffectiveReason, setIneffectiveReason] = useState('');
+  const [respondentDesignation, setRespondentDesignation] = useState('');
+  const [respondentCompany, setRespondentCompany] = useState('');
+
   // Get participation details to find eventId
   const { data: partData, isLoading } = useQuery({
     queryKey: ['my-participations'],
@@ -75,6 +91,36 @@ export function ImpactSurveyPage() {
         revenueChangePct:     revenueChangePct ? Number(revenueChangePct) : undefined,
         employeeCountBefore:  employeeCountBefore ? Number(employeeCountBefore) : undefined,
         employeeCountAfter:   employeeCountAfter ? Number(employeeCountAfter) : undefined,
+        effectiveness: {
+          appliedLearnings,
+          benefitIncreasedSales:   benefits['increasedSales'] ?? false,
+          benefitSalesPct:         benefitSalesPct ? Number(benefitSalesPct) : undefined,
+          benefitIncreasedProfit:  benefits['increasedProfit'] ?? false,
+          benefitProfitPct:        benefitProfitPct ? Number(benefitProfitPct) : undefined,
+          benefitCostReduction:    benefits['costReduction'] ?? false,
+          benefitCostPct:          benefitCostPct ? Number(benefitCostPct) : undefined,
+          benefitNewMarkets:       benefits['newMarkets'] ?? false,
+          benefitProductivity:     benefits['productivity'] ?? false,
+          benefitManpowerWelfare:  benefits['manpowerWelfare'] ?? false,
+          benefitStandardizedOp:   benefits['standardizedOp'] ?? false,
+          benefitBookkeeping:      benefits['bookkeeping'] ?? false,
+          benefitImprovedMgmt:     benefits['improvedMgmt'] ?? false,
+          benefitSetupBusiness:    benefits['setupBusiness'] ?? false,
+          benefitExpandBusiness:   benefits['expandBusiness'] ?? false,
+          benefitEnhancedCapacity: benefits['enhancedCapacity'] ?? false,
+          benefitAdoptTechnology:  benefits['adoptTechnology'] ?? false,
+          benefitInnovation:       benefits['innovation'] ?? false,
+          benefitNoComplaints:     benefits['noComplaints'] ?? false,
+          benefitOthers:           benefitOthers || undefined,
+          needsProductDevelopment: needsProductDev,
+          needsLoanAdvisory,
+          needsOthers:             needsOthers || undefined,
+          futureTrainingRequests:  futureTraining || undefined,
+          trainingEffective,
+          ineffectiveReason:       ineffectiveReason || undefined,
+          respondentDesignation:   respondentDesignation || undefined,
+          respondentCompany:       respondentCompany || undefined,
+        },
       });
     },
     onSuccess: () => {
@@ -244,6 +290,152 @@ export function ImpactSurveyPage() {
             value={additionalSupport}
             onChange={(e) => setAdditionalSupport(e.target.value)}
           />
+        </div>
+      </div>
+
+      {/* FM-CT-5 Training Effectiveness Evaluation */}
+      <div className="card space-y-5">
+        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Training Effectiveness Evaluation (FM-CT-5)</h3>
+
+        {/* Applied Learnings */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Were you able to apply the learnings from the training?</p>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="applied" checked={appliedLearnings === true} onChange={() => setAppliedLearnings(true)} />
+              <span className="text-sm">Yes</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="applied" checked={appliedLearnings === false} onChange={() => setAppliedLearnings(false)} />
+              <span className="text-sm">No</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Benefit Indicators */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">If YES, what benefits did you gain? <span className="text-gray-400 font-normal">(check all that apply)</span></p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {[
+              { key: 'increasedSales', label: 'Increased sales' },
+              { key: 'increasedProfit', label: 'Increased profit' },
+              { key: 'costReduction', label: 'Cost reduction' },
+              { key: 'newMarkets', label: 'Accessed new markets' },
+              { key: 'productivity', label: 'Improved productivity' },
+              { key: 'manpowerWelfare', label: 'Improved manpower welfare' },
+              { key: 'standardizedOp', label: 'Standardized operations' },
+              { key: 'bookkeeping', label: 'Started/improved bookkeeping' },
+              { key: 'improvedMgmt', label: 'Improved management' },
+              { key: 'setupBusiness', label: 'Set up new business' },
+              { key: 'expandBusiness', label: 'Expanded business' },
+              { key: 'enhancedCapacity', label: 'Enhanced capacity' },
+              { key: 'adoptTechnology', label: 'Adopted technology' },
+              { key: 'innovation', label: 'Innovation' },
+              { key: 'noComplaints', label: 'No customer complaints' },
+            ].map(b => (
+              <label key={b.key} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={benefits[b.key] ?? false}
+                  onChange={e => setBenefits(prev => ({ ...prev, [b.key]: e.target.checked }))} />
+                <span className="text-sm text-gray-700">{b.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Percentage fields for first 3 */}
+          {(benefits['increasedSales'] || benefits['increasedProfit'] || benefits['costReduction']) && (
+            <div className="grid grid-cols-3 gap-3 mt-2">
+              {benefits['increasedSales'] && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">Sales increase %</label>
+                  <input type="number" min={0} max={999} className="input w-full text-sm" value={benefitSalesPct}
+                    onChange={e => setBenefitSalesPct(e.target.value)} />
+                </div>
+              )}
+              {benefits['increasedProfit'] && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">Profit increase %</label>
+                  <input type="number" min={0} max={999} className="input w-full text-sm" value={benefitProfitPct}
+                    onChange={e => setBenefitProfitPct(e.target.value)} />
+                </div>
+              )}
+              {benefits['costReduction'] && (
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">Cost reduction %</label>
+                  <input type="number" min={0} max={999} className="input w-full text-sm" value={benefitCostPct}
+                    onChange={e => setBenefitCostPct(e.target.value)} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1 mt-2">
+            <label className="text-sm text-gray-600">Others (specify)</label>
+            <input className="input w-full text-sm" maxLength={500} value={benefitOthers}
+              onChange={e => setBenefitOthers(e.target.value)} placeholder="Other benefits..." />
+          </div>
+        </div>
+
+        {/* Additional Assistance Needed */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Additional assistance needed:</p>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={needsProductDev} onChange={e => setNeedsProductDev(e.target.checked)} />
+              <span className="text-sm text-gray-700">Product development</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={needsLoanAdvisory} onChange={e => setNeedsLoanAdvisory(e.target.checked)} />
+              <span className="text-sm text-gray-700">Loan advisory</span>
+            </label>
+            <div className="space-y-1">
+              <label className="text-sm text-gray-600">Others</label>
+              <input className="input w-full text-sm" maxLength={500} value={needsOthers}
+                onChange={e => setNeedsOthers(e.target.value)} placeholder="Other needs..." />
+            </div>
+          </div>
+        </div>
+
+        {/* Future Training Requests */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">What training programs would you like to attend in the future?</label>
+          <textarea rows={2} maxLength={5000} className="input w-full resize-none text-sm" value={futureTraining}
+            onChange={e => setFutureTraining(e.target.value)} placeholder="Future training interests..." />
+        </div>
+
+        {/* Training Effectiveness */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Do you think the training was effective?</p>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="effective" checked={trainingEffective === true} onChange={() => setTrainingEffective(true)} />
+              <span className="text-sm">Yes</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="effective" checked={trainingEffective === false} onChange={() => setTrainingEffective(false)} />
+              <span className="text-sm">No</span>
+            </label>
+          </div>
+          {trainingEffective === false && (
+            <div className="space-y-1">
+              <label className="text-sm text-gray-600">If No, why?</label>
+              <textarea rows={2} maxLength={5000} className="input w-full resize-none text-sm" value={ineffectiveReason}
+                onChange={e => setIneffectiveReason(e.target.value)} placeholder="Reason..." />
+            </div>
+          )}
+        </div>
+
+        {/* Respondent Info */}
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Designation/Position</label>
+            <input className="input w-full text-sm" maxLength={200} value={respondentDesignation}
+              onChange={e => setRespondentDesignation(e.target.value)} placeholder="e.g. Owner, Manager" />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Company/Enterprise Name</label>
+            <input className="input w-full text-sm" maxLength={300} value={respondentCompany}
+              onChange={e => setRespondentCompany(e.target.value)} placeholder="e.g. ABC Trading" />
+          </div>
         </div>
       </div>
 

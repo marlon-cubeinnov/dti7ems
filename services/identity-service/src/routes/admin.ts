@@ -67,7 +67,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const { role } = z.object({
-      role: z.enum(['PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
+      role: z.enum(['PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
     }).parse(request.body);
 
     // Only SUPER_ADMIN can grant admin roles

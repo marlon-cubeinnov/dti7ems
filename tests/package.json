@@ -1,0 +1,27 @@
+{
+  "name": "@dti-ems/tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dual-Purpose Automation Framework — Visual QA & Documentation Generation",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "test:uat": "playwright test --project=uat-capture",
+    "test:regression": "playwright test --project=visual-regression",
+    "manual:generate": "npx tsx scripts/generate-manual.ts",
+    "manual:html": "npx tsx scripts/generate-html.ts",
+    "manual:pdf": "npx tsx scripts/generate-pdf.ts",
+    "manual:all": "pnpm manual:generate && pnpm manual:html && pnpm manual:pdf"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/marked": "^6.0.0",
+    "@types/node": "^22.19.17",
+    "js-yaml": "^4.1.1",
+    "marked": "^12.0.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.3"
+  }
+}

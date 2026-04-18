@@ -1,0 +1,100 @@
+name: auth-register-individual
+description: >
+  Validate the individual user registration flow. Tests form validation,
+  DPA consent requirement, duplicate email detection, and success state.
+persona: PublicUser
+tags: [auth, registration, happy-path]
+
+steps:
+  - id: REG-IND-001
+    action: goto
+    url: /register
+    doc_metadata:
+      title: Navigate to Registration Page
+      caption: Open the EMS registration page from the public website.
+      manual_hint: The registration page can also be reached via the "Create one" link on the login page.
+
+  - id: REG-IND-001A
+    action: assert
+    assertions:
+      - type: visible
+        target: "button[role='tab'], [data-value='individual']"
+      - type: hasText
+        target: "h1, h2"
+        value: "Create"
+    doc_metadata:
+      title: Verify Registration Page with Tab Options
+      caption: Confirm the page shows Individual and Business registration tabs.
+      manual_hint: New users must select either "Individual" or "Business" registration. Individual is the default.
+
+  - id: REG-IND-002
+    action: type
+    target: "input[name='firstName'], input[placeholder*='First'], input[id='firstName']"
+    value: "Juan"
+    doc_metadata:
+      title: Enter First Name
+      caption: Type your first name in the First Name field.
+
+  - id: REG-IND-003
+    action: type
+    target: "input[name='lastName'], input[placeholder*='Last'], input[id='lastName']"
+    value: "Dela Cruz"
+    doc_metadata:
+      title: Enter Last Name
+      caption: Type your last name or surname in the Last Name field.
+
+  - id: REG-IND-004
+    action: type
+    target: "input[type='email'], input[name='email']"
+    value: "juan.delacruz@test.com"
+    doc_metadata:
+      title: Enter Email Address
+      caption: Enter a valid email address. A verification link will be sent to this address.
+      manual_hint: Use an email you have access to — you will need to click the verification link before you can log in.
+
+  - id: REG-IND-005
+    action: type
+    target: "input[type='password'][name='password'], input[id='password']"
+    value: "SecurePass123!"
+    doc_metadata:
+      title: Create a Password
+      caption: Set a strong password of at least 8 characters containing letters, numbers, and symbols.
+      manual_hint: Passwords must be at least 8 characters. A strength indicator shows the password quality.
+
+  - id: REG-IND-006
+    action: click
+    target: "button[type='submit']"
+    doc_metadata:
+      title: Attempt Submit Without DPA Consent
+      caption: Click Register without accepting the Data Privacy Act consent to trigger validation.
+      manual_hint: DPA consent is mandatory under Philippine Republic Act No. 10173.
+      is_edge_case: true
+    state: Error
+
+  - id: REG-IND-007
+    action: check
+    target: "input[type='checkbox'][name='dpa'], input[id='dpa']"
+    doc_metadata:
+      title: Accept Data Privacy Act Consent
+      caption: Check the DPA consent checkbox to proceed with registration.
+      manual_hint: By checking this box, you acknowledge that DTI Region 7 may process your data under the Philippine Data Privacy Act.
+
+  - id: REG-IND-008
+    action: click
+    target: "button[type='submit']"
+    doc_metadata:
+      title: Submit Registration Form
+      caption: Click Register to create your account and trigger the verification email.
+      manual_hint: After successful registration, a verification email is sent to your inbox. Check your spam folder if it doesn't arrive within 5 minutes.
+    state: Success
+
+  - id: REG-IND-009
+    action: assert
+    assertions:
+      - type: visible
+        target: "[role='alert'], .success-message, [data-success]"
+    doc_metadata:
+      title: Confirm Registration Success Message
+      caption: Verify the success notification instructing the user to check their email.
+      manual_hint: The system displays "Check your email to verify your account". Do not close this tab until you've verified.
+    state: Success

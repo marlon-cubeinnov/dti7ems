@@ -149,10 +149,15 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const responses = await app.prisma.csfSurveyResponse.findMany({
       where,
       select: {
-        overallRating: true,
-        contentRating: true,
-        facilitatorRating: true,
-        logisticsRating: true,
+        sqd0OverallRating: true,
+        sqd1Responsiveness: true,
+        sqd2Reliability: true,
+        sqd3AccessFacilities: true,
+        sqd4Communication: true,
+        sqd5Costs: true,
+        sqd6Integrity: true,
+        sqd7Assurance: true,
+        sqd8Outcome: true,
         submittedAt: true,
         eventId: true,
       },
@@ -179,27 +184,29 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       byEventMap.set(r.eventId, arr);
     }
 
+    const sqdAvg = (resps: typeof responses) => ({
+      sqd0OverallRating:    avg(resps.map(r => r.sqd0OverallRating)),
+      sqd1Responsiveness:   avg(resps.map(r => r.sqd1Responsiveness)),
+      sqd2Reliability:      avg(resps.map(r => r.sqd2Reliability)),
+      sqd3AccessFacilities: avg(resps.map(r => r.sqd3AccessFacilities)),
+      sqd4Communication:    avg(resps.map(r => r.sqd4Communication)),
+      sqd5Costs:            avg(resps.map(r => r.sqd5Costs)),
+      sqd6Integrity:        avg(resps.map(r => r.sqd6Integrity)),
+      sqd7Assurance:        avg(resps.map(r => r.sqd7Assurance)),
+      sqd8Outcome:          avg(resps.map(r => r.sqd8Outcome)),
+    });
+
     const byEvent = Array.from(byEventMap.entries()).map(([eventId, resps]) => ({
       eventId,
       count: resps.length,
-      averages: {
-        overall:     avg(resps.map(r => r.overallRating)),
-        content:     avg(resps.map(r => r.contentRating)),
-        facilitator: avg(resps.map(r => r.facilitatorRating)),
-        logistics:   avg(resps.map(r => r.logisticsRating)),
-      },
+      averages: sqdAvg(resps),
     }));
 
     return reply.send({
       success: true,
       data: {
         count,
-        averages: {
-          overall:     avg(responses.map(r => r.overallRating)),
-          content:     avg(responses.map(r => r.contentRating)),
-          facilitator: avg(responses.map(r => r.facilitatorRating)),
-          logistics:   avg(responses.map(r => r.logisticsRating)),
-        },
+        averages: sqdAvg(responses),
         byEvent,
       },
     });

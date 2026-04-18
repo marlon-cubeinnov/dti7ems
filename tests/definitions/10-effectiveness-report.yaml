@@ -1,0 +1,59 @@
+name: effectiveness-report-fm-ct3
+description: >
+  Validate the FM-CT-3 Training Effectiveness Report from the organizer perspective.
+  Covers: viewing the tabulated effectiveness report with per-participant rows,
+  16-indicator summary statistics, and response rate calculation.
+persona: EventOrganizer
+tags: [effectiveness, FM-CT-3, FM-CT-5, organizer, happy-path]
+
+steps:
+  - id: EFF-001
+    action: goto
+    url: /organizer/events
+    doc_metadata:
+      title: Navigate to Events for Effectiveness Report
+      caption: Open the organizer events list to locate an event with submitted impact surveys.
+      manual_hint: The effectiveness report aggregates FM-CT-5 responses received 6 months after the event.
+
+  - id: EFF-002
+    action: click
+    target: "tbody tr:first-child a, .event-card:first-child a"
+    doc_metadata:
+      title: Open Event for Effectiveness Report
+      caption: Click to open the event detail page.
+
+  - id: EFF-003
+    action: click
+    target: "a[href*='/effectiveness'], button:has-text('Effectiveness')"
+    doc_metadata:
+      title: Open Effectiveness Report (FM-CT-3)
+      caption: Click the Effectiveness Report quick action to view the FM-CT-3 tabulation.
+      manual_hint: The Effectiveness Report (FM-CT-3) aggregates all submitted FM-CT-5 impact surveys for the event.
+
+  - id: EFF-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "table, h1, h2"
+    doc_metadata:
+      title: Verify Effectiveness Report Loads
+      caption: Confirm the FM-CT-3 tabulation page is displayed.
+      manual_hint: >
+        The report shows a per-participant table with columns for each of the 16 benefit indicators.
+        The summary row at the bottom shows the count and percentage of respondents who checked each benefit.
+        DTI requires a minimum 5% response rate for the report to be considered valid.
+
+  - id: EFF-005
+    action: screenshot
+    doc_metadata:
+      title: FM-CT-3 Effectiveness Report — Full View
+      caption: Screenshot of the complete Tabulated Training Effectiveness Report (FM-CT-3).
+      manual_hint: >
+        The FM-CT-3 report includes:
+        — Respondent information (name, designation, company)
+        — Applied learnings Yes/No count
+        — All 16 benefit indicators with count and percentage
+        — Assistance needs summary
+        — Training effectiveness summary
+        — Response rate (target: min 5% of participants)
+    state: Success

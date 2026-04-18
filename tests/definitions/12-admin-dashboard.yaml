@@ -1,0 +1,120 @@
+name: admin-dashboard-and-management
+description: >
+  Validate the Admin dashboard, user management, enterprise management, and
+  audit log functions from the System Admin perspective.
+persona: SystemAdmin
+tags: [admin, users, enterprises, audit-logs, happy-path]
+
+steps:
+  - id: ADM-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Login as System Admin
+      caption: Navigate to login and authenticate with System Admin credentials.
+      manual_hint: The System Admin role has full access to all modules including user management, reports, and audit logs.
+
+  - id: ADM-001A
+    action: type
+    target: "input#email"
+    value: "admin@dti7ems.test"
+
+  - id: ADM-001B
+    action: type
+    target: "input#password"
+    value: "TestPass123!"
+
+  - id: ADM-001C
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Submit Admin Login
+      caption: Sign in as System Admin and be redirected to the organizer dashboard.
+    state: Success
+
+  - id: ADM-002
+    action: goto
+    url: /admin/dashboard
+    doc_metadata:
+      title: Open Admin Dashboard
+      caption: Navigate to the Admin dashboard for system-wide statistics and management tools.
+      manual_hint: The Admin dashboard shows total users, enterprises, events, attendance statistics, and quick links to management pages.
+
+  - id: ADM-003
+    action: assert
+    assertions:
+      - type: visible
+        target: "h1, h2, [data-testid='dashboard']"
+    doc_metadata:
+      title: Verify Admin Dashboard Loads
+      caption: Confirm the Admin dashboard page is displayed.
+      manual_hint: The dashboard contains key metrics including total registered users, active enterprises, scheduled events, and recent activity.
+
+  - id: ADM-004
+    action: screenshot
+    doc_metadata:
+      title: Admin Dashboard Overview
+      caption: The System Admin dashboard showing platform-wide statistics and management links.
+      manual_hint: >
+        The Admin dashboard provides:
+        — User count by role and status
+        — Enterprise count by sector
+        — Event statistics (Upcoming, In Progress, Completed)
+        — Recent audit log entries
+        — Quick access to User Management, Enterprise Management, and Reports
+
+  - id: ADM-005
+    action: goto
+    url: /admin/users
+    doc_metadata:
+      title: Navigate to User Management
+      caption: Open the Admin User Management page.
+      manual_hint: User Management allows Admins to view, search, lock/unlock, deactivate/reactivate, and reset passwords for any user account.
+
+  - id: ADM-006
+    action: assert
+    assertions:
+      - type: visible
+        target: "table, [data-testid='users-table']"
+    doc_metadata:
+      title: Verify User List Table
+      caption: Confirm the user management table is displayed with user records.
+
+  - id: ADM-007
+    action: screenshot
+    doc_metadata:
+      title: Admin User Management Page
+      caption: The user management table showing all registered users with role, status, and action controls.
+      manual_hint: >
+        Available user actions:
+        — Lock: Prevents user login without deleting the account
+        — Unlock: Restores login access to a locked account
+        — Deactivate: Disables the account
+        — Reactivate: Re-enables a deactivated account
+        — Reset Password: Sends a password reset email
+        — Verify Email: Manually marks email as verified
+
+  - id: ADM-008
+    action: goto
+    url: /admin/audit-logs
+    doc_metadata:
+      title: Navigate to Audit Logs
+      caption: Open the Audit Logs page to view system activity trail.
+      manual_hint: Audit logs record all significant actions: logins, role changes, event status transitions, and admin actions. Logs are immutable.
+
+  - id: ADM-009
+    action: assert
+    assertions:
+      - type: visible
+        target: "table, [data-testid='audit-table']"
+    doc_metadata:
+      title: Verify Audit Log Table
+      caption: Confirm the audit log table is displayed with timestamped entries.
+      manual_hint: Each audit log entry shows: Action type, User, Target entity, IP address, and Timestamp.
+
+  - id: ADM-010
+    action: screenshot
+    doc_metadata:
+      title: Admin Audit Logs Page
+      caption: The immutable audit trail showing all system events chronologically.
+    state: Success

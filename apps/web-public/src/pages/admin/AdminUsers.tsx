@@ -16,13 +16,28 @@ const ROLE_BADGE: Record<string, string> = {
   ENTERPRISE_REPRESENTATIVE:'bg-teal-50 text-teal-700',
   PROGRAM_MANAGER:          'bg-purple-50 text-purple-700',
   EVENT_ORGANIZER:          'bg-indigo-50 text-indigo-700',
+  DIVISION_CHIEF:           'bg-amber-50 text-amber-700',
+  REGIONAL_DIRECTOR:        'bg-rose-50 text-rose-700',
+  PROVINCIAL_DIRECTOR:      'bg-pink-50 text-pink-700',
   SYSTEM_ADMIN:             'bg-orange-50 text-orange-700',
   SUPER_ADMIN:              'bg-red-50 text-red-700',
 };
 
+const ROLE_DISPLAY: Record<string, string> = {
+  PARTICIPANT:               'Participant',
+  ENTERPRISE_REPRESENTATIVE: 'Enterprise Rep',
+  PROGRAM_MANAGER:           'Technical Staff',
+  EVENT_ORGANIZER:           'Facilitator',
+  DIVISION_CHIEF:            'Division Chief',
+  REGIONAL_DIRECTOR:         'Regional Director',
+  PROVINCIAL_DIRECTOR:       'Provincial Director',
+  SYSTEM_ADMIN:              'System Admin',
+  SUPER_ADMIN:               'Super Admin',
+};
+
 const ALL_ROLES = [
   'PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER',
-  'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
+  'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
 ];
 
 interface User {
@@ -162,7 +177,7 @@ export function AdminUsersPage() {
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {u.role.replace(/_/g, ' ')}
+                        {ROLE_DISPLAY[u.role] ?? u.role.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -248,7 +263,7 @@ export function AdminUsersPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4"
               >
                 {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                  <option key={r} value={r}>{ROLE_DISPLAY[r] ?? r.replace(/_/g, ' ')}</option>
                 ))}
               </select>
             ) : (

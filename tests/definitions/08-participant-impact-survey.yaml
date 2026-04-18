@@ -1,0 +1,88 @@
+name: participant-impact-survey
+description: >
+  Validate the FM-CT-5 Training Monitoring and Evaluation (Impact Survey) from the
+  participant perspective. Covers: 6-month post-training form, 16 binary benefit
+  indicators, applied learnings, assistance needs, effectiveness question, and
+  respondent information.
+persona: Participant
+tags: [impact, FM-CT-5, survey, happy-path]
+
+steps:
+  - id: IMP-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Login as Participant for Impact Survey
+      caption: Authenticate as a participant who received a 6-month impact survey email.
+      manual_hint: Impact surveys are dispatched automatically 180 days after the event completion date. Participants receive an email with a direct link.
+
+  - id: IMP-001A
+    action: type
+    target: "input#email"
+    value: "participant1@test.com"
+
+  - id: IMP-001B
+    action: type
+    target: "input#password"
+    value: "TestPass123!"
+
+  - id: IMP-001C
+    action: click
+    target: "button[type=submit]"
+
+  - id: IMP-002
+    action: goto
+    url: /my-events
+    doc_metadata:
+      title: Open My Events to Find Impact Survey
+      caption: Navigate to My Events to access the pending impact survey.
+      manual_hint: Events with a pending impact survey show a "6-Month Impact Survey" button.
+
+  - id: IMP-003
+    action: assert
+    assertions:
+      - type: visible
+        target: "a[href*='/impact'], button:has-text('Impact Survey'), button:has-text('6-Month')"
+    doc_metadata:
+      title: Verify Impact Survey Access Button
+      caption: Confirm the 6-month impact survey button is visible.
+      manual_hint: If no impact survey button appears, the 6-month period has not yet elapsed or the survey has already been submitted.
+
+  - id: IMP-004
+    action: click
+    target: "a[href*='/impact']:first-of-type, button:has-text('Impact Survey'):first-of-type"
+    doc_metadata:
+      title: Open Impact Survey Form
+      caption: Click to open the FM-CT-5 Training Monitoring and Evaluation Form.
+
+  - id: IMP-005
+    action: assert
+    assertions:
+      - type: visible
+        target: "input[type='radio'][name='appliedLearnings'], input[type='radio']"
+    doc_metadata:
+      title: Verify Applied Learnings Question
+      caption: Confirm the "Have you applied the learnings from the training?" Yes/No question is present.
+      manual_hint: This is the first question of the FM-CT-5 form. Answering "No" will disable some subsequent benefit indicators.
+
+  - id: IMP-006
+    action: screenshot
+    doc_metadata:
+      title: Impact Survey — Applied Learnings & Benefit Indicators
+      caption: Screenshot showing the applied learnings question and the 16 benefit checkboxes.
+      manual_hint: >
+        The 16 benefit indicators include: Increased Sales, Increased Profit, Cost Reduction,
+        New Markets, Improved Productivity, Manpower Welfare, Standardized Operations,
+        Bookkeeping, Improved Management, Set Up New Business, Business Expansion,
+        Enhanced Capacity, Technology Adoption, Innovation, No Complaints, and Others.
+        Check all benefits that apply to your business situation.
+
+  - id: IMP-007
+    action: screenshot
+    doc_metadata:
+      title: Impact Survey — Training Effectiveness Section
+      caption: Screenshot showing the training effectiveness Yes/No question and respondent information fields.
+      manual_hint: >
+        The final section asks: "Was the training effective?" Select Yes or No.
+        If No, explain the reason. Also fill in your Designation, Company/Business Name,
+        and the Date Accomplished fields before submitting.

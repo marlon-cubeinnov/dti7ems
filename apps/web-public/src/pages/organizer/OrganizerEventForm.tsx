@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, eventsApi, ApiError, type EventBody } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth.store';
 import { ArrowLeft, Save } from 'lucide-react';
 
 const EMPTY: EventBody = {
@@ -42,9 +43,21 @@ export function OrganizerEventFormPage() {
   const isEdit = Boolean(id) && id !== 'new';
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuthStore();
 
   const [form, setForm] = useState<EventBody>(EMPTY);
   const [error, setError] = useState('');
+
+  // Facilitators cannot create or edit events directly
+  if (user?.role === 'EVENT_ORGANIZER') {
+    return (
+      <div className="card max-w-lg mx-auto text-center py-12 space-y-3">
+        <p className="text-gray-700 font-medium">Access Restricted</p>
+        <p className="text-sm text-gray-500">Facilitators cannot create proposals. Please wait for a Technical Staff member to assign an approved event to you.</p>
+        <button onClick={() => navigate('/organizer/events')} className="btn-secondary text-sm">Back to My Events</button>
+      </div>
+    );
+  }
 
   // Minimum datetime value: current time in PHT (prevents selecting past dates)
   const nowLocal = useMemo(() => {

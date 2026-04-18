@@ -16,13 +16,16 @@ const ROLE_BADGE: Record<string, string> = {
   ENTERPRISE_REPRESENTATIVE:'bg-teal-50 text-teal-700',
   PROGRAM_MANAGER:          'bg-purple-50 text-purple-700',
   EVENT_ORGANIZER:          'bg-indigo-50 text-indigo-700',
+  DIVISION_CHIEF:           'bg-amber-50 text-amber-700',
+  REGIONAL_DIRECTOR:        'bg-rose-50 text-rose-700',
+  PROVINCIAL_DIRECTOR:      'bg-pink-50 text-pink-700',
   SYSTEM_ADMIN:             'bg-orange-50 text-orange-700',
   SUPER_ADMIN:              'bg-red-50 text-red-700',
 };
 
 const ALL_ROLES = [
   'PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER',
-  'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
+  'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
 ];
 
 interface User {

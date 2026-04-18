@@ -1,0 +1,68 @@
+name: auth-login-edge-cases
+description: >
+  Validate error handling and negative paths in the login flow.
+  Covers invalid credentials, empty fields, and session-related edge cases.
+persona: Participant
+tags: [auth, edge-cases, validation]
+
+steps:
+  - id: AUTH-EDGE-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Open Login Page for Edge Case Testing
+      caption: Navigate to the login page to test validation and error scenarios.
+      manual_hint: Error states appear inline below the form fields.
+
+  - id: AUTH-EDGE-002
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Submit Empty Form
+      caption: Click Sign In without entering any credentials to trigger HTML5 validation.
+      manual_hint: Browser-native required validation prevents submission when fields are empty.
+      is_edge_case: true
+    state: Error
+
+  - id: AUTH-EDGE-003
+    action: type
+    target: "input#email"
+    value: "notregistered@test.com"
+    doc_metadata:
+      title: Enter Invalid Email
+      caption: Enter an email address that does not exist in the system.
+      manual_hint: The system returns "Invalid credentials" for security — it does not reveal whether the email exists.
+      is_edge_case: true
+
+  - id: AUTH-EDGE-004
+    action: type
+    target: "input#password"
+    value: "wrongpassword"
+    doc_metadata:
+      title: Enter Wrong Password
+      caption: Type an incorrect password to trigger authentication failure.
+      is_edge_case: true
+
+  - id: AUTH-EDGE-005
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Submit Invalid Credentials
+      caption: Submit login with incorrect credentials and observe the error response.
+      manual_hint: The system displays "Invalid credentials" without specifying whether the email or password is wrong (OWASP A07 protection).
+      is_edge_case: true
+    state: Error
+
+  - id: AUTH-EDGE-006
+    action: assert
+    assertions:
+      - type: visible
+        target: "[role='alert'], .text-red-600, [data-error]"
+    doc_metadata:
+      title: Verify Error Message Displayed
+      caption: Confirm an error message appears informing the user that credentials are invalid.
+      manual_hint: >
+        If you see this error, double-check your email and password. Contact your System Administrator
+        if you have forgotten your credentials.
+      is_edge_case: true
+    state: Error

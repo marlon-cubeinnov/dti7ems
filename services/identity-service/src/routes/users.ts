@@ -2,11 +2,23 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError } from '@dti-ems/shared-errors';
 
+const SEX_VALUES = ['MALE', 'FEMALE'] as const;
+const AGE_BRACKET_VALUES = ['AGE_19_OR_LOWER', 'AGE_20_TO_34', 'AGE_35_TO_49', 'AGE_50_TO_64', 'AGE_65_OR_HIGHER'] as const;
+const EMPLOYMENT_CATEGORY_VALUES = ['SELF_EMPLOYED', 'EMPLOYED_GOVT', 'EMPLOYED_PRIVATE', 'GENERAL_PUBLIC'] as const;
+const SOCIAL_CLASSIFICATION_VALUES = ['ABLED', 'PWD', 'FOUR_PS', 'YOUTH', 'SENIOR_CITIZEN', 'INDIGENOUS_PERSON', 'OFW', 'OTHERS'] as const;
+const CLIENT_TYPE_VALUES = ['CITIZEN', 'BUSINESS', 'GOVERNMENT'] as const;
+
 const updateProfileSchema = z.object({
   firstName:              z.string().min(1).max(100).optional(),
   lastName:               z.string().min(1).max(100).optional(),
   middleName:             z.string().max(100).optional().nullable(),
+  nameSuffix:             z.string().max(20).optional().nullable(),
   mobileNumber:           z.string().regex(/^(\+63|0)9\d{9}$/, 'Invalid PH mobile number').optional().nullable(),
+  sex:                    z.enum(SEX_VALUES).optional().nullable(),
+  ageBracket:             z.enum(AGE_BRACKET_VALUES).optional().nullable(),
+  employmentCategory:     z.enum(EMPLOYMENT_CATEGORY_VALUES).optional().nullable(),
+  socialClassification:   z.enum(SOCIAL_CLASSIFICATION_VALUES).optional().nullable(),
+  clientType:             z.enum(CLIENT_TYPE_VALUES).optional().nullable(),
   region:                 z.string().max(100).optional().nullable(),
   province:               z.string().max(100).optional().nullable(),
   cityMunicipality:       z.string().max(100).optional().nullable(),
@@ -16,7 +28,7 @@ const updateProfileSchema = z.object({
 });
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
-const STAFF_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const STAFF_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 
 export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // All user routes require authentication
@@ -28,7 +40,8 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { id: request.user.sub },
       select: {
         id: true, email: true, role: true, status: true,
-        firstName: true, lastName: true, middleName: true, mobileNumber: true,
+        firstName: true, lastName: true, middleName: true, nameSuffix: true, mobileNumber: true,
+        sex: true, ageBracket: true, employmentCategory: true, socialClassification: true, clientType: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
         jobTitle: true, industryClassification: true,
         dpaConsentGiven: true, dpaConsentAt: true,
@@ -50,7 +63,8 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       data: body,
       select: {
         id: true, email: true, role: true, status: true,
-        firstName: true, lastName: true, middleName: true, mobileNumber: true,
+        firstName: true, lastName: true, middleName: true, nameSuffix: true, mobileNumber: true,
+        sex: true, ageBracket: true, employmentCategory: true, socialClassification: true, clientType: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
         jobTitle: true, industryClassification: true,
         updatedAt: true,

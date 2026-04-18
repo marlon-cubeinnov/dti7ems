@@ -1,0 +1,100 @@
+name: qr-attendance-and-demographics
+description: >
+  Validate the QR-based attendance scanning and demographic data capture workflow.
+  Covers: organizer QR scanner, manual check-in fallback, and participant demographics
+  profile (FM-CT-2A fields: sex, age bracket, employment category, social classification).
+persona: EventOrganizer
+tags: [attendance, QR, FM-CT-2A, demographics, happy-path]
+
+steps:
+  - id: ATT-001
+    action: goto
+    url: /organizer/events
+    doc_metadata:
+      title: Navigate to Events for Attendance
+      caption: Open organizer events to find an active event for attendance management.
+      manual_hint: QR attendance scanning is only available for events with REGISTRATION_OPEN or IN_PROGRESS status.
+
+  - id: ATT-002
+    action: click
+    target: "tbody tr:first-child a, .event-card:first-child a"
+    doc_metadata:
+      title: Open Event for Attendance
+      caption: Click to open the event detail page.
+
+  - id: ATT-003
+    action: click
+    target: "a[href*='/scan'], button:has-text('Scan'), button:has-text('QR')"
+    doc_metadata:
+      title: Open QR Scanner Page
+      caption: Click the QR Scanner quick action to open the attendance scanning interface.
+      manual_hint: >
+        The QR scanner uses the device camera to scan participant QR codes.
+        Each participant has a permanent, HMAC-signed QR code accessible from their "My QR" page.
+        The scanner validates the signature before recording attendance.
+
+  - id: ATT-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "video, canvas, [data-testid='qr-scanner'], button:has-text('Manual')"
+    doc_metadata:
+      title: Verify QR Scanner Interface
+      caption: Confirm the camera scanner or manual check-in interface is displayed.
+      manual_hint: >
+        If the camera is unavailable, use Manual Check-In by entering the participant's name or email.
+        Manual check-ins are recorded separately from QR scans for audit purposes.
+    state: Success
+
+  - id: ATT-005
+    action: screenshot
+    doc_metadata:
+      title: QR Attendance Scanner Interface
+      caption: The event QR attendance scanner with camera feed and manual check-in option.
+      manual_hint: >
+        To scan attendance:
+        1. Ask each participant to show their QR code (from the EMS mobile app or "My QR" page)
+        2. Hold the QR code in front of the camera
+        3. The system beeps and shows the participant name when successfully scanned
+        4. The participant's attendance is recorded with timestamp and method (QR_SCAN)
+
+  - id: ATT-006
+    action: goto
+    url: /profile
+    doc_metadata:
+      title: Navigate to Participant Profile for Demographics
+      caption: Navigate to the participant profile to verify FM-CT-2A demographic fields.
+      manual_hint: Participants must complete their demographic profile for accurate FM-CT-2A attendance records.
+
+  - id: ATT-007
+    action: assert
+    assertions:
+      - type: visible
+        target: "select[name='sex'], select[id='sex']"
+      - type: visible
+        target: "select[name='ageBracket'], select[id='ageBracket']"
+      - type: visible
+        target: "select[name='employmentCategory'], select[id='employmentCategory']"
+      - type: visible
+        target: "select[name='socialClassification'], select[id='socialClassification']"
+    doc_metadata:
+      title: Verify FM-CT-2A Demographic Fields on Profile
+      caption: Confirm all required FM-CT-2A demographic fields are present on the participant profile.
+      manual_hint: >
+        Required FM-CT-2A demographic fields:
+        — Sex: Male or Female
+        — Age Bracket: ≤19, 20-34, 35-49, 50-64, ≥65
+        — Employment Category: Self-Employed, Government Employee, Private Employee, General Public
+        — Social Classification: Abled, PWD, 4Ps Beneficiary, Youth, Senior Citizen, Indigenous Person, OFW, Others
+      is_edge_case: false
+
+  - id: ATT-008
+    action: screenshot
+    doc_metadata:
+      title: Participant Demographics Form
+      caption: Screenshot of the participant profile demographics section corresponding to FM-CT-2A fields.
+      manual_hint: >
+        Keeping your profile demographics up to date ensures accurate reporting in:
+        — The Attendance Sheet (FM-CT-2A)
+        — The CSF Report demographic disaggregation
+        — Post-Activity Report beneficiary counts

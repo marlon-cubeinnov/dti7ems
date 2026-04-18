@@ -31,6 +31,10 @@ import { OrganizerCsfResultsPage } from '@/pages/organizer/OrganizerCsfResults';
 import { OrganizerChecklistPage } from '@/pages/organizer/OrganizerChecklist';
 import { OrganizerEventReportPage } from '@/pages/organizer/OrganizerEventReport';
 import { OrganizerReportsPage } from '@/pages/organizer/OrganizerReports';
+import { OrganizerPostActivityReportPage } from '@/pages/organizer/OrganizerPostActivityReport';
+import { OrganizerEffectivenessReportPage } from '@/pages/organizer/OrganizerEffectivenessReport';
+import { OrganizerCsfReportPage } from '@/pages/organizer/OrganizerCsfReport';
+import { OrganizerProposalPage } from '@/pages/organizer/OrganizerProposal';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboard';
 import { AdminUsersPage } from '@/pages/admin/AdminUsers';
 import { AdminEventsPage } from '@/pages/admin/AdminEvents';
@@ -41,7 +45,7 @@ import { AdminSettingsPage } from '@/pages/admin/AdminSettings';
 import { AdminRolesPermissionsPage } from '@/pages/admin/AdminRolesPermissions';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
-const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 
 export default function App() {
@@ -75,6 +79,10 @@ export default function App() {
           <Route path="/organizer/events/:id/csf-results"        element={<OrganizerCsfResultsPage />} />
           <Route path="/organizer/events/:id/checklist"          element={<OrganizerChecklistPage />} />
           <Route path="/organizer/events/:id/report"             element={<OrganizerEventReportPage />} />
+          <Route path="/organizer/events/:id/par"                element={<OrganizerPostActivityReportPage />} />
+          <Route path="/organizer/events/:id/effectiveness"       element={<OrganizerEffectivenessReportPage />} />
+          <Route path="/organizer/events/:id/csf-report"           element={<OrganizerCsfReportPage />} />
+          <Route path="/organizer/events/:id/proposal"             element={<OrganizerProposalPage />} />
           <Route path="/organizer/reports"                       element={<OrganizerReportsPage />} />
           <Route path="/organizer/profile"            element={<ProfilePage />} />
 

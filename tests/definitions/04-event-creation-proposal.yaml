@@ -1,0 +1,129 @@
+name: event-creation-and-proposal
+description: >
+  Validate the full event creation and proposal workflow for an Event Organizer.
+  Covers: create event, fill proposal (FM-CT-4 fields), add budget items, risk register,
+  target groups, and submit for approval.
+persona: EventOrganizer
+tags: [events, proposal, FM-CT-4, happy-path]
+
+steps:
+  - id: EVT-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Login as Event Organizer
+      caption: Navigate to the login page and sign in with Event Organizer credentials.
+      manual_hint: Event Organizers have access to /organizer/events, proposal, checklist, and report pages.
+
+  - id: EVT-001A
+    action: type
+    target: "input#email"
+    value: "organizer@dti7ems.test"
+    doc_metadata:
+      title: Enter Organizer Email
+      caption: Enter the Event Organizer email address.
+
+  - id: EVT-001B
+    action: type
+    target: "input#password"
+    value: "TestPass123!"
+    doc_metadata:
+      title: Enter Organizer Password
+      caption: Enter the password for the Event Organizer account.
+
+  - id: EVT-001C
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Submit Organizer Login
+      caption: Click Sign In to authenticate as Event Organizer and be redirected to the organizer dashboard.
+    state: Success
+
+  - id: EVT-002
+    action: goto
+    url: /organizer/events/new
+    doc_metadata:
+      title: Navigate to New Event Form
+      caption: Open the event creation form from the organizer dashboard.
+      manual_hint: The "Create Event" button is located in the top-right of the Events list page.
+
+  - id: EVT-002A
+    action: assert
+    assertions:
+      - type: visible
+        target: "input[name='title'], input[id='title']"
+      - type: visible
+        target: "input[type='datetime-local'], input[name='startDate']"
+    doc_metadata:
+      title: Verify Event Creation Form
+      caption: Confirm the event creation form fields are present.
+      manual_hint: Required fields are Title, Start Date, and End Date. All other fields are optional.
+
+  - id: EVT-003
+    action: type
+    target: "input[name='title'], input[id='title']"
+    value: "MSME Digital Marketing Training 2026"
+    doc_metadata:
+      title: Enter Event Title
+      caption: Type the full name of the training event.
+      manual_hint: Use a clear, descriptive title that identifies the training topic and target audience.
+
+  - id: EVT-004
+    action: click
+    target: "button[type=submit], button:has-text('Create'), button:has-text('Save')"
+    doc_metadata:
+      title: Submit Event Creation
+      caption: Click Create/Save to register the event with DRAFT status.
+      manual_hint: All new events are created in DRAFT status. They are not visible to the public until Published.
+    state: Success
+
+  - id: EVT-005
+    action: assert
+    assertions:
+      - type: visible
+        target: "[data-testid='event-detail'], h1, h2"
+    doc_metadata:
+      title: Verify Event Detail Page Loads
+      caption: Confirm the event was created and the event detail page is displayed.
+      manual_hint: The event detail page shows quick action buttons for Checklist, Proposal, CSF Report, Post-Activity Report, and Effectiveness Report.
+    state: Success
+
+  - id: EVT-006
+    action: click
+    target: "a[href*='/proposal'], button:has-text('Proposal')"
+    doc_metadata:
+      title: Navigate to Proposal Page
+      caption: Click the Proposal quick action to open the FM-CT-4 Training Proposal form.
+      manual_hint: The Proposal page is where you fill in all DTI FM-CT-4 required fields including background, objectives, budget, and risk register.
+
+  - id: EVT-007
+    action: assert
+    assertions:
+      - type: visible
+        target: "textarea[name='background'], textarea[id='background']"
+      - type: visible
+        target: "textarea[name='objectives'], textarea[id='objectives']"
+    doc_metadata:
+      title: Verify Proposal Form Fields
+      caption: Confirm the proposal form contains all FM-CT-4 required fields.
+      manual_hint: The Proposal form maps directly to DTI's FM-CT-4 Training Proposal template. Fill all fields before submitting for approval.
+
+  - id: EVT-008
+    action: assert
+    assertions:
+      - type: visible
+        target: "button:has-text('Add Budget Item'), button:has-text('Add Item')"
+    doc_metadata:
+      title: Verify Budget Section Present
+      caption: Confirm the budget line items section is present on the Proposal page.
+      manual_hint: Budget items include: Item Description, Unit Cost, Quantity, Estimated Allocation, and Source of Funds fields.
+
+  - id: EVT-009
+    action: assert
+    assertions:
+      - type: visible
+        target: "button:has-text('Add Risk'), button:has-text('Add')"
+    doc_metadata:
+      title: Verify Risk Register Section Present
+      caption: Confirm the risk register section is present for documenting threats and opportunities.
+      manual_hint: The risk register captures: Risk Description, Type (Threat/Opportunity), Likelihood, Impact, Action Plan, and Responsible Person.

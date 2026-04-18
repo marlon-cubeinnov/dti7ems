@@ -71,6 +71,24 @@ enum ImpactSurveyStatus {
 
 }
 
+enum TrainingType {
+  BUSINESS
+  MANAGERIAL
+  ORGANIZATIONAL
+  ENTREPRENEURIAL
+  INTER_AGENCY
+
+}
+
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+
+}
+
 // ── Models ────────────────────────────────────────────────────────────────────
 
 model Program {
@@ -113,8 +131,26 @@ model Event {
   // References identity-service user IDs (cross-service, no FK)
   organizerId          String       @map("organizer_id")
   programManagerId     String?      @map("program_manager_id")
+  // Facilitator assigned after proposal approval (EVENT_ORGANIZER role)
+  assignedOrganizerId  String?      @map("assigned_organizer_id")
 
   coverImageUrl        String?      @map("cover_image_url")
+
+  // Proposal fields (FM-CT-4)
+  trainingType         TrainingType? @map("training_type")
+  partnerInstitution   String?      @map("partner_institution")
+  background           String?      @db.Text
+  objectives           String?      @db.Text
+  learningOutcomes     String?      @db.Text @map("learning_outcomes")
+  methodology          String?      @db.Text
+  monitoringPlan       String?      @db.Text @map("monitoring_plan")
+  proposalStatus       ProposalStatus @default(DRAFT) @map("proposal_status")
+  proposalSubmittedAt  DateTime?    @map("proposal_submitted_at")
+  proposalReviewedById String?      @map("proposal_reviewed_by_id")
+  proposalApprovedById String?      @map("proposal_approved_by_id")
+  proposalReviewedAt   DateTime?    @map("proposal_reviewed_at")
+  proposalApprovedAt   DateTime?    @map("proposal_approved_at")
+  proposalRejectionNote String?     @db.Text @map("proposal_rejection_note")
 
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
@@ -123,10 +159,17 @@ model Event {
   sessions             EventSession[]
   participations       EventParticipation[]
   checklists           EventChecklist[]
+  speakers             TrainingSpeaker[]
+  postActivityReport              PostActivityReport?
+  trainingEffectivenessReport     TrainingEffectivenessReport?
+  budgetItems          TrainingBudgetItem[]
+  riskItems            TrainingRiskItem[]
+  targetGroups         TrainingTargetGroup[]
 
   @@index([status])
   @@index([startDate])
   @@index([organizerId])
+  @@index([assignedOrganizerId])
   @@map("events")
 }
 
@@ -242,21 +285,34 @@ model CsfSurveyResponse {
   userId               String          @map("user_id")
   status               CsfSurveyStatus @default(PENDING)
 
-  // Ratings 1–5
-  overallRating        Int?            @map("overall_rating")
-  contentRating        Int?            @map("content_rating")
-  facilitatorRating    Int?            @map("facilitator_rating")
-  logisticsRating      Int?            @map("logistics_rating")
+  // 9 SQD dimensions (1-5 Likert)
+  sqd0OverallRating    Int?            @map("sqd0_overall_rating")
+  sqd1Responsiveness   Int?            @map("sqd1_responsiveness")
+  sqd2Reliability      Int?            @map("sqd2_reliability")
+  sqd3AccessFacilities Int?            @map("sqd3_access_facilities")
+  sqd4Communication    Int?            @map("sqd4_communication")
+  sqd5Costs            Int?            @map("sqd5_costs")
+  sqd6Integrity        Int?            @map("sqd6_integrity")
+  sqd7Assurance        Int?            @map("sqd7_assurance")
+  sqd8Outcome          Int?            @map("sqd8_outcome")
+
+  // Citizen's Charter questions
+  cc1Awareness         Int?            @map("cc1_awareness")    // 1-4
+  cc2Visibility        Int?            @map("cc2_visibility")   // 1-4
+  cc3Usefulness        Int?            @map("cc3_usefulness")   // 1-3
 
   // Open-ended feedback
   highlightsFeedback   String?         @db.Text @map("highlights_feedback")
   improvementsFeedback String?         @db.Text @map("improvements_feedback")
+  commentsSuggestions  String?         @db.Text @map("comments_suggestions")
+  reasonsForLowRating  String?         @db.Text @map("reasons_for_low_rating")
 
   submittedAt          DateTime?       @map("submitted_at")
   expiresAt            DateTime?       @map("expires_at")
   createdAt            DateTime        @default(now()) @map("created_at")
 
   participation        EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+  speakerRatings       CsfSpeakerRating[]
 
   @@index([eventId])
   @@index([userId])
@@ -297,6 +353,7 @@ model ImpactSurveyResponse {
   createdAt              DateTime     @default(now()) @map("created_at")
 
   participation          EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+  effectivenessEval      TrainingEffectivenessEvaluation?
 
   @@index([eventId])
   @@index([userId])
@@ -345,6 +402,37 @@ model EventChecklist {
   @@map("event_checklists")
 }
 
+// ── Training Speakers ──────────────────────────────────────────────────────
+
+model TrainingSpeaker {
+  id           String   @id @default(cuid())
+  eventId      String   @map("event_id")
+  name         String
+  organization String?
+  topic        String?
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  event          Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  speakerRatings CsfSpeakerRating[]
+
+  @@index([eventId])
+  @@map("training_speakers")
+}
+
+model CsfSpeakerRating {
+  id            String @id @default(cuid())
+  csfResponseId String @map("csf_response_id")
+  speakerId     String @map("speaker_id")
+  rating        Int    // 1-5
+
+  csfResponse CsfSurveyResponse @relation(fields: [csfResponseId], references: [id], onDelete: Cascade)
+  speaker     TrainingSpeaker   @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+
+  @@unique([csfResponseId, speakerId])
+  @@map("csf_speaker_ratings")
+}
+
 model ChecklistItem {
   id               String                @id @default(cuid())
   checklistId      String                @map("checklist_id")
@@ -358,6 +446,7 @@ model ChecklistItem {
   dueDate          DateTime?             @map("due_date")
   completedAt      DateTime?             @map("completed_at")
   completedBy      String?               @map("completed_by")
+  isApplicable     Boolean?              @map("is_applicable")
   orderIndex       Int                   @default(0) @map("order_index")
   notes            String?               @db.Text
   createdAt        DateTime              @default(now()) @map("created_at")
@@ -388,4 +477,168 @@ model ChecklistComment {
 
   @@index([itemId])
   @@map("checklist_comments")
+}
+
+// ── Post-Activity Report (FM-CT-6) ─────────────────────────────────────────
+
+model PostActivityReport {
+  id                        String    @id @default(cuid())
+  eventId                   String    @unique @map("event_id")
+  title                     String
+  dateConducted             String    @map("date_conducted")
+  venue                     String
+  highlightsOutcomes        String?   @db.Text @map("highlights_outcomes")
+  fundUtilizationNotes      String?   @db.Text @map("fund_utilization_notes")
+  csfAssessmentObservations String?   @db.Text @map("csf_assessment_observations")
+  improvementOpportunities  String?   @db.Text @map("improvement_opportunities")
+  status                    String    @default("DRAFT")
+  preparedById              String?   @map("prepared_by_id")
+  reviewedById              String?   @map("reviewed_by_id")
+  approvedById              String?   @map("approved_by_id")
+  datePrepared              DateTime? @map("date_prepared")
+  dateReviewed              DateTime? @map("date_reviewed")
+  dateApproved              DateTime? @map("date_approved")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  event             Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  beneficiaryGroups PARBeneficiaryGroup[]
+
+  @@map("post_activity_reports")
+}
+
+model PARBeneficiaryGroup {
+  id                 String @id @default(cuid())
+  reportId           String @map("report_id")
+  sectorGroup        String @map("sector_group")
+  maleCount          Int    @default(0) @map("male_count")
+  femaleCount        Int    @default(0) @map("female_count")
+  seniorCitizenCount Int    @default(0) @map("senior_citizen_count")
+  pwdCount           Int    @default(0) @map("pwd_count")
+  edtLevel           String? @map("edt_level")
+  actualCount        Int    @default(0) @map("actual_count")
+
+  report PostActivityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("par_beneficiary_groups")
+}
+
+// ── Training Effectiveness Evaluation (FM-CT-5) ─────────────────────────────
+
+model TrainingEffectivenessEvaluation {
+  id                        String    @id @default(cuid())
+  impactSurveyResponseId    String    @unique @map("impact_survey_response_id")
+  appliedLearnings          Boolean?  @map("applied_learnings")
+  benefitIncreasedSales     Boolean   @default(false) @map("benefit_increased_sales")
+  benefitSalesPct           Decimal?  @db.Decimal(5,2) @map("benefit_sales_pct")
+  benefitIncreasedProfit    Boolean   @default(false) @map("benefit_increased_profit")
+  benefitProfitPct          Decimal?  @db.Decimal(5,2) @map("benefit_profit_pct")
+  benefitCostReduction      Boolean   @default(false) @map("benefit_cost_reduction")
+  benefitCostPct            Decimal?  @db.Decimal(5,2) @map("benefit_cost_pct")
+  benefitNewMarkets         Boolean   @default(false) @map("benefit_new_markets")
+  benefitProductivity       Boolean   @default(false) @map("benefit_productivity")
+  benefitManpowerWelfare    Boolean   @default(false) @map("benefit_manpower_welfare")
+  benefitStandardizedOp     Boolean   @default(false) @map("benefit_standardized_op")
+  benefitBookkeeping        Boolean   @default(false) @map("benefit_bookkeeping")
+  benefitImprovedMgmt       Boolean   @default(false) @map("benefit_improved_mgmt")
+  benefitSetupBusiness      Boolean   @default(false) @map("benefit_setup_business")
+  benefitExpandBusiness     Boolean   @default(false) @map("benefit_expand_business")
+  benefitEnhancedCapacity   Boolean   @default(false) @map("benefit_enhanced_capacity")
+  benefitAdoptTechnology    Boolean   @default(false) @map("benefit_adopt_technology")
+  benefitInnovation         Boolean   @default(false) @map("benefit_innovation")
+  benefitNoComplaints       Boolean   @default(false) @map("benefit_no_complaints")
+  benefitOthers             String?   @map("benefit_others")
+  needsProductDevelopment   Boolean   @default(false) @map("needs_product_development")
+  needsLoanAdvisory         Boolean   @default(false) @map("needs_loan_advisory")
+  needsOthers               String?   @map("needs_others")
+  futureTrainingRequests    String?   @db.Text @map("future_training_requests")
+  trainingEffective         Boolean?  @map("training_effective")
+  ineffectiveReason         String?   @db.Text @map("ineffective_reason")
+  respondentDesignation     String?   @map("respondent_designation")
+  respondentCompany         String?   @map("respondent_company")
+  dateAccomplished          DateTime? @map("date_accomplished")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  impactSurveyResponse ImpactSurveyResponse @relation(fields: [impactSurveyResponseId], references: [id], onDelete: Cascade)
+
+  @@map("training_effectiveness_evaluations")
+}
+
+// ── Training Effectiveness Report (FM-CT-5 Approval Workflow) ─────────────
+
+model TrainingEffectivenessReport {
+  id                    String    @id @default(cuid())
+  eventId               String    @unique @map("event_id")
+  status                String    @default("DRAFT")
+  observations          String?   @db.Text
+  preparedById          String?   @map("prepared_by_id")
+  reviewedById          String?   @map("reviewed_by_id")
+  approvedById          String?   @map("approved_by_id")
+  submittedToMaaById    String?   @map("submitted_to_maa_by_id")
+  datePrepared          DateTime? @map("date_prepared")
+  dateReviewed          DateTime? @map("date_reviewed")
+  dateApproved          DateTime? @map("date_approved")
+  dateSubmittedToMaa    DateTime? @map("date_submitted_to_maa")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  event                 Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("training_effectiveness_reports")
+}
+
+// ── Training Budget Items (FM-CT-4 Proposal) ───────────────────────────────
+
+model TrainingBudgetItem {
+  id               String  @id @default(cuid())
+  eventId          String  @map("event_id")
+  item             String
+  unitCost         Decimal @map("unit_cost") @db.Decimal(12, 2)
+  quantity         Int     @default(1)
+  estimatedAmount  Decimal @map("estimated_amount") @db.Decimal(12, 2)
+  sourceOfFunds    String? @map("source_of_funds")
+  actualSpent      Decimal? @map("actual_spent") @db.Decimal(12, 2)
+  orderIndex       Int     @default(0) @map("order_index")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("training_budget_items")
+}
+
+// ── Training Risk Register (FM-CT-4 Proposal) ──────────────────────────────
+
+model TrainingRiskItem {
+  id                String  @id @default(cuid())
+  eventId           String  @map("event_id")
+  riskDescription   String  @map("risk_description") @db.Text
+  actionPlan        String? @map("action_plan") @db.Text
+  actionDate        DateTime? @map("action_date")
+  responsiblePerson String?  @map("responsible_person")
+  effectiveness     String?  @db.Text
+  orderIndex        Int     @default(0) @map("order_index")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("training_risk_items")
+}
+
+// ── Training Target Groups (FM-CT-4 Proposal) ──────────────────────────────
+
+model TrainingTargetGroup {
+  id                    String   @id @default(cuid())
+  eventId               String   @map("event_id")
+  edtLevel              String?  @map("edt_level")
+  sectorGroup           String   @map("sector_group")
+  estimatedParticipants Int      @default(0) @map("estimated_participants")
+  orderIndex            Int      @default(0) @map("order_index")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("training_target_groups")
 }

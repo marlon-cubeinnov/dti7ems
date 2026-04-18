@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DTI Region 7 EMS — Test Plan &amp; User Manual</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --dti-blue:    #0c2d6b;
+      --dti-red:     #ce1126;
+      --dti-yellow:  #f7c948;
+      --pass-green:  #166534;
+      --pass-bg:     #dcfce7;
+      --fail-red:    #991b1b;
+      --fail-bg:     #fee2e2;
+      --skip-gray:   #374151;
+      --skip-bg:     #f3f4f6;
+      --edge-bg:     #fffbeb;
+      --card-border: #e5e7eb;
+      --text-main:   #111827;
+      --text-muted:  #6b7280;
+      --font:        'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-main);
+      background: #f9fafb;
+    }
+
+    /* ── Cover page ── */
+    .cover {
+      background: var(--dti-blue);
+      color: #fff;
+      padding: 3rem 2.5rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .cover-flag { display: flex; gap: 0; margin-bottom: 1rem; }
+    .cover-flag-blue  { width: 48px; height: 8px; background: var(--dti-blue); border: 1px solid #fff3; }
+    .cover-flag-red   { width: 48px; height: 8px; background: var(--dti-red); }
+    .cover-flag-white { width: 48px; height: 8px; background: #fff; }
+    .cover h1 { font-size: 2.2rem; font-weight: 800; line-height: 1.2; }
+    .cover .cover-sub { font-size: 1rem; opacity: 0.85; margin-top: 0.25rem; }
+    .cover .cover-meta { margin-top: 1.5rem; font-size: 0.85rem; opacity: 0.7; }
+
+    /* ── Stats banner ── */
+    .stats-banner {
+      background: #fff;
+      border-bottom: 3px solid var(--dti-blue);
+      padding: 1.25rem 2.5rem;
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-num { display: block; font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .stat-total .stat-num { color: var(--dti-blue); }
+    .stat-pass  .stat-num { color: #16a34a; }
+    .stat-fail  .stat-num { color: var(--dti-red); }
+    .stat-rate  .stat-num { color: var(--dti-blue); }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: calc(100vh - 200px); }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--dti-blue);
+      color: #fff;
+      padding: 1.5rem 1rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; margin-bottom: 0.75rem; }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin-bottom: 0.4rem; }
+    .sidebar ul li a { color: rgba(255,255,255,0.82); text-decoration: none; font-size: 0.82rem; display: block; padding: 0.3rem 0.5rem; border-radius: 4px; transition: background 0.15s; }
+    .sidebar ul li a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .toc-persona { font-size: 0.72rem; opacity: 0.6; }
+
+    .main-content { flex: 1; padding: 2rem 2.5rem; overflow: hidden; }
+
+    /* ── Cards ── */
+    .workflow-banner {
+      background: linear-gradient(135deg, var(--dti-blue) 0%, #1e3a8a 100%);
+      color: #fff;
+      padding: 1.75rem 2rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+    }
+    .workflow-banner h1 { font-size: 1.6rem; font-weight: 800; }
+    .workflow-banner p { margin-top: 0.4rem; opacity: 0.85; font-size: 0.9rem; max-width: 680px; }
+
+    .section-card, .step-card {
+      background: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .step-card.edge-case {
+      border-left: 4px solid var(--dti-yellow);
+      background: var(--edge-bg);
+    }
+
+    .summary-header { margin-bottom: 1.25rem; }
+    .summary-header h2 { font-size: 1.15rem; font-weight: 700; color: var(--dti-blue); }
+    .summary-meta { display: flex; gap: 1.5rem; margin: 0.5rem 0; flex-wrap: wrap; }
+    .meta-item { font-size: 0.8rem; color: var(--text-muted); }
+    .description { font-size: 0.88rem; color: var(--text-muted); margin-top: 0.5rem; max-width: 720px; }
+
+    .stats-row { display: flex; gap: 1.5rem; margin-top: 1rem; }
+
+    .step-header { margin-bottom: 1rem; }
+    .step-header h3 { font-size: 1rem; font-weight: 700; color: var(--dti-blue); }
+    .step-id { font-family: monospace; background: #eff6ff; padding: 0 0.4em; border-radius: 3px; }
+    .step-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+    .step-meta-grid { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.75rem; }
+    .meta-cell { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; }
+    .meta-key { font-weight: 600; color: var(--text-muted); }
+    .url-chip { background: #f0f0f0; border-radius: 3px; padding: 0 0.35em; font-family: monospace; font-size: 0.78rem; }
+
+    .caption { font-size: 0.88rem; background: #eff6ff; border-left: 3px solid var(--dti-blue); padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0; margin-bottom: 0.6rem; }
+    .manual-hint { font-size: 0.85rem; background: #f0fdf4; border-left: 3px solid #16a34a; padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0; margin-bottom: 0.6rem; white-space: pre-line; }
+    .error-box { font-size: 0.85rem; background: var(--fail-bg); border-left: 3px solid var(--dti-red); padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0; margin-bottom: 0.6rem; color: var(--fail-red); }
+
+    /* ── Screenshots ── */
+    .screenshot-frame {
+      background: #f3f4f6;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin: 0.75rem 0;
+      text-align: center;
+    }
+    .screenshot-frame img {
+      max-width: 100%;
+      max-height: 560px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .no-artifact { color: var(--text-muted); font-size: 0.82rem; font-style: italic; padding: 0.4rem 0; }
+
+    /* ── Tables ── */
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { background: var(--dti-blue); color: #fff; text-align: left; padding: 0.5rem 0.75rem; font-weight: 600; }
+    td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr.row-fail td { background: #fff5f5; }
+    tr:nth-child(even) td { background: #fafafa; }
+    tr:nth-child(even).row-fail td { background: #fff0f0; }
+    code { font-family: monospace; font-size: 0.8em; background: #f3f4f6; padding: 0 0.3em; border-radius: 2px; }
+
+    /* ── Badges ── */
+    .badge { display: inline-block; padding: 0.15em 0.55em; border-radius: 99px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; }
+    .badge-pass { background: var(--pass-bg); color: var(--pass-green); }
+    .badge-fail { background: var(--fail-bg); color: var(--fail-red); }
+    .badge-skip { background: var(--skip-bg); color: var(--skip-gray); }
+    .badge-edge { background: #fef9c3; color: #854d0e; }
+    .persona-badge { background: #e0e7ff; color: #3730a3; padding: 0.1em 0.5em; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+
+    .assertions-section { margin-top: 0.75rem; }
+    .assertions-section h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .text-muted { color: var(--text-muted); font-style: italic; }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--dti-blue);
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      padding: 1.25rem;
+      font-size: 0.78rem;
+      margin-top: 3rem;
+    }
+
+    /* ── Print ── */
+    @media print {
+      .sidebar { display: none; }
+      .main-content { padding: 1rem; }
+      .screenshot-frame img { max-height: 380px; }
+      .cover { padding: 2rem; }
+    }
+
+    @page { margin: 1.5cm; }
+  </style>
+</head>
+<body>
+
+<!-- ── Cover ─────────────────────────────────────── -->
+<div class="cover">
+  <div class="cover-flag">
+    <div class="cover-flag-blue"></div>
+    <div class="cover-flag-red"></div>
+    <div class="cover-flag-white"></div>
+  </div>
+  <h1>DTI Region 7<br/>Event Management System</h1>
+  <div class="cover-sub">System Test Plan &amp; UAT Evidence Book</div>
+  <div class="cover-sub" style="opacity:0.7">Dual-Purpose Automation Framework — Visual QA + User Documentation</div>
+  <div class="cover-meta">
+    <div>Generated: 4/18/2026, 7:50:25 PM</div>
+    <div>Framework: Playwright + YAML Workflow DSL + Artifact Observer</div>
+    <div>Reference: PR-CT-01 v3 — Conduct of Training (DTI Region 7)</div>
+  </div>
+</div>
+
+<!-- ── Stats banner ───────────────────────────────── -->
+<div class="stats-banner">
+  <div class="stat stat-total"><span class="stat-num">20</span><span class="stat-label">Test Cases</span></div>
+  <div class="stat stat-pass"><span class="stat-num">—</span><span class="stat-label">Passed</span></div>
+  <div class="stat stat-fail"><span class="stat-num">—</span><span class="stat-label">Failed</span></div>
+  <div class="stat stat-rate"><span class="stat-num">Pending</span><span class="stat-label">Pass Rate</span></div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────── -->
+<div class="layout">
+  <nav class="sidebar">
+    <h2>Contents</h2>
+    <ul>
+      <li><a href="#static-plan">Full EMS Test Plan — 20 Test Cases</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    
+  <section class="workflow-section">
+    <div class="workflow-banner">
+      <h1>EMS Test Plan — Static Test Cases</h1>
+      <p>
+        Comprehensive test plan for the DTI Region 7 Event Management System.
+        Run <code>pnpm --filter @dti-ems/tests test:uat</code> against a live environment to generate the full evidence book with screenshots.
+      </p>
+    </div>
+    <div class="section-card">
+      <h2>Test Case Summary</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Code</th><th>Test Case</th><th>Persona</th><th>Steps</th><th>Status</th></tr></thead>
+          <tbody>
+    <tr>
+      <td>TC-01</td>
+      <td>Authentication — Login (Happy Path)</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>5</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-02</td>
+      <td>Authentication — Login (Edge Cases)</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>3</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-03</td>
+      <td>User Registration — Individual</td>
+      <td><span class="persona-badge">PublicUser</span></td>
+      <td>6</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-04</td>
+      <td>User Registration — Business</td>
+      <td><span class="persona-badge">BusinessOwner</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-05</td>
+      <td>Event Creation &amp; Proposal (FM-CT-4)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>9</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-06</td>
+      <td>Checklist Management (FM-CT-7)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>5</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-07</td>
+      <td>Participant Registration &amp; RSVP</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>5</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-08</td>
+      <td>QR Attendance &amp; Demographics (FM-CT-2A)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>3</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-09</td>
+      <td>CSF Survey — Participant (FM-CSF-ACT)</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>6</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-10</td>
+      <td>CSF Report — Organizer (FM-CSF-ACT-RPT)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>5</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-11</td>
+      <td>Post-Activity Report (FM-CT-6)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>6</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-12</td>
+      <td>Impact Survey — Participant (FM-CT-5)</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>6</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-13</td>
+      <td>Effectiveness Report (FM-CT-3)</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-14</td>
+      <td>Certificate Issuance &amp; Verification</td>
+      <td><span class="persona-badge">EventOrganizer</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-15</td>
+      <td>Admin — User Management</td>
+      <td><span class="persona-badge">SystemAdmin</span></td>
+      <td>5</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-16</td>
+      <td>Admin — Enterprise Management</td>
+      <td><span class="persona-badge">SystemAdmin</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-17</td>
+      <td>Admin — Reports Dashboard</td>
+      <td><span class="persona-badge">SystemAdmin</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-18</td>
+      <td>Admin — Audit Logs</td>
+      <td><span class="persona-badge">SystemAdmin</span></td>
+      <td>3</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-19</td>
+      <td>Public — Enterprise Directory</td>
+      <td><span class="persona-badge">PublicUser</span></td>
+      <td>4</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr>
+    <tr>
+      <td>TC-20</td>
+      <td>Password Reset Flow</td>
+      <td><span class="persona-badge">Participant</span></td>
+      <td>6</td>
+      <td><span class="badge badge-skip">Pending</span></td>
+    </tr></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="step-card" id="TC-01">
+      <div class="step-header">
+        <h3>TC-01: Authentication — Login (Happy Path)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /login</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify form fields (email, password, submit)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Enter valid credentials</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Submit and verify redirect to dashboard</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Confirm sidebar/navigation visible</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-02">
+      <div class="step-header">
+        <h3>TC-02: Authentication — Login (Edge Cases)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Submit empty form → HTML5 validation</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Submit wrong credentials → &quot;Invalid credentials&quot; error</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Verify error message displayed (no email enumeration)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-03">
+      <div class="step-header">
+        <h3>TC-03: User Registration — Individual</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">PublicUser</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /register</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify Individual/Business tabs</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Fill name, email, password fields</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Submit without DPA consent → validation error</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Check DPA, submit → success message</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Verify email sent to Mailpit</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-04">
+      <div class="step-header">
+        <h3>TC-04: User Registration — Business</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">BusinessOwner</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Select Business tab</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Fill owner + enterprise + employee rows</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Submit with DPA → success</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify owner verification + employee invite emails</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-05">
+      <div class="step-header">
+        <h3>TC-05: Event Creation &amp; Proposal (FM-CT-4)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Login as Organizer</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Navigate to /organizer/events/new</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Fill title, dates, venue, target sector</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Submit → DRAFT event created</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Navigate to Proposal page</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Verify background, objectives, learningOutcomes, methodology fields</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>7</td><td>Verify budget line items section</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>8</td><td>Verify risk register section</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>9</td><td>Verify target groups section</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-06">
+      <div class="step-header">
+        <h3>TC-06: Checklist Management (FM-CT-7)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Open event → Checklist quick action</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify 33 tasks present across Pre/During/Post phases</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Toggle isApplicable on a task</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Mark a task as Complete</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Add a comment to a checklist item</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-07">
+      <div class="step-header">
+        <h3>TC-07: Participant Registration &amp; RSVP</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Browse /events list</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Open event detail</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Click Register → success</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Receive RSVP email (Mailpit)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Confirm RSVP → status → RSVP_CONFIRMED</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-08">
+      <div class="step-header">
+        <h3>TC-08: QR Attendance &amp; Demographics (FM-CT-2A)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Open QR Scanner for active event</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify camera interface or manual check-in</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Participant profile: verify sex, ageBracket, employmentCategory, socialClassification, clientType fields</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-09">
+      <div class="step-header">
+        <h3>TC-09: CSF Survey — Participant (FM-CSF-ACT)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Access CSF from My Events</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Complete 9 SQD ratings (1–5)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Complete 3 CC questions</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Rate speakers</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Submit → status SUBMITTED</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Attempt second submission → blocked</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-10">
+      <div class="step-header">
+        <h3>TC-10: CSF Report — Organizer (FM-CSF-ACT-RPT)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Open CSF Report via event detail</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify SQD breakdown table with adjectival ratings</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Verify Citizen's Charter distribution</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify demographic disaggregation (sex, age bracket, client type)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Verify speaker performance summary</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-11">
+      <div class="step-header">
+        <h3>TC-11: Post-Activity Report (FM-CT-6)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Open PAR via event detail</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Fill Highlights &amp; Outcomes narrative</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Add beneficiary group with male/female/senior/PWD counts + EDT level</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Fill Fund Utilization Notes</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Submit for review → UNDER_REVIEW</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Admin approves → APPROVED</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-12">
+      <div class="step-header">
+        <h3>TC-12: Impact Survey — Participant (FM-CT-5)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Access 6-month impact survey from My Events</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Answer appliedLearnings (Yes/No)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Check applicable benefit indicators (up to 16)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Answer trainingEffective (Yes/No)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Fill respondentDesignation, respondentCompany, dateAccomplished</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Submit survey</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-13">
+      <div class="step-header">
+        <h3>TC-13: Effectiveness Report (FM-CT-3)</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Open Effectiveness Report via event detail</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify per-participant tabulation rows</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Verify 16-indicator summary row with percentages</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify response rate displayed</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-14">
+      <div class="step-header">
+        <h3>TC-14: Certificate Issuance &amp; Verification</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">EventOrganizer</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Event marked COMPLETED → certificates auto-issued to ATTENDED participants</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Participant views certificate in My Certificates</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Public visits /verify/:code with certificate code</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify certificate details displayed</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-15">
+      <div class="step-header">
+        <h3>TC-15: Admin — User Management</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">SystemAdmin</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /admin/users</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Search user by email</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Lock user account → verify locked status</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Unlock user → verify active</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Verify audit log records the action</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-16">
+      <div class="step-header">
+        <h3>TC-16: Admin — Enterprise Management</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">SystemAdmin</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /admin/enterprises</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>View enterprise list with sector and member count</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Open enterprise detail</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify member list with roles</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-17">
+      <div class="step-header">
+        <h3>TC-17: Admin — Reports Dashboard</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">SystemAdmin</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /admin/reports</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify event statistics</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Verify CSF aggregate report</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Verify impact survey analytics</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-18">
+      <div class="step-header">
+        <h3>TC-18: Admin — Audit Logs</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">SystemAdmin</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /admin/audit-logs</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify timestamped entries present</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Verify entries are immutable (no edit/delete UI)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-19">
+      <div class="step-header">
+        <h3>TC-19: Public — Enterprise Directory</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">PublicUser</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /directory</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Verify enterprise list visible without login</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Search by sector</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>View enterprise profile</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="step-card" id="TC-20">
+      <div class="step-header">
+        <h3>TC-20: Password Reset Flow</h3>
+        <div class="step-subtitle">Persona: <span class="persona-badge">Participant</span></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Test Step</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Navigate to /forgot-password</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>2</td><td>Enter registered email → success message</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>3</td><td>Enter unknown email → same message (no enumeration)</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>4</td><td>Open reset link from Mailpit</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>5</td><td>Submit new password → success</td><td><span class="badge badge-skip">☐ Pending</span></td></tr><tr><td>6</td><td>Login with new password</td><td><span class="badge badge-skip">☐ Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  </main>
+</div>
+
+<div class="footer">
+  DTI Region 7 EMS — Test Plan &amp; UAT Evidence Book &nbsp;|&nbsp; Generated 4/18/2026, 7:50:25 PM &nbsp;|&nbsp; Dual-Purpose Automation Framework
+</div>
+
+</body>
+</html>

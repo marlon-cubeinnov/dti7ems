@@ -292,6 +292,9 @@ export const organizerApi = {
   createSession: (eventId: string, body: { title: string; startTime: string; endTime: string; venue?: string; speakerName?: string; orderIndex?: number }) =>
     request(`${BASE_EVENTS}/events/${eventId}/sessions`, { method: 'POST', body: JSON.stringify(body) }),
 
+  updateSession: (eventId: string, sessionId: string, body: { title?: string; startTime?: string; endTime?: string; venue?: string | null; speakerName?: string | null; orderIndex?: number }) =>
+    request(`${BASE_EVENTS}/events/${eventId}/sessions/${sessionId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
   deleteSession: (eventId: string, sessionId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/sessions/${sessionId}`, { method: 'DELETE' }),
 
@@ -302,6 +305,92 @@ export const organizerApi = {
   // Organizer aggregate report
   getMySummary: () =>
     request(`${BASE_EVENTS}/events/reports/my-summary`),
+
+  // Speaker management
+  getSpeakers: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/speakers`),
+
+  addSpeaker: (eventId: string, body: { name: string; organization?: string | null; topic?: string | null; displayOrder?: number }) =>
+    request(`${BASE_EVENTS}/events/${eventId}/speakers`, { method: 'POST', body: JSON.stringify(body) }),
+
+  deleteSpeaker: (eventId: string, speakerId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/speakers/${speakerId}`, { method: 'DELETE' }),
+
+  // Post-Activity Report
+  getPar: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/par`),
+
+  savePar: (eventId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/par`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updateParStatus: (eventId: string, status: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/par/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  // Training Effectiveness Report (Step 7 — TEM FM-CT-5 approval workflow)
+  getTem: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/tem`),
+
+  saveTem: (eventId: string, body: { observations?: string | null }) =>
+    request(`${BASE_EVENTS}/events/${eventId}/tem`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updateTemStatus: (eventId: string, status: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/tem/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  // Proposal
+  getProposal: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/proposal`),
+
+  saveProposal: (eventId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/proposal`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  submitProposal: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/submit-proposal`, { method: 'POST', body: '{}' }),
+
+  reviewProposal: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/review-proposal`, { method: 'PATCH', body: '{}' }),
+
+  approveProposal: (eventId: string, action: 'APPROVE' | 'REJECT', rejectionNote?: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/approve-proposal`, { method: 'PATCH', body: JSON.stringify({ action, rejectionNote }) }),
+
+  assignOrganizer: (eventId: string, organizerId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/assign-organizer`, { method: 'POST', body: JSON.stringify({ organizerId }) }),
+
+  // Step 3: Activate event after proposal approval (DRAFT → PUBLISHED + seeds DTI checklist)
+  activateEvent: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/activate`, { method: 'POST', body: '{}' }),
+
+  // Budget
+  getBudget: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/budget`),
+
+  addBudgetItem: (eventId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/budget`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updateBudgetItem: (eventId: string, itemId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/budget/${itemId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteBudgetItem: (eventId: string, itemId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/budget/${itemId}`, { method: 'DELETE' }),
+
+  // Risks
+  getRisks: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/risks`),
+
+  addRisk: (eventId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/risks`, { method: 'POST', body: JSON.stringify(body) }),
+
+  deleteRisk: (eventId: string, riskId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/risks/${riskId}`, { method: 'DELETE' }),
+
+  // Target Groups
+  getTargetGroups: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/target-groups`),
+
+  addTargetGroup: (eventId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/target-groups`, { method: 'POST', body: JSON.stringify(body) }),
+
+  deleteTargetGroup: (eventId: string, groupId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/target-groups/${groupId}`, { method: 'DELETE' }),
 };
 
 // ── Checklist API ────────────────────────────────────────────────────────────
@@ -372,12 +461,23 @@ export const surveyApi = {
     request(`${BASE_EVENTS}/surveys/events/${eventId}/csf/me`),
 
   submitCsf: (eventId: string, body: {
-    overallRating: number;
-    contentRating: number;
-    facilitatorRating: number;
-    logisticsRating: number;
+    sqd0OverallRating: number;
+    sqd1Responsiveness: number;
+    sqd2Reliability: number;
+    sqd3AccessFacilities: number;
+    sqd4Communication: number;
+    sqd5Costs?: number | null;
+    sqd6Integrity: number;
+    sqd7Assurance: number;
+    sqd8Outcome: number;
+    cc1Awareness?: number | null;
+    cc2Visibility?: number | null;
+    cc3Usefulness?: number | null;
     highlightsFeedback?: string;
     improvementsFeedback?: string;
+    commentsSuggestions?: string;
+    reasonsForLowRating?: string;
+    speakerRatings?: Array<{ speakerId: string; rating: number }>;
   }) =>
     request(`${BASE_EVENTS}/surveys/events/${eventId}/csf`, {
       method: 'POST',
@@ -386,6 +486,17 @@ export const surveyApi = {
 
   getResults: (eventId: string) =>
     request(`${BASE_EVENTS}/surveys/events/${eventId}/csf/results`),
+
+  getCsfReport: (eventId: string) =>
+    request(`${BASE_EVENTS}/surveys/events/${eventId}/csf/report`),
+
+  // Step 5: distribute CSF forms to all attended participants
+  distributeCsf: (eventId: string) =>
+    request(`${BASE_EVENTS}/surveys/events/${eventId}/csf/distribute`, { method: 'POST', body: '{}' }),
+
+  // Step 5: get CSF distribution status summary
+  getCsfDistributionStatus: (eventId: string) =>
+    request(`${BASE_EVENTS}/surveys/events/${eventId}/csf/distribution-status`),
 
   // Impact Survey
   getMyImpactResponse: (eventId: string) =>
@@ -403,11 +514,18 @@ export const surveyApi = {
     revenueChangePct?: number;
     employeeCountBefore?: number;
     employeeCountAfter?: number;
+    effectiveness?: Record<string, unknown>;
   }) =>
     request(`${BASE_EVENTS}/surveys/events/${eventId}/impact`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  getImpactResults: (eventId: string) =>
+    request(`${BASE_EVENTS}/surveys/events/${eventId}/impact/results`),
+
+  getEffectivenessReport: (eventId: string) =>
+    request(`${BASE_EVENTS}/surveys/events/${eventId}/impact/effectiveness`),
 };
 
 export const certificatesApi = {

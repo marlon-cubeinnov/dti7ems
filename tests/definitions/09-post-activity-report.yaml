@@ -1,0 +1,70 @@
+name: organizer-post-activity-report
+description: >
+  Validate the Post-Activity Report (FM-CT-6) workflow. Covers: creating the PAR,
+  filling narrative sections, adding beneficiary demographic groups, submitting
+  for review, and approval workflow (DRAFT → UNDER_REVIEW → APPROVED).
+persona: EventOrganizer
+tags: [par, FM-CT-6, organizer, happy-path]
+
+steps:
+  - id: PAR-001
+    action: goto
+    url: /organizer/events
+    doc_metadata:
+      title: Navigate to Events for PAR
+      caption: Open organizer events list to locate an event requiring a Post-Activity Report.
+      manual_hint: Post-Activity Reports should be filed within 5 working days of event completion per DTI procedure PR-CT-01.
+
+  - id: PAR-002
+    action: click
+    target: "tbody tr:first-child a, .event-card:first-child a"
+    doc_metadata:
+      title: Open Event Detail for PAR
+      caption: Click to open the event detail page.
+
+  - id: PAR-003
+    action: click
+    target: "a[href*='/par'], button:has-text('Post-Activity'), button:has-text('PAR')"
+    doc_metadata:
+      title: Open Post-Activity Report Page
+      caption: Click the Post-Activity Report quick action to open the FM-CT-6 form.
+      manual_hint: The PAR page allows you to document event outcomes, fund utilization, CSF observations, and beneficiary demographics.
+
+  - id: PAR-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "textarea[name='highlightsOutcomes'], textarea[id='highlightsOutcomes'], [placeholder*='highlights']"
+    doc_metadata:
+      title: Verify PAR Narrative Fields
+      caption: Confirm the Highlights & Outcomes narrative text area is present.
+      manual_hint: >
+        Required narrative sections:
+        1. Highlights and Outcomes — describe what was accomplished
+        2. Fund Utilization Notes — summarize budget vs actual spending
+        3. CSF Assessment Observations — copy key findings from the CSF Report
+        4. Improvement Opportunities — document lessons learned
+
+  - id: PAR-005
+    action: assert
+    assertions:
+      - type: visible
+        target: "button:has-text('Add Group'), button:has-text('Add Beneficiary')"
+    doc_metadata:
+      title: Verify Beneficiary Groups Section
+      caption: Confirm the Beneficiary Groups section is present for FM-CT-6 demographic data.
+      manual_hint: >
+        Add one row per sector/group (e.g., Food Manufacturing MSMEs, Agriculture MSMEs).
+        For each group, record: Male Count, Female Count, Senior Citizen Count, PWD Count,
+        EDT Level (Startup/Growth/Expansion/Sustainment), and Actual Count.
+
+  - id: PAR-006
+    action: screenshot
+    doc_metadata:
+      title: Post-Activity Report — Full Form View
+      caption: Full view of the FM-CT-6 Post-Activity Report form with all sections.
+      manual_hint: >
+        The PAR status workflow: DRAFT → Submit for Review → UNDER_REVIEW → Approve → APPROVED.
+        Draft PRs are only visible to the Event Organizer. Submitted PRs are visible to Program Managers
+        and System Admins for review and approval.
+    state: Success

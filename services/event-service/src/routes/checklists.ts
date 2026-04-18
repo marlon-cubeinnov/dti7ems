@@ -5,42 +5,46 @@ import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-
 const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 type OrganizerRole = typeof ORGANIZER_ROLES[number];
 
-// ── Default checklist template ──────────────────────────────────────────────
+// ── Default checklist template (FM-CT-7 Training Monitoring Checklist) ──────
 const DEFAULT_CHECKLIST_ITEMS = [
-  // Planning Phase
-  { title: 'Define event objectives and expected outcomes', phase: 'PLANNING', priority: 'CRITICAL', orderIndex: 0 },
-  { title: 'Identify target participants and sectors', phase: 'PLANNING', priority: 'HIGH', orderIndex: 1 },
-  { title: 'Set event date, time, and duration', phase: 'PLANNING', priority: 'CRITICAL', orderIndex: 2 },
-  { title: 'Determine delivery mode (F2F / Online / Hybrid)', phase: 'PLANNING', priority: 'HIGH', orderIndex: 3 },
-  { title: 'Prepare budget proposal', phase: 'PLANNING', priority: 'HIGH', orderIndex: 4 },
-  { title: 'Identify speakers / resource persons', phase: 'PLANNING', priority: 'HIGH', orderIndex: 5 },
-  { title: 'Draft event program / agenda', phase: 'PLANNING', priority: 'MEDIUM', orderIndex: 6 },
+  // Part 1 — Pre-Training (PLANNING + PREPARATION phases)
+  { title: 'Conduct Training Needs Analysis (TNA)', phase: 'PLANNING', priority: 'CRITICAL', orderIndex: 0 },
+  { title: 'Prepare Training Proposal (FM-CT-4)', phase: 'PLANNING', priority: 'CRITICAL', orderIndex: 1 },
+  { title: 'Secure approval of Training Proposal', phase: 'PLANNING', priority: 'CRITICAL', orderIndex: 2 },
+  { title: 'Identify and confirm resource persons/speakers', phase: 'PLANNING', priority: 'HIGH', orderIndex: 3 },
+  { title: 'Prepare and send invitation letters', phase: 'PLANNING', priority: 'HIGH', orderIndex: 4 },
+  { title: 'Prepare training design/program of activities', phase: 'PLANNING', priority: 'HIGH', orderIndex: 5 },
+  { title: 'Prepare training materials and handouts', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 6 },
+  { title: 'Prepare and reproduce evaluation forms (FM-CSF-ACT)', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 7 },
+  { title: 'Prepare attendance sheet (FM-CT-2A)', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 8 },
+  { title: 'Coordinate logistics (venue, meals, equipment)', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 9 },
+  { title: 'Prepare certificates of participation/completion', phase: 'PREPARATION', priority: 'MEDIUM', orderIndex: 10 },
+  { title: 'Conduct dry run / rehearsal if applicable', phase: 'PREPARATION', priority: 'LOW', orderIndex: 11 },
 
-  // Preparation Phase
-  { title: 'Secure venue / online platform', phase: 'PREPARATION', priority: 'CRITICAL', orderIndex: 7 },
-  { title: 'Send invitations / registration link', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 8 },
-  { title: 'Prepare training materials and handouts', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 9 },
-  { title: 'Coordinate with speakers for presentations', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 10 },
-  { title: 'Arrange catering / meals', phase: 'PREPARATION', priority: 'MEDIUM', orderIndex: 11 },
-  { title: 'Prepare certificates template', phase: 'PREPARATION', priority: 'MEDIUM', orderIndex: 12 },
-  { title: 'Test audio-visual equipment / internet', phase: 'PREPARATION', priority: 'HIGH', orderIndex: 13 },
-  { title: 'Print attendance sheets / ID badges', phase: 'PREPARATION', priority: 'LOW', orderIndex: 14 },
-  { title: 'Prepare registration / check-in area', phase: 'PREPARATION', priority: 'MEDIUM', orderIndex: 15 },
+  // Part 2 — Actual Training (EXECUTION phase)
+  { title: 'Setup venue / online platform', phase: 'EXECUTION', priority: 'CRITICAL', orderIndex: 12 },
+  { title: 'Conduct registration and distribute materials', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 13 },
+  { title: 'Record attendance per session (FM-CT-2A)', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 14 },
+  { title: 'Monitor training flow and time management', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 15 },
+  { title: 'Document event (photos, recording)', phase: 'EXECUTION', priority: 'MEDIUM', orderIndex: 16 },
+  { title: 'Facilitate open forum / Q&A sessions', phase: 'EXECUTION', priority: 'MEDIUM', orderIndex: 17 },
+  { title: 'Distribute and collect CSF forms (FM-CSF-ACT)', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 18 },
+  { title: 'Distribute certificates to eligible participants', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 19 },
+  { title: 'Ensure compliance with health/safety protocols', phase: 'EXECUTION', priority: 'MEDIUM', orderIndex: 20 },
+  { title: 'Collect signed attendance sheets', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 21 },
 
-  // Execution Phase
-  { title: 'Setup venue / platform on event day', phase: 'EXECUTION', priority: 'CRITICAL', orderIndex: 16 },
-  { title: 'Conduct participant check-in / QR scanning', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 17 },
-  { title: 'Monitor event flow and schedule', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 18 },
-  { title: 'Document event (photos, recording)', phase: 'EXECUTION', priority: 'MEDIUM', orderIndex: 19 },
-  { title: 'Distribute CSF survey to participants', phase: 'EXECUTION', priority: 'HIGH', orderIndex: 20 },
-
-  // Post-Event Phase
-  { title: 'Issue certificates to eligible participants', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 21 },
-  { title: 'Compile attendance report', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 22 },
-  { title: 'Analyze CSF survey results', phase: 'POST_EVENT', priority: 'MEDIUM', orderIndex: 23 },
-  { title: 'Prepare event completion report', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 24 },
-  { title: 'Submit financial accountability report', phase: 'POST_EVENT', priority: 'MEDIUM', orderIndex: 25 },
-  { title: 'File event documentation', phase: 'POST_EVENT', priority: 'LOW', orderIndex: 26 },
+  // Part 3 — Post-Training (POST_EVENT phase)
+  { title: 'Tabulate CSF results (FM-CSF-ACT-TAB)', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 22 },
+  { title: 'Prepare CSF Report (FM-CSF-ACT-RPT)', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 23 },
+  { title: 'Compile attendance report', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 24 },
+  { title: 'Prepare Post-Activity Report (FM-CT-6)', phase: 'POST_EVENT', priority: 'CRITICAL', orderIndex: 25 },
+  { title: 'Submit PAR to Division Chief for review', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 26 },
+  { title: 'Secure PAR approval from PD/RD', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 27 },
+  { title: 'Submit PAR and annexes to FAD', phase: 'POST_EVENT', priority: 'MEDIUM', orderIndex: 28 },
+  { title: 'File training documentation for records', phase: 'POST_EVENT', priority: 'MEDIUM', orderIndex: 29 },
+  { title: 'Schedule impact evaluation (FM-CT-5) at 6 months', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 30 },
+  { title: 'Prepare Effectiveness Report (FM-CT-3)', phase: 'POST_EVENT', priority: 'HIGH', orderIndex: 31 },
+  { title: 'Submit Effectiveness Report to MAA', phase: 'POST_EVENT', priority: 'MEDIUM', orderIndex: 32 },
 ] as const;
 
 // ── Validation schemas ──────────────────────────────────────────────────────
@@ -69,6 +73,7 @@ const updateItemSchema = z.object({
   phase: z.enum(['PLANNING', 'PREPARATION', 'EXECUTION', 'POST_EVENT']).optional(),
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'CANCELLED']).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  isApplicable: z.boolean().optional().nullable(),
   assignedTo: z.string().optional().nullable(),
   assignedToName: z.string().max(200).optional().nullable(),
   dueDate: z.string().datetime().optional().nullable(),
@@ -247,6 +252,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     if (body.dueDate !== undefined) updateData['dueDate'] = body.dueDate ? new Date(body.dueDate) : null;
     if (body.orderIndex !== undefined) updateData['orderIndex'] = body.orderIndex;
     if (body.notes !== undefined) updateData['notes'] = body.notes;
+    if (body.isApplicable !== undefined) updateData['isApplicable'] = body.isApplicable;
 
     // Auto-set completedAt/completedBy when status changes to COMPLETED
     if (body.status !== undefined) {

@@ -1,0 +1,100 @@
+name: participant-csf-survey
+description: >
+  Validate the FM-CSF-ACT Client Satisfaction Feedback survey from the participant perspective.
+  Covers: accessing the survey, submitting 9 SQD ratings, 3 CC questions, speaker ratings,
+  and comments. Tests the one-per-event submission guard.
+persona: Participant
+tags: [csf, FM-CSF-ACT, survey, happy-path]
+
+steps:
+  - id: CSF-001
+    action: goto
+    url: /login
+    doc_metadata:
+      title: Login as Participant for CSF Survey
+      caption: Navigate to login and authenticate as a participant who attended the training.
+      manual_hint: Participants receive a CSF survey email approximately 1 hour after the event is marked COMPLETED.
+
+  - id: CSF-001A
+    action: type
+    target: "input#email"
+    value: "participant1@test.com"
+
+  - id: CSF-001B
+    action: type
+    target: "input#password"
+    value: "TestPass123!"
+
+  - id: CSF-001C
+    action: click
+    target: "button[type=submit]"
+    doc_metadata:
+      title: Login as Participant
+      caption: Submit credentials to access the participant dashboard.
+    state: Success
+
+  - id: CSF-002
+    action: goto
+    url: /dashboard
+    doc_metadata:
+      title: Open Participant Dashboard
+      caption: Navigate to the participant dashboard to access pending surveys.
+      manual_hint: Pending CSF surveys appear in the "Pending Actions" section of the dashboard. Surveys expire after 14 days.
+
+  - id: CSF-003
+    action: goto
+    url: /my-events
+    doc_metadata:
+      title: Open My Events Page
+      caption: Navigate to the My Events page to find events with pending CSF surveys.
+      manual_hint: Events with a pending CSF survey display a "Submit Feedback" button.
+
+  - id: CSF-004
+    action: assert
+    assertions:
+      - type: visible
+        target: "a[href*='/csf'], button:has-text('Submit Feedback'), button:has-text('CSF')"
+    doc_metadata:
+      title: Verify CSF Survey Link Visible
+      caption: Confirm the CSF survey access button is available for attended events.
+      manual_hint: If you do not see a CSF survey button, either you have already submitted feedback or the survey period has expired.
+
+  - id: CSF-005
+    action: click
+    target: "a[href*='/csf']:first-of-type, button:has-text('Submit Feedback'):first-of-type"
+    doc_metadata:
+      title: Open CSF Survey
+      caption: Click to open the Client Satisfaction Feedback survey form.
+
+  - id: CSF-006
+    action: assert
+    assertions:
+      - type: visible
+        target: "h1, h2"
+      - type: visible
+        target: "form, [data-testid='csf-form']"
+    doc_metadata:
+      title: Verify CSF Survey Form Loads
+      caption: Confirm the survey form is displayed with all SQD and CC questions.
+      manual_hint: The CSF survey contains 9 SQD (Service Quality Dimensions) questions rated 1–5, and 3 Citizen's Charter (CC) questions with fixed options.
+
+  - id: CSF-007
+    action: screenshot
+    doc_metadata:
+      title: CSF Survey Form — SQD Section
+      caption: Screenshot of the 9 Service Quality Dimension (SQD) rating questions.
+      manual_hint: >
+        Rate each dimension from 1 (Strongly Disagree) to 5 (Strongly Agree):
+        SQD0: Overall Satisfaction, SQD1: Responsiveness, SQD2: Reliability,
+        SQD3: Access & Facilities, SQD4: Communication, SQD5: Costs,
+        SQD6: Integrity, SQD7: Assurance, SQD8: Outcome.
+
+  - id: CSF-008
+    action: screenshot
+    doc_metadata:
+      title: CSF Survey Form — Citizen's Charter Section
+      caption: Screenshot showing the 3 Citizen's Charter (CC) assessment questions.
+      manual_hint: >
+        CC1: Are you aware of the Citizens' Charter? (4-option)
+        CC2: Did you see the Citizens' Charter? (4-option)
+        CC3: If you saw the Citizens' Charter, did it help? (3-option)

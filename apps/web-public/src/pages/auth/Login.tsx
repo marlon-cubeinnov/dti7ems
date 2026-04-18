@@ -17,7 +17,7 @@ export function LoginPage() {
     onSuccess: (res) => {
       const d = res.data as { accessToken: string; user: { id: string; email: string; role: import('@dti-ems/shared-types').UserRole; firstName: string; lastName: string } };
       login(d.accessToken, d.user);
-      const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(d.user.role);
+      const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(d.user.role);
       navigate(isOrganizer ? '/organizer/dashboard' : '/dashboard');
     },
     onError: (err) => {

@@ -2,22 +2,46 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
 import dtiLogo from '@/assets/dti-logo.jpg';
-import { LayoutDashboard, CalendarDays, PlusCircle, LogOut, User, Users, Building2, ScrollText, BarChart3, ShieldCheck, Settings, ClipboardList, Shield } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, PlusCircle, LogOut, User, Users, Building2, ScrollText, BarChart3, ShieldCheck, Settings, ClipboardList, Shield, FileText } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
-  PROGRAM_MANAGER:  'Program Manager',
-  EVENT_ORGANIZER:  'Event Organizer',
-  SYSTEM_ADMIN:     'System Admin',
-  SUPER_ADMIN:      'Super Admin',
+  PROGRAM_MANAGER:    'Technical Staff',
+  EVENT_ORGANIZER:    'Facilitator',
+  DIVISION_CHIEF:     'Technical Divisions Chief',
+  REGIONAL_DIRECTOR:  'Provincial/Regional Director',
+  PROVINCIAL_DIRECTOR:'Provincial Director',
+  SYSTEM_ADMIN:       'System Admin',
+  SUPER_ADMIN:        'Super Admin',
 };
 
-const NAV = [
-  { to: '/organizer/dashboard', label: 'Dashboard',     icon: LayoutDashboard },
-  { to: '/organizer/events',    label: 'My Events',     icon: CalendarDays    },
-  { to: '/organizer/events/new',label: 'Create Event',  icon: PlusCircle      },
-  { to: '/organizer/reports',   label: 'Reports',       icon: BarChart3       },
+// Nav for Program Managers (Technical Staff): can create proposals/events
+const PM_NAV = [
+  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/organizer/events',    label: 'My Proposals',   icon: FileText        },
+  { to: '/organizer/events/new',label: 'New Proposal',   icon: PlusCircle      },
+  { to: '/organizer/reports',   label: 'Reports',        icon: BarChart3       },
 ];
 
+// Nav for Event Organizers (Facilitators): see only assigned events, cannot create
+const EO_NAV = [
+  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/organizer/events',    label: 'My Events',      icon: CalendarDays    },
+  { to: '/organizer/reports',   label: 'Reports',        icon: BarChart3       },
+];
+
+// Nav for Division Chief: sees proposals submitted for review
+const DC_NAV = [
+  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/organizer/events',    label: 'Proposals Queue', icon: FileText       },
+];
+
+// Nav for Regional Director: sees proposals under review for final decision
+const RD_NAV = [
+  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/organizer/events',    label: 'For Approval',   icon: FileText        },
+];
+
+// Admin/System users see PM_NAV
 const ADMIN_NAV = [
   { to: '/admin/dashboard',    label: 'Admin Dashboard',  icon: ShieldCheck      },
   { to: '/admin/users',        label: 'Users',            icon: Users            },
@@ -85,7 +109,11 @@ export function OrganizerLayout() {
         {/* Sidebar */}
         <aside className="w-52 shrink-0 hidden md:block">
           <nav className="space-y-1">
-            {NAV.map(({ to, label, icon: Icon }) => (
+            {(user?.role === 'EVENT_ORGANIZER' ? EO_NAV
+              : user?.role === 'DIVISION_CHIEF' ? DC_NAV
+              : user?.role === 'REGIONAL_DIRECTOR' ? RD_NAV
+              : user?.role === 'PROVINCIAL_DIRECTOR' ? RD_NAV
+              : PM_NAV).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
