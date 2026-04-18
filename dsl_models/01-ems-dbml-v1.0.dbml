@@ -1,0 +1,1071 @@
+// ============================================================
+// DBML v3.1 — Domain & Behavior Model
+// System  : DTI Region 7 — Event Management System (EMS)
+//           & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Stack   : Node.js / React · PostgreSQL · Docker (dev) · GCP (Phase 3)
+//
+// STATUS  : Reflects Phase 1–2 implementation.
+//           SurveyContext CSF surveys run inside event-service.
+//           PDF certificates use PDFKit (no Puppeteer).
+//           Notifications via HTTP fire-and-forget (no Kafka yet).
+// ============================================================
+
+dbml model DTI_EMS_Domain {
+
+  import "./02-ems-sdml-v1.0.sdml" as security ;
+
+  security use security.DTI_SecurityModel ;
+
+  // ─────────────────────────────────────────────
+  // ENUMERATIONS
+  // ─────────────────────────────────────────────
+
+  enum UserRole {
+    super_admin ;
+    dti_staff ;
+    program_manager ;
+    event_organizer ;
+    participant ;
+    enterprise_owner ;
+    public ;
+  }
+
+  enum UserStatus {
+    active ;
+    inactive ;
+    suspended ;
+    pending_verification ;
+  }
+
+  enum ParticipantStatus {
+    invited ;
+    confirmed ;
+    waitlisted ;
+    checked_in ;
+    no_show ;
+    cancelled ;
+  }
+
+  enum EventStatus {
+    draft ;
+    published ;
+    registration_open ;
+    registration_closed ;
+    ongoing ;
+    completed ;
+    cancelled ;
+  }
+
+  enum EventFormat {
+    in_person ;
+    virtual ;
+    hybrid ;
+  }
+
+  enum SurveyKind {
+    tna ;
+    csf ;
+    impact_6month ;
+  }
+
+  enum SurveyStatus {
+    pending ;
+    sent ;
+    partial ;
+    completed ;
+    expired ;
+  }
+
+  enum EnterpriseStage {
+    ideation ;
+    startup ;
+    growth ;
+    maturity ;
+    export_ready ;
+  }
+
+  enum EnterpriseType {
+    freelancer ;
+    startup ;
+    sme ;
+    agency ;
+    cooperative ;
+    corporation ;
+  }
+
+  enum MembershipRole {
+    owner ;
+    admin ;
+    member ;
+  }
+
+  enum VerificationStatus {
+    unverified ;
+    pending ;
+    verified ;
+    flagged ;
+  }
+
+  enum CertificateStatus {
+    pending ;
+    generated ;
+    issued ;
+    revoked ;
+  }
+
+  enum NotificationChannel {
+    email ;
+    sms ;
+    push ;
+    in_app ;
+  }
+
+  enum EnablerType {
+    accelerator ;
+    co_working ;
+    venture_capital ;
+    government_agency ;
+    ngo ;
+    university ;
+  }
+
+  enum AuditAction {
+    create ;
+    update ;
+    delete ;
+    login ;
+    export ;
+    role_change ;
+  }
+
+  // ─────────────────────────────────────────────
+  // CONTEXT: Identity & Profile
+  // ─────────────────────────────────────────────
+
+  context IdentityContext {
+    label = "Identity & Profile Service" ;
+
+    // Master user profile — the Golden Record
+    entity UserProfile {
+      label    = "User Profile" ;
+      category = master ;
+      kind     = root ;
+
+      field id              : uuid       { required = true ; unique = true ; index = true ; }
+      field email           : string     { required = true ; unique = true ; index = true ; label = "Email Address" ; }
+      field phone           : string     { required = false ; }
+      field first_name      : string     { required = true ; }
+      field last_name       : string     { required = true ; }
+      field display_name    : string     { computed = true ; }
+      field date_of_birth   : date       { required = false ; }
+      field gender          : string     { required = false ; }
+      field region          : string     { required = false ; }
+      field province        : string     { required = false ; }
+      field city_municipality : string   { required = false ; }
+      field postal_code     : string     { required = false ; }
+      field industry_sector : string     { required = false ; }
+      field linkedin_url    : string     { required = false ; }
+      field avatar_url      : string     { required = false ; }
+      field role            : UserRole   { required = true ; default = "participant" ; enum = UserRole ; }
+      field status          : UserStatus { required = true ; default = "pending_verification" ; enum = UserStatus ; }
+      field email_verified  : boolean    { required = true ; default = false ; }
+      field phone_verified  : boolean    { required = true ; default = false ; }
+      field dpa_consent     : boolean    { required = true ; default = false ; label = "Data Privacy Act Consent" ; }
+      field dpa_consent_at  : datetime   { required = false ; }
+      field last_login_at   : datetime   { required = false ; }
+      field created_at      : datetime   { required = true ; }
+      field updated_at      : datetime   { required = true ; }
+
+      relation participations {
+        from = UserProfile.id ;
+        to   = EventParticipation.user_profile_id ;
+        kind = composition ;
+        cardinality = one-to-many ;
+      }
+
+      relation enterprise_memberships {
+        from = UserProfile.id ;
+        to   = EnterpriseProfile.id ;
+        kind = association ;
+        cardinality = many-to-many ;
+      }
+
+      lifecycle use ParticipantLifecycle ;
+
+      behavior {
+        workflow use RegistrationWorkflow ;
+
+        on create {
+          do notifications.SendWelcomeEmail ;
+        }
+
+        on update {
+          do audit.LogProfileUpdate ;
+        }
+
+        rule EnforceConsentBeforeParticipation {
+          when dpa_consent == false ;
+          do { block_registration ; }
+        }
+      }
+    }
+
+    // Enterprise / Organization entity
+    entity EnterpriseProfile {
+      label    = "Enterprise Profile" ;
+      category = master ;
+      kind     = root ;
+
+      field id                   : uuid               { required = true ; unique = true ; index = true ; }
+      field legal_name           : string             { required = true ; }
+      field trade_name           : string             { required = false ; }
+      field registration_number  : string             { required = false ; unique = true ; }
+      field enterprise_type      : EnterpriseType     { required = true ; enum = EnterpriseType ; }
+      field stage                : EnterpriseStage    { required = true ; default = "startup" ; enum = EnterpriseStage ; }
+      field industry_tags        : json               { required = false ; label = "Industry Tags (array)" ; }
+      field region               : string             { required = true ; index = true ; }
+      field province             : string             { required = false ; }
+      field city_municipality    : string             { required = false ; }
+      field latitude             : decimal            { precision = 10 ; scale = 7 ; }
+      field longitude            : decimal            { precision = 10 ; scale = 7 ; }
+      field year_established     : int                { required = false ; }
+      field employee_count       : int                { required = false ; }
+      field annual_revenue_php   : decimal            { required = false ; precision = 18 ; scale = 2 ; }
+      field is_exporter          : boolean            { default = false ; }
+      field verification_status  : VerificationStatus { required = true ; default = "unverified" ; enum = VerificationStatus ; }
+      field activity_score       : decimal            { computed = true ; precision = 5 ; scale = 2 ; }
+      field beneficiary_status   : boolean            { default = false ; }
+      field profile_verified_at  : datetime           { required = false ; }
+      field next_verification_due : date              { required = false ; }
+      field website_url          : string             { required = false ; }
+      field logo_url             : string             { required = false ; }
+      field description          : text               { required = false ; }
+      field created_at           : datetime           { required = true ; }
+      field updated_at           : datetime           { required = true ; }
+
+      relation memberships {
+        from = EnterpriseProfile.id ;
+        to   = EnterpriseMembership.enterprise_id ;
+        kind = composition ;
+        cardinality = one-to-many ;
+      }
+
+      relation ecosystem_links {
+        from = EnterpriseProfile.id ;
+        to   = EcosystemEnabler.id ;
+        kind = association ;
+        cardinality = many-to-many ;
+      }
+
+      behavior {
+        automation use VerificationReminderAutomation ;
+
+        on update {
+          do audit.LogEnterpriseUpdate ;
+          do dashboard.UpdateActivityScore ;
+        }
+      }
+    }
+
+    // Ecosystem enablers — accelerators, VCs, gov agencies
+    entity EcosystemEnabler {
+      label    = "Ecosystem Enabler" ;
+      category = master ;
+      kind     = root ;
+
+      field id           : uuid        { required = true ; unique = true ; index = true ; }
+      field name         : string      { required = true ; }
+      field enabler_type : EnablerType { required = true ; enum = EnablerType ; }
+      field region       : string      { required = true ; index = true ; }
+      field latitude     : decimal     { precision = 10 ; scale = 7 ; }
+      field longitude    : decimal     { precision = 10 ; scale = 7 ; }
+      field website_url  : string      { required = false ; }
+      field description  : text        { required = false ; }
+      field created_at   : datetime    { required = true ; }
+    }
+
+    // Audit log — immutable trail for DPA compliance
+    entity AuditLog {
+      label    = "Audit Log" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id           : uuid       { required = true ; unique = true ; }
+      field action       : AuditAction { required = true ; enum = AuditAction ; }
+      field actor_id     : uuid       { required = true ; index = true ; label = "User who performed the action" ; }
+      field target_type  : string     { required = true ; label = "Entity type affected" ; }
+      field target_id    : uuid       { required = true ; index = true ; }
+      field changes_json : json       { required = false ; label = "Before/after snapshot" ; }
+      field ip_address   : string     { required = false ; }
+      field user_agent   : string     { required = false ; }
+      field created_at   : datetime   { required = true ; index = true ; }
+    }
+
+    // Enterprise membership — junction between users and enterprises
+    entity EnterpriseMembership {
+      label    = "Enterprise Membership" ;
+      category = transactional ;
+      kind     = junction ;
+
+      field id            : uuid           { required = true ; unique = true ; index = true ; }
+      field enterprise_id : uuid           { required = true ; index = true ; }
+      field user_id       : uuid           { required = true ; index = true ; }
+      field role          : MembershipRole { required = true ; default = "member" ; enum = MembershipRole ; }
+      field joined_at     : datetime       { required = true ; }
+      field is_active      : boolean        { default = true ; }
+
+      relation enterprise {
+        from = EnterpriseMembership.enterprise_id ;
+        to   = EnterpriseProfile.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      relation user {
+        from = EnterpriseMembership.user_id ;
+        to   = UserProfile.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      constraint unique_membership {
+        fields = [enterprise_id, user_id] ;
+        label  = "A user can only belong to a given enterprise once" ;
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CONTEXT: Events & Workflow
+  // ─────────────────────────────────────────────
+
+  context EventContext {
+    label = "Event & Workflow Service" ;
+
+    entity Program {
+      label    = "Training Program / Intervention" ;
+      category = master ;
+      kind     = root ;
+
+      field id          : uuid   { required = true ; unique = true ; index = true ; }
+      field title       : string { required = true ; }
+      field description : text   { required = false ; }
+      field objectives  : json   { required = false ; label = "Learning objectives array" ; }
+      field target_sector : string { required = false ; }
+      field created_by  : uuid   { required = true ; }
+      field created_at  : datetime { required = true ; }
+    }
+
+    entity Event {
+      label    = "Event" ;
+      category = transactional ;
+      kind     = root ;
+
+      field id                : uuid        { required = true ; unique = true ; index = true ; }
+      field program_id        : uuid        { required = false ; index = true ; }
+      field title             : string      { required = true ; }
+      field description       : text        { required = false ; }
+      field event_format      : EventFormat { required = true ; enum = EventFormat ; }
+      field status            : EventStatus { required = true ; default = "draft" ; enum = EventStatus ; index = true ; }
+      field region            : string      { required = true ; index = true ; }
+      field venue_name        : string      { required = false ; }
+      field venue_address     : string      { required = false ; }
+      field venue_latitude    : decimal     { precision = 10 ; scale = 7 ; }
+      field venue_longitude   : decimal     { precision = 10 ; scale = 7 ; }
+      field virtual_link      : string      { required = false ; }
+      field start_datetime    : datetime    { required = true ; index = true ; }
+      field end_datetime      : datetime    { required = true ; }
+      field registration_deadline : datetime { required = false ; }
+      field max_participants  : int         { required = false ; }
+      field requires_tna      : boolean     { default = true ; }
+      field created_by        : uuid        { required = true ; }
+      field created_at        : datetime    { required = true ; }
+      field updated_at        : datetime    { required = true ; }
+
+      relation program {
+        from = Event.program_id ;
+        to   = Program.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      relation participations {
+        from = Event.id ;
+        to   = EventParticipation.event_id ;
+        kind = composition ;
+        cardinality = one-to-many ;
+      }
+
+      relation sessions {
+        from = Event.id ;
+        to   = EventSession.event_id ;
+        kind = composition ;
+        cardinality = one-to-many ;
+      }
+
+      lifecycle use EventLifecycle ;
+
+      behavior {
+        workflow use EventWorkflow ;
+
+        on create {
+          do notifications.NotifyOrganizerEventCreated ;
+        }
+      }
+    }
+
+    entity EventSession {
+      label    = "Event Session / Module" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id          : uuid     { required = true ; unique = true ; }
+      field event_id    : uuid     { required = true ; index = true ; }
+      field title       : string   { required = true ; }
+      field speaker     : string   { required = false ; }
+      field start_time  : datetime { required = true ; }
+      field end_time    : datetime { required = true ; }
+      field qr_token    : string   { required = false ; unique = true ; label = "Encrypted QR token for attendance" ; }
+    }
+
+    // Participation — the many-to-many junction between UserProfile and Event
+    entity EventParticipation {
+      label    = "Event Participation Record" ;
+      category = transactional ;
+      kind     = junction ;
+
+      field id                  : uuid              { required = true ; unique = true ; index = true ; }
+      field event_id            : uuid              { required = true ; index = true ; }
+      field user_profile_id     : uuid              { required = true ; index = true ; }
+      field enterprise_id       : uuid              { required = false ; index = true ; }
+      field status              : ParticipantStatus { required = true ; default = "invited" ; enum = ParticipantStatus ; index = true ; }
+      field tna_score           : decimal           { precision = 5 ; scale = 2 ; required = false ; }
+      field registered_at       : datetime          { required = false ; }
+      field confirmed_at        : datetime          { required = false ; }
+      field checked_in_at       : datetime          { required = false ; }
+      field qr_scan_token       : string            { required = false ; unique = true ; label = "Permanent HMAC-SHA256 token for QR attendance (system-wide, no expiry)" ; }
+      field completion_status   : boolean           { default = false ; }
+      field certificate_id      : uuid              { required = false ; }
+      field participant_name     : string            { required = false ; label = "Denormalized from UserProfile (cross-service)" ; }
+      field participant_email    : string            { required = false ; label = "Denormalized from UserProfile (cross-service)" ; }
+      field enterprise_name      : string            { required = false ; label = "Denormalized from EnterpriseProfile (cross-service)" ; }
+      field created_at          : datetime          { required = true ; }
+      field updated_at          : datetime          { required = true ; }
+
+      relation event {
+        from = EventParticipation.event_id ;
+        to   = Event.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      relation user {
+        from = EventParticipation.user_profile_id ;
+        to   = UserProfile.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      relation enterprise {
+        from = EventParticipation.enterprise_id ;
+        to   = EnterpriseProfile.id ;
+        kind = association ;
+        cardinality = many-to-one ;
+      }
+
+      lifecycle use ParticipantLifecycle ;
+
+      behavior {
+        workflow use ParticipantWorkflow ;
+
+        on update {
+          do audit.LogParticipationChange ;
+        }
+
+        rule TriggerCertificateOnCompletion {
+          when completion_status == true ;
+          do { certificates.GenerateCertificate ; }
+        }
+      }
+    }
+
+    // Training Needs Assessment
+    entity TNAResponse {
+      label    = "TNA Survey Response" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id                : uuid     { required = true ; unique = true ; }
+      field participation_id  : uuid     { required = true ; index = true ; }
+      field user_profile_id   : uuid     { required = true ; index = true ; }
+      field event_id          : uuid     { required = true ; index = true ; }
+      field answers_json      : json     { required = true ; label = "Structured JSON of answers" ; }
+      field computed_score    : decimal  { precision = 5 ; scale = 2 ; }
+      field recommended_modules : json  { required = false ; label = "AI-suggested modules" ; }
+      field submitted_at      : datetime { required = true ; }
+    }
+
+    // Attendance record per session
+    entity AttendanceRecord {
+      label    = "Attendance Record" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id              : uuid     { required = true ; unique = true ; }
+      field participation_id : uuid   { required = true ; index = true ; }
+      field session_id      : uuid     { required = true ; index = true ; }
+      field checked_in_via  : string   { required = false ; label = "qr_scan | manual | biometric" ; }
+      field checked_in_at   : datetime { required = true ; }
+      field checked_out_at  : datetime { required = false ; }
+      field duration_minutes : int     { computed = true ; }
+    }
+
+    // Certificate
+    entity Certificate {
+      label    = "Attendance Certificate" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id              : uuid              { required = true ; unique = true ; index = true ; }
+      field participation_id : uuid            { required = true ; index = true ; }
+      field user_profile_id : uuid             { required = true ; index = true ; }
+      field event_id        : uuid             { required = true ; index = true ; }
+      field certificate_no  : string           { required = true ; unique = true ; }
+      field status          : CertificateStatus { required = true ; default = "pending" ; enum = CertificateStatus ; }
+      field pdf_url         : string           { required = false ; label = "Phase 3: GCS signed URL. Currently PDFs streamed inline via PDFKit." ; }
+      field issued_at       : datetime         { required = false ; }
+      field generated_at    : datetime         { required = false ; }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CONTEXT: Surveys & Feedback
+  // ─────────────────────────────────────────────
+
+  context SurveyContext {
+    label = "Survey & Feedback (integrated into event-service)" ;
+
+    entity SurveyTemplate {
+      label    = "Survey Template" ;
+      category = config ;
+      kind     = root ;
+
+      field id          : uuid       { required = true ; unique = true ; }
+      field kind        : SurveyKind { required = true ; enum = SurveyKind ; }
+      field title       : string     { required = true ; }
+      field questions   : json       { required = true ; label = "Question schema JSON" ; }
+      field version     : int        { required = true ; default = 1 ; }
+      field is_active   : boolean    { default = true ; }
+      field created_at  : datetime   { required = true ; }
+    }
+
+    entity SurveyResponse {
+      label    = "Survey Response" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id                : uuid         { required = true ; unique = true ; index = true ; }
+      field template_id       : uuid         { required = true ; index = true ; }
+      field kind              : SurveyKind   { required = true ; enum = SurveyKind ; index = true ; }
+      field participation_id  : uuid         { required = false ; index = true ; label = "Linked event participation (if event survey)" ; }
+      field user_profile_id   : uuid         { required = true ; index = true ; }
+      field enterprise_id     : uuid         { required = false ; index = true ; }
+      field event_id          : uuid         { required = false ; index = true ; }
+      field status            : SurveyStatus { required = true ; default = "pending" ; enum = SurveyStatus ; }
+      field answers_json      : json         { required = false ; }
+      field satisfaction_score : decimal     { precision = 4 ; scale = 2 ; required = false ; label = "0-5 CSF score" ; }
+      field sent_at           : datetime     { required = false ; }
+      field submitted_at      : datetime     { required = false ; }
+      field expires_at        : datetime     { required = false ; }
+    }
+
+    // 6-month impact data points
+    entity ImpactDataPoint {
+      label    = "Impact Data Point (Longitudinal)" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id                  : uuid     { required = true ; unique = true ; index = true ; }
+      field survey_response_id  : uuid     { required = true ; index = true ; }
+      field user_profile_id     : uuid     { required = true ; index = true ; }
+      field enterprise_id       : uuid     { required = false ; index = true ; }
+      field measurement_date    : date     { required = true ; index = true ; }
+      field employee_count      : int      { required = false ; }
+      field revenue_php         : decimal  { precision = 18 ; scale = 2 ; required = false ; }
+      field is_exporting        : boolean  { required = false ; }
+      field investment_raised   : decimal  { precision = 18 ; scale = 2 ; required = false ; }
+      field jobs_created        : int      { required = false ; }
+      field additional_notes    : text     { required = false ; }
+      field created_at          : datetime { required = true ; }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CONTEXT: Notifications
+  // ─────────────────────────────────────────────
+
+  context NotificationContext {
+    label = "Notification Service (port 3013 — BullMQ + Resend + Semaphore)" ;
+
+    entity NotificationLog {
+      label    = "Notification Log" ;
+      category = transactional ;
+      kind     = child ;
+
+      field id              : uuid               { required = true ; unique = true ; index = true ; }
+      field recipient_id    : uuid               { required = true ; index = true ; }
+      field channel         : NotificationChannel { required = true ; enum = NotificationChannel ; }
+      field template_key    : string             { required = true ; label = "e.g., welcome_email, csf_survey_link" ; }
+      field subject         : string             { required = false ; }
+      field body_preview    : text               { required = false ; }
+      field status          : string             { required = true ; default = "queued" ; label = "queued | sent | failed | bounced" ; }
+      field sent_at         : datetime           { required = false ; }
+      field error_message   : text               { required = false ; }
+      field created_at      : datetime           { required = true ; index = true ; }
+
+      behavior {
+        on create {
+          do queue.EnqueueNotification ;
+        }
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // WORKFLOWS
+  // ─────────────────────────────────────────────
+
+  workflow EventWorkflow {
+    entity     = EventContext.Event ;
+    state-field = status ;
+
+    state draft          { initial = true ; }
+    state published      { }
+    state registration_open { }
+    state registration_closed { }
+    state ongoing        { }
+    state completed      { final = true ; }
+    state cancelled      { final = true ; }
+
+    transition PublishEvent {
+      from   = draft ;
+      to     = published ;
+      role   = UserRole.program_manager ;
+    }
+
+    transition OpenRegistration {
+      from   = published ;
+      to     = registration_open ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition CloseRegistration {
+      from   = registration_open ;
+      to     = registration_closed ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition StartEvent {
+      from   = registration_closed ;
+      to     = ongoing ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition CompleteEvent {
+      from   = ongoing ;
+      to     = completed ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition CancelEvent {
+      from   = draft ;
+      to     = cancelled ;
+      role   = UserRole.program_manager ;
+    }
+  }
+
+  workflow ParticipantWorkflow {
+    entity      = EventContext.EventParticipation ;
+    state-field = status ;
+
+    state invited       { initial = true ; }
+    state confirmed     { }
+    state waitlisted    { }
+    state checked_in    { }
+    state no_show       { final = true ; }
+    state cancelled     { final = true ; }
+
+    transition ConfirmRSVP {
+      from   = invited ;
+      to     = confirmed ;
+      role   = UserRole.participant ;
+    }
+
+    transition Waitlist {
+      from   = invited ;
+      to     = waitlisted ;
+    }
+
+    transition CheckIn {
+      from   = confirmed ;
+      to     = checked_in ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition MarkNoShow {
+      from   = confirmed ;
+      to     = no_show ;
+      role   = UserRole.event_organizer ;
+    }
+
+    transition CancelRegistration {
+      from   = invited ;
+      to     = cancelled ;
+      role   = UserRole.participant ;
+    }
+  }
+
+  workflow RegistrationWorkflow {
+    entity      = IdentityContext.UserProfile ;
+    state-field = status ;
+
+    state pending_verification { initial = true ; }
+    state active               { }
+    state suspended            { }
+    state inactive             { final = true ; }
+
+    transition VerifyEmail {
+      from   = pending_verification ;
+      to     = active ;
+    }
+
+    transition SuspendUser {
+      from   = active ;
+      to     = suspended ;
+      role   = UserRole.super_admin ;
+    }
+
+    transition ReactivateUser {
+      from   = suspended ;
+      to     = active ;
+      role   = UserRole.super_admin ;
+    }
+
+    transition DeactivateUser {
+      from   = active ;
+      to     = inactive ;
+      role   = UserRole.super_admin ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // LIFECYCLES
+  // ─────────────────────────────────────────────
+
+  lifecycle EventLifecycle {
+    entity = EventContext.Event ;
+
+    state draft          { initial = true ; }
+    state published      { }
+    state ongoing        { }
+    state completed      { final = true ; }
+    state cancelled      { final = true ; }
+  }
+
+  lifecycle ParticipantLifecycle {
+    entity = EventContext.EventParticipation ;
+
+    state invited    { initial = true ; }
+    state confirmed  { }
+    state checked_in { }
+    state completed  { final = true ; }
+    state cancelled  { final = true ; }
+  }
+
+  // ─────────────────────────────────────────────
+  // AUTOMATIONS
+  // ─────────────────────────────────────────────
+
+  automation CSF_SurveyDispatch {
+    entity = EventContext.Event ;
+
+    trigger OnEventComplete {
+      on-event = completed ;
+      filter   = status == "completed" ;
+      notify   = email ;
+      invoke   = event-service.AutoCreateCsfSurveys ;
+      // Auto-creates PENDING CsfSurveyResponse for all ATTENDED participants
+      // Then fires HTTP POST to notification-service /triggers/bulk-csf-invite (1h delay)
+    }
+  }
+
+  automation ImpactSurveyDispatch {
+    entity = EventContext.EventParticipation ;
+
+    trigger SixMonthPostEvent {
+      schedule = "P6M" ;
+      filter   = completion_status == true ;
+      notify   = email ;
+      invoke   = surveys.DispatchImpactSurvey ;
+    }
+  }
+
+  automation CertificateIssuance {
+    entity = EventContext.EventParticipation ;
+
+    trigger OnCompletion {
+      on-event = update ;
+      filter   = completion_status == true ;
+      invoke   = event-service.certificates.IssueCertificate ;
+      // PDF generated inline via PDFKit (no Puppeteer/document-service)
+    }
+  }
+
+  automation VerificationReminderAutomation {
+    entity = IdentityContext.EnterpriseProfile ;
+
+    trigger BiannualVerification {
+      schedule = "P6M" ;
+      notify   = email ;
+      invoke   = profiles.RequestVerificationUpdate ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // PERMISSIONS
+  // ─────────────────────────────────────────────
+
+  permissions EventPermissions {
+    entity = EventContext.Event ;
+
+    role UserRole.super_admin {
+      allow = read, write, create, delete, cancel, export ;
+    }
+    role UserRole.program_manager {
+      allow = read, write, create, cancel, export ;
+    }
+    role UserRole.event_organizer {
+      allow = read, write, submit ;
+    }
+    role UserRole.dti_staff {
+      allow = read, export ;
+    }
+    role UserRole.participant {
+      allow = read ;
+    }
+  }
+
+  permissions ParticipantPermissions {
+    entity = EventContext.EventParticipation ;
+
+    role UserRole.super_admin {
+      allow = read, write, create, delete, export ;
+    }
+    role UserRole.event_organizer {
+      allow = read, write, assign ;
+    }
+    role UserRole.participant {
+      allow = read, write ;
+    }
+  }
+
+  permissions EnterprisePermissions {
+    entity = IdentityContext.EnterpriseProfile ;
+
+    role UserRole.super_admin {
+      allow = read, write, create, delete, export ;
+    }
+    role UserRole.dti_staff {
+      allow = read, write, export ;
+    }
+    role UserRole.enterprise_owner {
+      allow = read, write ;
+    }
+    role UserRole.public {
+      allow = read ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTIONS
+  // ─────────────────────────────────────────────
+
+  action GenerateQRToken {
+    kind    = server ;
+    entity  = EventContext.EventParticipation ;
+    inputs  { field participation_id : uuid ; }
+    returns { field qr_token_url : string ; }
+    handler = "services/qr/generateToken.ts" ;
+  }
+
+  action ScanAndCheckIn {
+    kind    = server ;
+    entity  = EventContext.AttendanceRecord ;
+    inputs  {
+      field qr_payload   : string ;
+      field session_id   : uuid ;
+    }
+    returns { field success : boolean ; }
+    handler = "services/attendance/scanCheckIn.ts" ;
+  }
+
+  action GeneratePDFCertificate {
+    kind    = server ;
+    entity  = EventContext.Certificate ;
+    inputs  { field participation_id : uuid ; }
+    returns { field pdf_buffer : binary ; }
+    handler = "services/event-service/src/routes/certificates.ts" ;
+    // Uses PDFKit to stream landscape A4 PDF with DTI branding + QR code
+  }
+
+  action DispatchCSFSurvey {
+    kind    = scheduled ;
+    entity  = SurveyContext.SurveyResponse ;
+    inputs  { field event_id : uuid ; }
+    handler = "services/event-service/src/routes/surveys.ts" ;
+    step    = "auto_create_pending_csf_responses_for_attended_participants" ;
+    step    = "fire_http_to_notification_service_bulk_csf_invite" ;
+  }
+
+  action DispatchImpactSurvey {
+    kind    = scheduled ;
+    entity  = SurveyContext.SurveyResponse ;
+    inputs  { field participation_id : uuid ; }
+    handler = "services/event-service/src/routes/surveys.ts" ;  // Phase 3
+  }
+
+  action ExportCSFReport {
+    kind    = server ;
+    entity  = SurveyContext.SurveyResponse ;
+    inputs  { field event_id : uuid ; }
+    returns { field report_url : string ; }
+    handler = "services/reports/exportCSF.ts" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // METRICS & EVENTS
+  // ─────────────────────────────────────────────
+
+  metrics EventDashboardMetrics {
+    metric TotalEvents {
+      entity      = EventContext.Event ;
+      field       = id ;
+      aggregation = count ;
+    }
+
+    metric TotalParticipants {
+      entity      = EventContext.EventParticipation ;
+      field       = id ;
+      aggregation = count ;
+    }
+
+    metric AttendanceRate {
+      entity      = EventContext.EventParticipation ;
+      field       = status ;
+      aggregation = avg ;
+    }
+
+    metric AverageCSFScore {
+      entity      = SurveyContext.SurveyResponse ;
+      field       = satisfaction_score ;
+      aggregation = avg ;
+    }
+
+    metric ActiveEnterprises {
+      entity      = IdentityContext.EnterpriseProfile ;
+      field       = id ;
+      aggregation = count ;
+      group-by    = region ;
+    }
+
+    metric ImpactJobsCreated {
+      entity      = SurveyContext.ImpactDataPoint ;
+      field       = jobs_created ;
+      aggregation = sum ;
+    }
+
+    report EventCompletionReport {
+      entity = EventContext.Event ;
+      kind   = tabular ;
+      metric-ref = TotalEvents ;
+      metric-ref = TotalParticipants ;
+      metric-ref = AttendanceRate ;
+    }
+
+    report ImpactSummaryReport {
+      entity = SurveyContext.ImpactDataPoint ;
+      kind   = query ;
+      metric-ref = ImpactJobsCreated ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // INTEGRATION POINTS
+  // ─────────────────────────────────────────────
+
+  integration SMTPGateway {
+    channel = email ;
+    // Resend API via notification-service
+  }
+
+  integration SMSGateway {
+    channel = sms ;
+    // Semaphore PH API via notification-service
+  }
+
+  // Phase 3 integrations (not implemented)
+  // integration PushGateway { channel = push ; }
+  // integration KongApiGateway { channel = webhook ; }
+  // integration PostGISDatabase { channel = webhook ; }
+  // integration ElasticsearchDirectory { channel = webhook ; }
+  // integration KafkaEventBus { channel = webhook ; }
+
+  integration OpenTelemetryTracing {
+    channel = webhook ;
+    // Phase 3: distributed tracing
+  }
+
+  // ─────────────────────────────────────────────
+  // INTEGRATION EVENTS (HTTP fire-and-forget, Phase 3: Kafka)
+  // ─────────────────────────────────────────────
+
+  event AttendanceConfirmed {
+    entity = EventContext.EventParticipation ;
+    kind   = domain ;
+    // Currently: inline in event-service (no external event bus)
+  }
+
+  event EventCompleted {
+    entity = EventContext.Event ;
+    kind   = domain ;
+    // Triggers: auto-create CSF surveys + HTTP notify to notification-service
+  }
+
+  event CSFSurveySubmitted {
+    entity = SurveyContext.SurveyResponse ;
+    kind   = integration ;
+    // Currently: handled inline in event-service
+  }
+
+  event ImpactSurveySubmitted {
+    entity = SurveyContext.SurveyResponse ;
+    kind   = integration ;
+    // Phase 3
+  }
+
+  event EnterpriseProfileUpdated {
+    entity = IdentityContext.EnterpriseProfile ;
+    kind   = integration ;
+    // Phase 3: Kafka event
+  }
+
+  event UserRegistered {
+    entity = IdentityContext.UserProfile ;
+    kind   = domain ;
+    // Currently: HTTP fire-and-forget to notification-service /triggers/registration-confirmation
+  }
+
+}

@@ -1,0 +1,785 @@
+// ============================================================
+// AIML v2.1 — AI/ML Design Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Purpose : Model AI/ML pipelines for TNA scoring, program
+//           recommendation, enterprise outcome prediction,
+//           and ecosystem cluster detection.
+//
+// STATUS  : Phase 3 — ENTIRELY NOT IMPLEMENTED.
+//           All models, training pipelines, inference endpoints,
+//           drift detectors, and governance controls defined here
+//           are planned for future deployment on GCP Vertex AI.
+//           No ML code exists in the current codebase.
+// ============================================================
+
+aiml model DTI_EMS_AI {
+
+  import "./01-ems-dbml-v1.0.dbml" as domain ;
+  import "./05-ems-blml-v1.0.blml" as logic ;
+  import "./07-ems-lrml-v1.0.lrml" as reporting ;
+
+  security use DTI_SecurityModel.CTRL_DataMinimization ;
+
+  // ─────────────────────────────────────────────
+  // CONTEXTS
+  // ─────────────────────────────────────────────
+
+  context TNARecommendationContext {
+    label       = "TNA Module Recommendation Engine" ;
+    description = "Recommends training modules to participants based on TNA answers, enterprise stage, and prior event history. Solves the cold-start problem using Bayesian priors for new users." ;
+    domain      = domain.EventContext ;
+  }
+
+  context OutcomePredictionContext {
+    label       = "Business Outcome Prediction" ;
+    description = "Predicts 6-month post-program business outcomes (revenue growth, new jobs, export status) from enterprise features at the time of program enrollment." ;
+    domain      = domain.SurveyContext ;
+  }
+
+  context EcosystemClusterContext {
+    label       = "Creative Industry Cluster Detection" ;
+    description = "Identifies geographic concentrations of creative enterprises (clusters) and deserts (underserved areas) for policy planning." ;
+    domain      = domain.IdentityContext ;
+  }
+
+  context SurveyChurnContext {
+    label       = "Survey Response Prediction" ;
+    description = "Predicts which participants are at risk of not completing the 6-month impact survey so the Notification Service can send personalized follow-ups." ;
+    domain      = domain.SurveyContext ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DATA SOURCES
+  // ─────────────────────────────────────────────
+
+  datasource TNAResponseSource {
+    type           = "postgresql" ;
+    frequency      = 24 ;
+    retention_days = 1095 ;
+    fields {
+      field participation_id     : uuid ;
+      field event_id             : uuid ;
+      field answers_json         : json ;
+      field computed_score       : float ;
+      field recommended_modules  : json ;
+      field submitted_at         : datetime ;
+    }
+  }
+
+  datasource ParticipationHistorySource {
+    type           = "postgresql" ;
+    frequency      = 24 ;
+    retention_days = 1095 ;
+    fields {
+      field user_profile_id    : uuid ;
+      field event_id           : uuid ;
+      field status             : string ;
+      field tna_score          : float ;
+      field completion_status  : boolean ;
+      field registered_at      : datetime ;
+    }
+  }
+
+  datasource EnterpriseProfileSource {
+    type           = "postgresql" ;
+    frequency      = 24 ;
+    retention_days = 730 ;
+    fields {
+      field enterprise_id       : uuid ;
+      field enterprise_type     : string ;
+      field stage               : string ;
+      field industry_tags       : json ;
+      field region              : string ;
+      field employee_count      : int ;
+      field annual_revenue_php  : float ;
+      field is_exporter         : boolean ;
+      field activity_score      : float ;
+      field verification_status : string ;
+    }
+  }
+
+  datasource ImpactSurveySource {
+    type           = "postgresql" ;
+    frequency      = 24 ;
+    retention_days = 2555 ;
+    fields {
+      field survey_response_id  : uuid ;
+      field enterprise_id       : uuid ;
+      field measurement_date    : date ;
+      field employee_count      : int ;
+      field revenue_php         : float ;
+      field is_exporting        : boolean ;
+      field investment_raised   : float ;
+      field jobs_created        : int ;
+    }
+  }
+
+  datasource GeoEnterpriseSource {
+    type           = "postgresql_postgis" ;
+    frequency      = 24 ;
+    retention_days = 730 ;
+    fields {
+      field enterprise_id   : uuid ;
+      field latitude        : float ;
+      field longitude       : float ;
+      field region          : string ;
+      field province        : string ;
+      field city            : string ;
+      field industry_tags   : json ;
+      field stage           : string ;
+      field activity_score  : float ;
+    }
+  }
+
+  datasource NotificationInteractionSource {
+    type           = "postgresql" ;
+    frequency      = 24 ;
+    retention_days = 365 ;
+    fields {
+      field notification_id   : uuid ;
+      field recipient_id      : uuid ;
+      field template_key      : string ;
+      field channel           : string ;
+      field status            : string ;
+      field sent_at           : datetime ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // FEATURE SCHEMAS
+  // ─────────────────────────────────────────────
+
+  feature-schema TNA_Features {
+    label = "Feature set for TNA module recommendation model" ;
+    fields {
+      field knowledge_score           : float ;
+      field skill_score               : float ;
+      field motivation_score          : float ;
+      field tna_composite_score       : float ;
+      field enterprise_stage_encoded  : int ;
+      field industry_sector_encoded   : int ;
+      field events_attended_count     : int ;
+      field prior_module_foundational  : boolean ;
+      field prior_module_growth       : boolean ;
+      field prior_module_export       : boolean ;
+      field is_exporter               : boolean ;
+      field activity_score            : float ;
+    }
+  }
+
+  feature-schema OutcomePrediction_Features {
+    label = "Feature set for 6-month business outcome prediction" ;
+    fields {
+      field tna_composite_score       : float ;
+      field attendance_completion_rate : float ;
+      field event_count_attended      : int ;
+      field enterprise_stage_encoded  : int ;
+      field industry_sector_encoded   : int ;
+      field employee_count_at_enrollment : int ;
+      field revenue_at_enrollment_php : float ;
+      field is_exporter_at_enrollment : boolean ;
+      field region_encoded            : int ;
+      field activity_score_at_enrollment : float ;
+    }
+  }
+
+  feature-schema EcosystemCluster_Features {
+    label = "Feature set for geographic cluster detection" ;
+    fields {
+      field latitude              : float ;
+      field longitude             : float ;
+      field enterprise_type_encoded : int ;
+      field stage_encoded         : int ;
+      field industry_tag_vector   : json ;
+      field activity_score        : float ;
+      field employee_count        : int ;
+    }
+  }
+
+  feature-schema SurveyChurn_Features {
+    label = "Feature set for predicting impact survey non-response" ;
+    fields {
+      field csf_survey_completed         : boolean ;
+      field notifications_opened_count   : int ;
+      field events_attended_count        : int ;
+      field tna_completed                : boolean ;
+      field days_since_last_login        : int ;
+      field profile_completeness_pct     : float ;
+      field has_enterprise_linked        : boolean ;
+      field preferred_channel_email      : boolean ;
+      field preferred_channel_sms        : boolean ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // TRANSFORMS
+  // ─────────────────────────────────────────────
+
+  transform EnterpriseStageEncoder {
+    label = "Ordinal encode enterprise stage" ;
+    kind  = "ordinal-encoding" ;
+    mapping {
+      "ideation"     -> 0 ;
+      "startup"      -> 1 ;
+      "growth"       -> 2 ;
+      "maturity"     -> 3 ;
+      "export_ready" -> 4 ;
+    }
+  }
+
+  transform IndustrySectorEncoder {
+    label = "Label encode industry sector" ;
+    kind  = "label-encoding" ;
+    source = "EnterpriseProfileSource.industry_tags" ;
+  }
+
+  transform RegionEncoder {
+    label = "Label encode region codes" ;
+    kind  = "label-encoding" ;
+    source = "EnterpriseProfileSource.region" ;
+  }
+
+  transform RevenueNormalizer {
+    label = "Min-max normalize revenue to 0-1 range" ;
+    kind  = "min-max-scaler" ;
+    source = "EnterpriseProfileSource.annual_revenue_php" ;
+    min = 0 ;
+    max = 50000000 ;
+  }
+
+  transform TNA_ScoreNormalizer {
+    label = "Normalize TNA composite score to 0-1" ;
+    kind  = "min-max-scaler" ;
+    source = "TNAResponseSource.computed_score" ;
+    min = 0 ;
+    max = 100 ;
+  }
+
+  transform IndustryTagVectorizer {
+    label = "Multi-hot encode industry tags" ;
+    kind  = "multi-hot-encoding" ;
+    source = "EnterpriseProfileSource.industry_tags" ;
+    vocabulary = [
+      "creative" "technology" "food_processing" "retail"
+      "manufacturing" "services" "export" "design"
+      "animation" "fintech" "tourism" "agriculture"
+    ]
+  }
+
+  transform GeoCoordinateScaler {
+    label = "Standard scale lat/lon for clustering" ;
+    kind  = "standard-scaler" ;
+    source = "GeoEnterpriseSource" ;
+    fields = [ "latitude", "longitude" ] ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DATASETS (ML)
+  // ─────────────────────────────────────────────
+
+  dataset TNA_TrainingDataset {
+    label       = "TNA module recommendation training dataset" ;
+    source      = TNAResponseSource ;
+    join        = ParticipationHistorySource ;
+    join        = EnterpriseProfileSource ;
+    features    = TNA_Features ;
+    label_field = "recommended_track" ;
+    size_estimate = "5000-20000 records" ;
+    split {
+      train      = 0.70 ;
+      validation = 0.15 ;
+      test       = 0.15 ;
+    }
+  }
+
+  dataset OutcomePrediction_Dataset {
+    label       = "6-month outcome prediction training dataset" ;
+    source      = ImpactSurveySource ;
+    join        = ParticipationHistorySource ;
+    join        = EnterpriseProfileSource ;
+    features    = OutcomePrediction_Features ;
+    label_field = "outcome_category" ;
+    size_estimate = "1000-5000 records" ;
+    split {
+      train      = 0.70 ;
+      validation = 0.15 ;
+      test       = 0.15 ;
+    }
+    note = "Cold start: <1000 impact survey records in year 1. Supplement with Bayesian priors from BLML.TNAScorePrediction." ;
+  }
+
+  dataset EcosystemCluster_Dataset {
+    label    = "Enterprise geospatial dataset for clustering" ;
+    source   = GeoEnterpriseSource ;
+    features = EcosystemCluster_Features ;
+    note     = "Unsupervised — no label field. Cluster labels generated by K-Means output." ;
+  }
+
+  dataset SurveyChurn_Dataset {
+    label       = "Survey non-response churn prediction dataset" ;
+    source      = NotificationInteractionSource ;
+    join        = ParticipationHistorySource ;
+    features    = SurveyChurn_Features ;
+    label_field = "impact_survey_completed" ;
+    class_weight = "balanced" ;
+    note        = "Class imbalance expected (~30% completion rate). Apply SMOTE or class weighting." ;
+  }
+
+  // ─────────────────────────────────────────────
+  // MODELS
+  // ─────────────────────────────────────────────
+
+  model TNA_ModuleRecommender {
+    label       = "TNA Module Recommendation Model" ;
+    kind        = "multi-class-classifier" ;
+    algorithm   = "GradientBoostedTrees" ;
+    dataset     = TNA_TrainingDataset ;
+    features    = TNA_Features ;
+    target      = "recommended_track" ;
+    classes     = [ "foundational", "growth", "advanced_export" ] ;
+    evaluation_metric = "accuracy + macro_f1" ;
+    target_accuracy   = 0.80 ;
+    fallback    = "logic.TNAScorePrediction (Bayesian)" ;
+    fallback_condition = "prediction_confidence < 0.65" ;
+  }
+
+  model BusinessOutcomePredictor {
+    label       = "6-Month Business Outcome Predictor" ;
+    kind        = "multi-label-classifier" ;
+    algorithm   = "RandomForestClassifier" ;
+    dataset     = OutcomePrediction_Dataset ;
+    features    = OutcomePrediction_Features ;
+    target      = "outcome_category" ;
+    classes     = [ "no_growth", "moderate_growth", "high_growth", "new_exporter" ] ;
+    evaluation_metric = "macro_auc" ;
+    target_accuracy   = 0.72 ;
+    note = "First deployed as a statistical heuristic (OutcomeScore formula in BLML) until >3000 labeled samples are available." ;
+  }
+
+  model EcosystemClusterer {
+    label       = "Creative Cluster & Desert Zone Detector" ;
+    kind        = "clustering" ;
+    algorithm   = "K-Means" ;
+    n_clusters  = 10 ;
+    dataset     = EcosystemCluster_Dataset ;
+    features    = EcosystemCluster_Features ;
+    evaluation_metric = "silhouette_score" ;
+    output      = "cluster_label + centroid_coordinates" ;
+    use         = "Policy planning heatmap — colors clusters by density and activity score." ;
+  }
+
+  model SurveyChurnPredictor {
+    label       = "Impact Survey Non-Response Risk Predictor" ;
+    kind        = "binary-classifier" ;
+    algorithm   = "LogisticRegression" ;
+    dataset     = SurveyChurn_Dataset ;
+    features    = SurveyChurn_Features ;
+    target      = "impact_survey_completed" ;
+    classes     = [ "will_respond", "at_risk" ] ;
+    evaluation_metric = "recall + precision (focus on at_risk class)" ;
+    target_recall     = 0.75 ;
+    threshold   = 0.40 ;
+    use         = "High-risk participants receive additional personalized follow-up notifications via NotificationService." ;
+  }
+
+  bayesian-model TNABayesianPrior {
+    label       = "Bayesian TNA Module Recommender (cold-start)" ;
+    description = "Used when a user has no prior TNA or event history. Informed by domain expertise encoded in BLML.TNAScorePrediction network." ;
+    reference   = "logic.TNAScorePrediction" ;
+    update_rule = "Update posterior after each TNA submission using Beta-Binomial conjugate update." ;
+  }
+
+  // ─────────────────────────────────────────────
+  // PREPROCESSING PIPELINES
+  // ─────────────────────────────────────────────
+
+  preprocessing-pipeline TNA_Preprocessing {
+    label = "TNA Recommendation Feature Pipeline" ;
+    steps {
+      EnterpriseStageEncoder ;
+      IndustrySectorEncoder ;
+      TNA_ScoreNormalizer ;
+      RevenueNormalizer ;
+    }
+    output = TNA_Features ;
+  }
+
+  preprocessing-pipeline OutcomePrediction_Preprocessing {
+    label = "Outcome Prediction Feature Pipeline" ;
+    steps {
+      EnterpriseStageEncoder ;
+      IndustrySectorEncoder ;
+      RegionEncoder ;
+      TNA_ScoreNormalizer ;
+      RevenueNormalizer ;
+    }
+    output = OutcomePrediction_Features ;
+  }
+
+  preprocessing-pipeline EcosystemCluster_Preprocessing {
+    label = "Ecosystem Cluster Feature Pipeline" ;
+    steps {
+      GeoCoordinateScaler ;
+      EnterpriseStageEncoder ;
+      IndustrySectorEncoder ;
+      IndustryTagVectorizer ;
+    }
+    output = EcosystemCluster_Features ;
+  }
+
+  // ─────────────────────────────────────────────
+  // TRAINING PIPELINES
+  // ─────────────────────────────────────────────
+
+  training-pipeline TNA_TrainingPipeline {
+    label     = "TNA Recommender Training Pipeline" ;
+    model     = TNA_ModuleRecommender ;
+    dataset   = TNA_TrainingDataset ;
+    preprocessing = TNA_Preprocessing ;
+    schedule  = "monthly (1st of month, 01:00 PHT)" ;
+    compute   = "GCP Vertex AI — n1-standard-4" ;
+    artifact  = "gs://dti-ems-ml-models/tna-recommender/" ;
+  }
+
+  training-pipeline OutcomePrediction_Pipeline {
+    label     = "Business Outcome Predictor Training Pipeline" ;
+    model     = BusinessOutcomePredictor ;
+    dataset   = OutcomePrediction_Dataset ;
+    preprocessing = OutcomePrediction_Preprocessing ;
+    schedule  = "quarterly (every 90 days)" ;
+    compute   = "GCP Vertex AI — n1-standard-4" ;
+    artifact  = "gs://dti-ems-ml-models/outcome-predictor/" ;
+  }
+
+  training-pipeline EcosystemCluster_Pipeline {
+    label     = "Ecosystem Cluster Training Pipeline" ;
+    model     = EcosystemClusterer ;
+    dataset   = EcosystemCluster_Dataset ;
+    preprocessing = EcosystemCluster_Preprocessing ;
+    schedule  = "quarterly (every 90 days)" ;
+    compute   = "GCP Vertex AI — n1-standard-4" ;
+    artifact  = "gs://dti-ems-ml-models/ecosystem-clusterer/" ;
+  }
+
+  training-pipeline SurveyChurn_Pipeline {
+    label     = "Survey Churn Predictor Training Pipeline" ;
+    model     = SurveyChurnPredictor ;
+    dataset   = SurveyChurn_Dataset ;
+    schedule  = "monthly (1st of month, 02:00 PHT)" ;
+    compute   = "GCP Vertex AI — n1-standard-2" ;
+    artifact  = "gs://dti-ems-ml-models/survey-churn/" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // INFERENCE ARCHITECTURE
+  // ─────────────────────────────────────────────
+
+  inference-architecture TNA_InferenceAPI {
+    label      = "TNA Module Recommendation Inference" ;
+    model      = TNA_ModuleRecommender ;
+    serving    = "GCP Vertex AI Prediction Endpoint" ;
+    latency_sla_ms = 200 ;
+    input      = TNA_Features ;
+    output {
+      field recommended_track : string ;
+      field confidence        : float ;
+      field top3_modules      : json ;
+    }
+    fallback   = TNABayesianPrior ;
+    logging    = true ;
+    note       = "Called synchronously by EventService after TNA form submission." ;
+  }
+
+  inference-architecture OutcomePrediction_InferenceAPI {
+    label      = "Business Outcome Prediction Inference" ;
+    model      = BusinessOutcomePredictor ;
+    serving    = "GCP Vertex AI Prediction Endpoint" ;
+    latency_sla_ms = 500 ;
+    input      = OutcomePrediction_Features ;
+    output {
+      field predicted_outcome_class : string ;
+      field outcome_probabilities   : json ;
+    }
+    note       = "Called async by analytics worker after 6-month survey submission." ;
+  }
+
+  inference-architecture EcosystemCluster_InferenceAPI {
+    label      = "Ecosystem Cluster Assignment Inference" ;
+    model      = EcosystemClusterer ;
+    serving    = "Batch (Cloud Run Job — runs post-ETL)" ;
+    input      = EcosystemCluster_Features ;
+    output {
+      field cluster_id         : int ;
+      field cluster_label      : string ;
+      field is_creative_cluster : boolean ;
+      field is_desert_zone     : boolean ;
+    }
+    note       = "Batch inference nightly post-ETL. Results stored in analytics_schema.cluster_assignments." ;
+  }
+
+  inference-architecture SurveyChurn_InferenceAPI {
+    label      = "Survey Churn Prediction Inference" ;
+    model      = SurveyChurnPredictor ;
+    serving    = "Batch (Cloud Run Job — runs 2 weeks before survey expiry)" ;
+    input      = SurveyChurn_Features ;
+    output {
+      field churn_risk        : string ;
+      field churn_probability : float ;
+    }
+    note       = "Batch inference run 2 weeks before impact survey expiry. Flags at-risk users for NotificationService follow-up." ;
+  }
+
+  // ─────────────────────────────────────────────
+  // MODEL SERVING
+  // ─────────────────────────────────────────────
+
+  model-serving TNA_ModelServing {
+    label     = "TNA Recommender — Model Serving Config" ;
+    model     = TNA_ModuleRecommender ;
+    endpoint  = "https://ml.dti-ems.internal/predict/tna" ;
+    format    = "REST JSON" ;
+    auth      = "Service Account JWT (internal VPC only)" ;
+    version_strategy = "blue-green" ;
+  }
+
+  model-serving OutcomePredictor_Serving {
+    label     = "Outcome Predictor — Model Serving Config" ;
+    model     = BusinessOutcomePredictor ;
+    endpoint  = "https://ml.dti-ems.internal/predict/outcome" ;
+    format    = "REST JSON" ;
+    auth      = "Service Account JWT (internal VPC only)" ;
+    version_strategy = "blue-green" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // MODEL REGISTRY
+  // ─────────────────────────────────────────────
+
+  model-registry DTI_MLRegistry {
+    label       = "DTI EMS ML Model Registry" ;
+    backend     = "GCP Vertex AI Model Registry" ;
+    versioning  = "semantic (MAJOR.MINOR.PATCH)" ;
+    artifact_store = "gs://dti-ems-ml-models/" ;
+    models : [
+      TNA_ModuleRecommender
+      BusinessOutcomePredictor
+      EcosystemClusterer
+      SurveyChurnPredictor
+    ]
+    metadata_fields : [
+      "trained_at"
+      "training_dataset_size"
+      "evaluation_metrics"
+      "feature_schema_version"
+      "approved_by"
+      "deployed_at"
+    ]
+  }
+
+  // ─────────────────────────────────────────────
+  // RETRAINING POLICY
+  // ─────────────────────────────────────────────
+
+  retraining-policy TNA_RetrainingPolicy {
+    model       = TNA_ModuleRecommender ;
+    trigger     = "monthly schedule OR accuracy_drift > 5%" ;
+    min_samples = 500 ;
+    evaluation_gate {
+      accuracy > 0.78 ;
+      macro_f1 > 0.75 ;
+    }
+    approval    = "automatic if gates pass; manual review if gates fail" ;
+  }
+
+  retraining-policy OutcomePredictor_RetrainingPolicy {
+    model       = BusinessOutcomePredictor ;
+    trigger     = "quarterly schedule OR new_impact_surveys > 500" ;
+    min_samples = 1000 ;
+    evaluation_gate {
+      macro_auc > 0.70 ;
+    }
+    approval    = "manual review required (policy implications)" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // CANARY DEPLOYMENT
+  // ─────────────────────────────────────────────
+
+  canary-deployment TNA_CanaryDeploy {
+    model       = TNA_ModuleRecommender ;
+    canary_pct  = 10 ;
+    duration    = "7 days" ;
+    success_criteria {
+      accuracy_delta < 0.02 ;
+      user_feedback_positive > 0.75 ;
+    }
+    rollback_on_failure = true ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DATA QUALITY RULES
+  // ─────────────────────────────────────────────
+
+  data-quality-rule TNA_NullCheck {
+    dataset = TNA_TrainingDataset ;
+    field   = "computed_score" ;
+    rule    = "not_null" ;
+    action  = "exclude_row" ;
+  }
+
+  data-quality-rule TNA_ScoreRangeCheck {
+    dataset = TNA_TrainingDataset ;
+    field   = "computed_score" ;
+    rule    = "between(0, 100)" ;
+    action  = "flag_for_review" ;
+  }
+
+  data-quality-rule Impact_MinimumFields {
+    dataset = OutcomePrediction_Dataset ;
+    fields  = [ "revenue_php", "employee_count", "is_exporting" ] ;
+    rule    = "at_least_2_non_null" ;
+    action  = "exclude_row" ;
+  }
+
+  data-quality-rule Geo_CoordinateBounds {
+    dataset = EcosystemCluster_Dataset ;
+    fields  = [ "latitude", "longitude" ] ;
+    rule    = "latitude_in(-90,90) AND longitude_in(-180,180)" ;
+    action  = "exclude_row" ;
+  }
+
+  data-quality-rule Survey_FutureDate {
+    dataset = ImpactSurveySource ;
+    field   = "measurement_date" ;
+    rule    = "not_future_date" ;
+    action  = "flag_for_review" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DRIFT DETECTORS
+  // ─────────────────────────────────────────────
+
+  drift-detector TNA_FeatureDrift {
+    model   = TNA_ModuleRecommender ;
+    method  = "Population Stability Index (PSI)" ;
+    threshold = 0.20 ;
+    features = [
+      "tna_composite_score"
+      "enterprise_stage_encoded"
+      "industry_sector_encoded"
+    ]
+    alert   = "Slack notification + retrain trigger" ;
+  }
+
+  drift-detector Outcome_PredictionDrift {
+    model   = BusinessOutcomePredictor ;
+    method  = "KS Test on output probability distribution" ;
+    threshold = 0.05 ;
+    alert   = "P2 alert + manual review flag" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // EXPLAINABILITY
+  // ─────────────────────────────────────────────
+
+  explainability TNA_SHAP_Explainability {
+    model   = TNA_ModuleRecommender ;
+    method  = "SHAP (TreeExplainer)" ;
+    scope   = "per-prediction" ;
+    output  = "top 3 contributing features per recommendation" ;
+    use     = "Display in TNA results screen: 'Why was this module recommended?'" ;
+  }
+
+  explainability Outcome_LIME_Explainability {
+    model   = BusinessOutcomePredictor ;
+    method  = "LIME (Local Interpretable Model Explanation)" ;
+    scope   = "per-prediction" ;
+    output  = "feature importance for outcome prediction" ;
+    use     = "Internal DTI staff view on Beneficiary Detail page — 'What factors drove this outcome?'" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // TUNING
+  // ─────────────────────────────────────────────
+
+  tuning-block TNA_HyperparameterTuning {
+    model     = TNA_ModuleRecommender ;
+    method    = "Bayesian Optimization (Optuna)" ;
+    objective = "maximize macro_f1" ;
+    params {
+      n_estimators    = [ 50, 100, 200, 500 ] ;
+      max_depth       = [ 3, 5, 7, 10 ] ;
+      learning_rate   = [ 0.01, 0.05, 0.1, 0.2 ] ;
+      subsample       = [ 0.6, 0.8, 1.0 ] ;
+    }
+    trials  = 50 ;
+    timeout = 3600 ;
+  }
+
+  // ─────────────────────────────────────────────
+  // SCHEDULES
+  // ─────────────────────────────────────────────
+
+  schedule TNA_MonthlyRetrain {
+    cron    = "0 1 1 * *" ;
+    trigger = TNA_TrainingPipeline ;
+    label   = "Monthly TNA recommender retrain (1st of each month, 1:00 AM PHT)" ;
+  }
+
+  schedule Outcome_QuarterlyRetrain {
+    cron    = "0 2 1 */3 *" ;
+    trigger = OutcomePrediction_Pipeline ;
+    label   = "Quarterly outcome predictor retrain" ;
+  }
+
+  schedule Cluster_QuarterlyRetrain {
+    cron    = "0 3 1 */3 *" ;
+    trigger = EcosystemCluster_Pipeline ;
+    label   = "Quarterly ecosystem cluster recompute" ;
+  }
+
+  schedule SurveyChurn_MonthlyRetrain {
+    cron    = "0 2 1 * *" ;
+    trigger = SurveyChurn_Pipeline ;
+    label   = "Monthly survey churn model retrain" ;
+  }
+
+  schedule SurveyChurn_BatchInference {
+    cron    = "0 6 * * *" ;
+    trigger = SurveyChurn_InferenceAPI ;
+    label   = "Daily batch inference for at-risk survey non-respondents" ;
+  }
+
+  schedule EcosystemCluster_BatchInference {
+    cron    = "30 2 * * *" ;
+    trigger = EcosystemCluster_InferenceAPI ;
+    label   = "Nightly cluster batch inference post-ETL" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ANNOTATION: Ethical AI Guardrails
+  // ─────────────────────────────────────────────
+
+  annotation EthicalAIPolicy {
+    label       = "Ethical AI & Fairness Policy" ;
+    description = "
+    All AI/ML models deployed in this system are subject to the following guardrails:
+    1. NO ADVERSE DECISIONS: AI recommendations are advisory only. No participant is denied access to a program solely based on a model prediction.
+    2. NO PII IN MODEL INPUTS: Feature schemas must not include direct PII (name, email, phone, government IDs). Only anonymized or encoded features.
+    3. BIAS MONITORING: Quarterly model evaluation must include fairness metrics by region, gender, and enterprise type using Fairlearn or Aequitas.
+    4. EXPLAINABILITY REQUIRED: All models with user-facing outputs must provide SHAP or LIME explanations.
+    5. HUMAN OVERRIDE: DTI staff may override any model recommendation. Overrides are logged in AuditLog.
+    6. DPA COMPLIANCE: Model training data is de-identified before leaving analytics_schema. Raw PII never enters ML pipelines.
+    " ;
+    applies_to = [
+      TNA_ModuleRecommender
+      BusinessOutcomePredictor
+      EcosystemClusterer
+      SurveyChurnPredictor
+    ]
+  }
+
+}

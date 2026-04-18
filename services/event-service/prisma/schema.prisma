@@ -1,0 +1,391 @@
+// Event Service Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/event-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  ONGOING
+  COMPLETED
+  CANCELLED
+
+}
+
+enum ParticipantStatus {
+  REGISTERED
+  TNA_PENDING
+  RSVP_CONFIRMED
+  ATTENDED
+  COMPLETED
+  NO_SHOW
+  WAITLISTED
+  CANCELLED
+
+}
+
+enum DeliveryMode {
+  FACE_TO_FACE
+  ONLINE
+  HYBRID
+
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATED
+  ISSUED
+  REVOKED
+
+}
+
+enum AttendanceMethod {
+  QR_SCAN
+  MANUAL
+
+}
+
+enum CsfSurveyStatus {
+  PENDING
+  SUBMITTED
+  EXPIRED
+
+}
+
+enum ImpactSurveyStatus {
+  SCHEDULED
+  PENDING
+  SUBMITTED
+  EXPIRED
+
+}
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+model Program {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  sector      String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  events      Event[]
+
+  @@map("programs")
+}
+
+model Event {
+  id                   String       @id @default(cuid())
+  programId            String?      @map("program_id")
+
+  title                String
+  description          String?      @db.Text
+  venue                String?
+  latitude             Decimal?     @db.Decimal(10, 7)
+  longitude            Decimal?     @db.Decimal(10, 7)
+  deliveryMode         DeliveryMode @default(FACE_TO_FACE) @map("delivery_mode")
+  onlineLink           String?      @map("online_link")
+
+  status               EventStatus  @default(DRAFT)
+  maxParticipants      Int?         @map("max_participants")
+  registrationDeadline DateTime?    @map("registration_deadline")
+  startDate            DateTime     @map("start_date")
+  endDate              DateTime     @map("end_date")
+
+  targetSector         String?      @map("target_sector")
+  targetRegion         String?      @map("target_region")
+  requiresTNA          Boolean      @default(true) @map("requires_tna")
+
+  // References identity-service user IDs (cross-service, no FK)
+  organizerId          String       @map("organizer_id")
+  programManagerId     String?      @map("program_manager_id")
+
+  coverImageUrl        String?      @map("cover_image_url")
+
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  program              Program?     @relation(fields: [programId], references: [id])
+  sessions             EventSession[]
+  participations       EventParticipation[]
+  checklists           EventChecklist[]
+
+  @@index([status])
+  @@index([startDate])
+  @@index([organizerId])
+  @@map("events")
+}
+
+model EventSession {
+  id          String   @id @default(cuid())
+  eventId     String   @map("event_id")
+  title       String
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+  venue       String?
+  speakerName String?  @map("speaker_name")
+  orderIndex  Int      @default(0) @map("order_index")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  event               Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attendanceRecords   AttendanceRecord[]
+
+  @@map("event_sessions")
+}
+
+model EventParticipation {
+  id               String            @id @default(cuid())
+  eventId          String            @map("event_id")
+  userId           String            @map("user_id")
+  enterpriseId     String?           @map("enterprise_id")
+  enterpriseName   String?           @map("enterprise_name")
+  status           ParticipantStatus @default(REGISTERED)
+
+  // Denormalized from identity-service at registration time
+  participantName  String?           @map("participant_name")
+  participantEmail String?           @map("participant_email")
+
+  registeredAt     DateTime          @default(now()) @map("registered_at")
+  rsvpConfirmedAt  DateTime?         @map("rsvp_confirmed_at")
+  tnaCompletedAt   DateTime?         @map("tna_completed_at")
+  completedAt      DateTime?         @map("completed_at")
+  notes            String?
+
+  event            Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tnaResponse      TNAResponse?
+  attendanceRecords AttendanceRecord[]
+  certificate      Certificate?
+  csfSurveyResponse CsfSurveyResponse?
+  impactSurveyResponse ImpactSurveyResponse?
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+  @@map("event_participations")
+}
+
+model TNAResponse {
+  id               String   @id @default(cuid())
+  participationId  String   @unique @map("participation_id")
+  userId           String   @map("user_id")
+
+  // Scores: 0–100
+  knowledgeScore   Decimal  @map("knowledge_score") @db.Decimal(5, 2)
+  skillScore       Decimal  @map("skill_score")     @db.Decimal(5, 2)
+  motivationScore  Decimal  @map("motivation_score") @db.Decimal(5, 2)
+  // compositeScore = (knowledge * 0.35) + (skill * 0.40) + (motivation * 0.25)
+  compositeScore   Decimal  @map("composite_score") @db.Decimal(5, 2)
+
+  recommendedTrack String?  @map("recommended_track")
+  responses        Json     @default("{}")
+
+  submittedAt      DateTime @default(now()) @map("submitted_at")
+
+  participation    EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@map("tna_responses")
+}
+
+model AttendanceRecord {
+  id               String           @id @default(cuid())
+  participationId  String           @map("participation_id")
+  sessionId        String           @map("session_id")
+  userId           String           @map("user_id")
+  method           AttendanceMethod @default(QR_SCAN)
+  scannedAt        DateTime         @default(now()) @map("scanned_at")
+  scannedByUserId  String?          @map("scanned_by_user_id")
+
+  participation    EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+  session          EventSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([participationId, sessionId])
+  @@map("attendance_records")
+}
+
+model Certificate {
+  id               String            @id @default(cuid())
+  participationId  String            @unique @map("participation_id")
+  userId           String            @map("user_id")
+  eventId          String            @map("event_id")
+  status           CertificateStatus @default(PENDING)
+  storageUrl       String?           @map("storage_url")
+  verificationCode String            @unique @map("verification_code")
+  generatedAt      DateTime?         @map("generated_at")
+  issuedAt         DateTime?         @map("issued_at")
+
+  participation    EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([verificationCode])
+  @@index([userId])
+  @@map("certificates")
+}
+
+model CsfSurveyResponse {
+  id                   String          @id @default(cuid())
+  participationId      String          @unique @map("participation_id")
+  eventId              String          @map("event_id")
+  userId               String          @map("user_id")
+  status               CsfSurveyStatus @default(PENDING)
+
+  // Ratings 1–5
+  overallRating        Int?            @map("overall_rating")
+  contentRating        Int?            @map("content_rating")
+  facilitatorRating    Int?            @map("facilitator_rating")
+  logisticsRating      Int?            @map("logistics_rating")
+
+  // Open-ended feedback
+  highlightsFeedback   String?         @db.Text @map("highlights_feedback")
+  improvementsFeedback String?         @db.Text @map("improvements_feedback")
+
+  submittedAt          DateTime?       @map("submitted_at")
+  expiresAt            DateTime?       @map("expires_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+
+  participation        EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@map("csf_survey_responses")
+}
+
+model ImpactSurveyResponse {
+  id               String             @id @default(cuid())
+  participationId  String             @unique @map("participation_id")
+  eventId          String             @map("event_id")
+  userId           String             @map("user_id")
+  status           ImpactSurveyStatus @default(SCHEDULED)
+
+  // Scheduled dispatch date (180 days after event completion)
+  scheduledAt      DateTime           @map("scheduled_at")
+  dispatchedAt     DateTime?          @map("dispatched_at")
+
+  // Impact ratings 1–5
+  knowledgeApplication   Int?         @map("knowledge_application")
+  skillImprovement       Int?         @map("skill_improvement")
+  businessImpact         Int?         @map("business_impact")
+  revenueChange          Int?         @map("revenue_change")
+  employeeGrowth         Int?         @map("employee_growth")
+
+  // Open-ended
+  successStory           String?      @db.Text @map("success_story")
+  challengesFaced        String?      @db.Text @map("challenges_faced")
+  additionalSupport      String?      @db.Text @map("additional_support")
+
+  // Quantitative
+  revenueChangePct       Decimal?     @map("revenue_change_pct") @db.Decimal(5, 2)
+  employeeCountBefore    Int?         @map("employee_count_before")
+  employeeCountAfter     Int?         @map("employee_count_after")
+
+  submittedAt            DateTime?    @map("submitted_at")
+  expiresAt              DateTime?    @map("expires_at")
+  createdAt              DateTime     @default(now()) @map("created_at")
+
+  participation          EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("impact_survey_responses")
+}
+
+// ── Event Checklist (Planning & Preparation Tracker) ────────────────────────
+
+enum ChecklistItemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum ChecklistItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EventPhase {
+  PLANNING
+  PREPARATION
+  EXECUTION
+  POST_EVENT
+}
+
+model EventChecklist {
+  id          String   @id @default(cuid())
+  eventId     String   @map("event_id")
+  title       String
+  description String?  @db.Text
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  items       ChecklistItem[]
+
+  @@index([eventId])
+  @@map("event_checklists")
+}
+
+model ChecklistItem {
+  id               String                @id @default(cuid())
+  checklistId      String                @map("checklist_id")
+  title            String
+  description      String?               @db.Text
+  phase            EventPhase            @default(PLANNING)
+  status           ChecklistItemStatus   @default(NOT_STARTED)
+  priority         ChecklistItemPriority @default(MEDIUM)
+  assignedTo       String?               @map("assigned_to")
+  assignedToName   String?               @map("assigned_to_name")
+  dueDate          DateTime?             @map("due_date")
+  completedAt      DateTime?             @map("completed_at")
+  completedBy      String?               @map("completed_by")
+  orderIndex       Int                   @default(0) @map("order_index")
+  notes            String?               @db.Text
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  checklist        EventChecklist        @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  comments         ChecklistComment[]
+
+  @@index([checklistId])
+  @@index([status])
+  @@index([phase])
+  @@index([assignedTo])
+  @@map("checklist_items")
+}
+
+model ChecklistComment {
+  id            String   @id @default(cuid())
+  itemId        String   @map("item_id")
+  authorId      String   @map("author_id")
+  authorName    String   @map("author_name")
+  content       String   @db.Text
+  attachmentUrl String?  @map("attachment_url") @db.Text
+  linkUrl       String?  @map("link_url") @db.Text
+  linkLabel     String?  @map("link_label")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  item          ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("checklist_comments")
+}

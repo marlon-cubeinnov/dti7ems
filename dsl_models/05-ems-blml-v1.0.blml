@@ -1,0 +1,698 @@
+// ============================================================
+// BLML v1.1 — Business Logic & Rules Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Purpose : Formalizes TNA scoring, participant eligibility,
+//           activity scores, impact metrics, and automation
+//           trigger conditions for the DTI EMS platform.
+//
+// STATUS  : Reflects Phase 1–2 implementation.
+//           QR tokens use permanent HMAC (no time-window).
+//           CSF surveys run in event-service.
+//           Certificates use PDFKit.
+//           Impact/Outcome rules are Phase 3.
+// ============================================================
+
+blml model DTI_BusinessLogic {
+
+  import "./01-ems-dbml-v1.0.dbml" as domain ;
+
+  // ─────────────────────────────────────────────
+  // CONTEXTS
+  // ─────────────────────────────────────────────
+
+  context RegistrationLogic {
+    label       = "Registration & Eligibility Logic" ;
+    description = "Rules governing who may register for events, how forms are pre-filled, and how participants are prioritized." ;
+    domain      = domain.EventContext ;
+  }
+
+  context TNALogic {
+    label       = "Training Needs Assessment Logic" ;
+    description = "Scoring algorithms and module recommendation logic for TNA forms." ;
+    domain      = domain.EventContext ;
+  }
+
+  context AttendanceLogic {
+    label       = "Attendance & QR Token Logic" ;
+    description = "Rules for permanent HMAC QR token validation, attendance recording, and completion thresholds." ;
+    domain      = domain.EventContext ;
+  }
+
+  context EnterpriseLogic {
+    label       = "Enterprise Activity & Verification Logic" ;
+    description = "Computation of enterprise activity scores, beneficiary status, and verification reminders." ;
+    domain      = domain.IdentityContext ;
+  }
+
+  context ImpactLogic {
+    label       = "Impact Reporting & Outcome Logic (Phase 3)" ;
+    description = "Formulas and rules for computing program outcome scores and longitudinal impact aggregations." ;
+    domain      = domain.SurveyContext ;
+  }
+
+  context SurveyDispatchLogic {
+    label       = "Survey Dispatch Trigger Logic" ;
+    description = "Rules for when and how to dispatch CSF and 6-month impact surveys. CSF runs in event-service; dispatch via notification-service HTTP triggers." ;
+    domain      = domain.SurveyContext ;
+  }
+
+  context CertificateLogic {
+    label       = "Certificate Issuance Logic" ;
+    description = "Eligibility and generation rules for attendance certificates. PDF generated via PDFKit in event-service." ;
+    domain      = domain.EventContext ;
+  }
+
+  // ─────────────────────────────────────────────
+  // FORMULAS
+  // ─────────────────────────────────────────────
+
+  formula TNA_CompositeScore {
+    expression = (knowledge_score * 0.35) + (skill_score * 0.40) + (motivation_score * 0.25) ;
+    unit       = "points (0-100)" ;
+    label      = "Weighted TNA composite score" ;
+    description = "Combines three dimension scores with DTI-defined weights: Knowledge (35%), Skill (40%), Motivation (25%)." ;
+  }
+
+  formula TNA_KnowledgeScore {
+    expression = (correct_knowledge_answers / total_knowledge_questions) * 100 ;
+    unit       = "percent" ;
+  }
+
+  formula TNA_SkillScore {
+    expression = (correct_skill_answers / total_skill_questions) * 100 ;
+    unit       = "percent" ;
+  }
+
+  formula TNA_MotivationScore {
+    expression = (motivation_answers_sum / max_motivation_score) * 100 ;
+    unit       = "percent" ;
+  }
+
+  formula AttendanceCompletionRate {
+    expression = (sessions_attended / total_event_sessions) * 100 ;
+    unit       = "percent" ;
+    label      = "Participant attendance completion rate" ;
+  }
+
+  formula EventAttendanceRate {
+    expression = (checked_in_participants / confirmed_participants) * 100 ;
+    unit       = "percent" ;
+    label      = "Event-level attendance rate" ;
+  }
+
+  formula EnterpriseActivityScore {
+    expression = (events_attended * 10) + (surveys_completed * 15) + (profile_completeness * 5) + (verified_badge * 20) ;
+    unit       = "score (0-100+)" ;
+    label      = "Enterprise engagement and impact activity score" ;
+    description = "Drives prioritization in the public directory and policy reports. Capped at 100 for normalization." ;
+  }
+
+  formula AverageCSFScore {
+    expression = sum(satisfaction_scores) / count(responses) ;
+    unit       = "score (0-5)" ;
+    label      = "Event-level Customer Satisfaction Score" ;
+  }
+
+  formula OutcomeScore {
+    expression = (revenue_growth_pct * 0.4) + (jobs_created_normalized * 0.35) + (is_exporting * 0.25) ;
+    unit       = "score (0-100)" ;
+    label      = "Post-program business outcome score" ;
+    description = "Computed 6 months post-event. Drives Verified badge and directory ranking." ;
+  }
+
+  formula RevenueGrowthPercent {
+    expression = ((post_revenue - pre_revenue) / pre_revenue) * 100 ;
+    unit       = "percent" ;
+  }
+
+  formula ProfileCompleteness {
+    expression = (filled_fields / total_profile_fields) * 100 ;
+    unit       = "percent" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Registration & Eligibility
+  // ─────────────────────────────────────────────
+
+  rule RequireDPAConsent {
+    if dpa_consent == false ;
+    then {
+      block_registration("User must accept the DPA consent before registering.") ;
+    }
+    label = "Block registration if DPA consent is not given" ;
+  }
+
+  rule EnforceRegistrationDeadline {
+    if current_datetime > event.registration_deadline ;
+    then {
+      block_registration("Registration for this event is now closed.") ;
+    }
+    label = "Block registration past deadline" ;
+  }
+
+  rule EnforceMaxCapacity {
+    if confirmed_participant_count >= event.max_participants ;
+    then {
+      set_status_to_waitlisted("Event is at full capacity. You have been added to the waitlist.") ;
+    }
+    label = "Auto-waitlist when max capacity is reached" ;
+  }
+
+  rule PreFillFromExistingProfile {
+    if user_is_authenticated == true ;
+    then {
+      prefill_form(UserProfile.first_name, UserProfile.last_name, UserProfile.email, UserProfile.phone, UserProfile.industry_sector, UserProfile.region) ;
+    }
+    label = "Pre-fill registration form fields for authenticated users" ;
+  }
+
+  rule RequireTNABeforeConfirmation {
+    if event.requires_tna == true ;
+    if tna_completed == false ;
+    then {
+      block_confirmation("Please complete the Training Needs Assessment to confirm your registration.") ;
+    }
+    label = "Block RSVP confirmation until TNA is submitted" ;
+  }
+
+  rule LinkEnterpriseOnRegistration {
+    if user_has_enterprise == true ;
+    then {
+      auto_populate_enterprise_id(user.active_membership.enterprise_id) ;
+      denormalize_enterprise_name(enterprise.business_name) ;
+    }
+    label = "Auto-link enterprise on event registration when user belongs to a company" ;
+  }
+
+  rule EnterpriseTrainingCompletion {
+    description = "An enterprise is considered to have completed a training/event when at least one member from that enterprise has ATTENDED status for that event." ;
+    aggregate {
+      group_by  = [enterprise_id, event_id] ;
+      condition = any_member(status == "ATTENDED") ;
+      result    = enterprise_event_completion ;
+    }
+    label = "Enterprise-level training completion (any member attended = company completed)" ;
+  }
+
+  rule EnterpriseTrainingComplianceReport {
+    description = "For a set of required training programs, compute which enterprises have completed all required trainings vs which are missing specific ones." ;
+    aggregate {
+      input     = required_event_ids[] ;
+      group_by  = enterprise_id ;
+      compute   = completed_count / required_count ;
+      result    = enterprise_compliance_pct ;
+    }
+    label = "Enterprise training compliance percentage" ;
+  }
+
+  rule AllowWaitlistPromotion {
+    if participant_status == "waitlisted" ;
+    if confirmed_count < event.max_participants ;
+    then {
+      promote_to_confirmed() ;
+      notify_participant("You have been moved off the waitlist. Your spot is confirmed!") ;
+    }
+    label = "Automatically promote waitlisted participant when a spot opens" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — TNA & Module Recommendation
+  // ─────────────────────────────────────────────
+
+  rule RecommendFoundationalModule {
+    if TNA_CompositeScore < 40 ;
+    then {
+      add_recommendation("DTI-MOD-001: Business Fundamentals & Financial Literacy") ;
+    }
+    label = "Low-score participants → Foundational module" ;
+  }
+
+  rule RecommendGrowthModule {
+    if TNA_CompositeScore >= 40 ;
+    if TNA_CompositeScore < 70 ;
+    then {
+      add_recommendation("DTI-MOD-002: Growth Strategies & Market Expansion") ;
+    }
+    label = "Mid-score participants → Growth module" ;
+  }
+
+  rule RecommendAdvancedModule {
+    if TNA_CompositeScore >= 70 ;
+    then {
+      add_recommendation("DTI-MOD-003: Export Readiness & Global Competitiveness") ;
+    }
+    label = "High-score participants → Advanced/Export module" ;
+  }
+
+  rule RecommendFinanceModule {
+    if skill_score < 35 ;
+    if knowledge_area == "finance" ;
+    then {
+      add_recommendation("DTI-MOD-004: Access to Finance & MSME Lending Landscape") ;
+    }
+    label = "Finance-skill gap → Add finance module recommendation" ;
+  }
+
+  rule AssignTNAScore {
+    if tna_answers_submitted == true ;
+    then {
+      computed_score = TNA_CompositeScore ;
+    }
+    label = "Compute and store TNA score after submission" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Attendance & QR
+  // ─────────────────────────────────────────────
+
+  // Note: In the current implementation, QR tokens are PERMANENT
+  // HMAC-SHA256 tokens per user (no time window, no single-use consumption).
+  // The time-window and consumed-token rules below are modeled as
+  // Phase 2 enhancements and are NOT enforced in the current codebase.
+
+  rule ValidateQRTokenWindow {
+    // Phase 2 enhancement: not currently enforced
+    if current_datetime < session.start_time - 900 ;
+    then {
+      reject_scan("Check-in has not opened yet for this session.") ;
+    }
+    label = "(Future) Reject QR scan more than 15 minutes before session start" ;
+  }
+
+  rule ValidateQRTokenExpiry {
+    // Phase 2 enhancement: not currently enforced
+    if current_datetime > session.end_time + 900 ;
+    then {
+      reject_scan("Check-in window for this session has closed.") ;
+    }
+    label = "(Future) Reject QR scan more than 15 minutes after session end" ;
+  }
+
+  rule RejectConsumedToken {
+    // Current implementation: tokens are permanent, not consumed.
+    // Duplicate attendance prevented by unique constraint on (participationId, sessionId).
+    if attendance_already_recorded == true ;
+    then {
+      reject_scan("Attendance already recorded for this session.") ;
+    }
+    label = "Reject duplicate attendance for same participation + session" ;
+  }
+
+  rule RecordAttendance {
+    if qr_token_valid == true ;
+    if attendance_not_recorded == true ;
+    then {
+      record_attendance() ;
+    }
+    label = "Validate permanent HMAC token and record attendance" ;
+  }
+
+  rule MarkParticipationComplete {
+    if AttendanceCompletionRate >= 80 ;
+    then {
+      completion_status = true ;
+    }
+    else {
+      completion_status = false ;
+    }
+    label = "Mark participation as complete if ≥80% of sessions attended" ;
+  }
+
+  rule AllowManualCheckinFallback {
+    if qr_scan_failed == true ;
+    if organizer_role_confirmed == true ;
+    then {
+      allow_manual_checkin() ;
+      log_audit("Manual check-in override used by organizer.") ;
+    }
+    label = "Allow organizer manual override for QR failures, with audit log" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Certificate Issuance
+  // ─────────────────────────────────────────────
+
+  rule EligibleForCertificate {
+    if completion_status == true ;
+    if tna_completed == true ;
+    then {
+      trigger_certificate_generation() ;
+    }
+    label = "Issue certificate only when attendance completion and TNA are both satisfied" ;
+  }
+
+  rule BlockDuplicateCertificate {
+    if certificate_already_issued == true ;
+    then {
+      skip_generation("Certificate already issued for this participation record.") ;
+    }
+    label = "Prevent duplicate certificate generation" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Enterprise Activity Score
+  // ─────────────────────────────────────────────
+
+  rule ComputeEnterpriseActivityScore {
+    if enterprise_profile_exists == true ;
+    then {
+      activity_score = EnterpriseActivityScore ;
+    }
+    label = "Recompute activity score whenever relevant entity changes" ;
+  }
+
+  rule SetBeneficiaryStatus {
+    if events_attended >= 1 ;
+    then {
+      beneficiary_status = true ;
+    }
+    label = "Mark enterprise as DTI beneficiary after first event completion" ;
+  }
+
+  rule TriggerVerificationReminder {
+    if next_verification_due <= today + 7 ;
+    then {
+      send_verification_reminder_email() ;
+    }
+    label = "Send email 7 days before profile verification is due" ;
+  }
+
+  rule MarkEnterpriseVerified {
+    if dti_staff_approved == true ;
+    if headcount_updated == true ;
+    if revenue_updated == true ;
+    then {
+      verification_status = "verified" ;
+      profile_verified_at = current_datetime ;
+      next_verification_due = current_date + 180 ;
+    }
+    label = "Set enterprise as verified after staff review and data update" ;
+  }
+
+  rule GrantPublicDirectoryVisibility {
+    if verification_status == "verified" ;
+    if beneficiary_status == true ;
+    then {
+      visible_in_directory = true ;
+    }
+    else {
+      visible_in_directory = false ;
+    }
+    label = "Only verified DTI beneficiaries appear in the public directory" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Survey Dispatch
+  // ─────────────────────────────────────────────
+
+  rule DispatchCSFSurveyOnEventEnd {
+    if event_status == "completed" ;
+    then {
+      create_pending_csf_responses_for_all_attendees() ;
+      fire_http_to_notification_service_bulk_csf_invite(delay_1h) ;
+    }
+    label = "Auto-create CSF survey responses on event COMPLETED; dispatch email invite 1 hour later via notification-service" ;
+  }
+
+  rule DispatchImpactSurveyAt6Months {
+    if participation.completion_status == true ;
+    if event_end_datetime + 15552000 <= current_datetime ;
+    then {
+      dispatch_impact_survey() ;
+    }
+    label = "Dispatch 6-month impact survey 180 days after event end" ;
+  }
+
+  rule SkipSurveyIfAlreadySent {
+    if survey_already_dispatched == true ;
+    then {
+      skip_dispatch("Survey already dispatched for this participation.") ;
+    }
+    label = "Prevent duplicate survey dispatch" ;
+  }
+
+  rule MarkSurveyExpired {
+    if survey_status == "sent" ;
+    if current_datetime > survey.expires_at ;
+    then {
+      survey_status = "expired" ;
+    }
+    label = "Expire CSF surveys after 14 days; Impact surveys after 30 days" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // RULES — Impact & Outcome (Phase 3)
+  // ─────────────────────────────────────────────
+
+  rule ComputeOutcomeScore {
+    if impact_survey_submitted == true ;
+    then {
+      outcome_score = OutcomeScore ;
+    }
+    label = "Compute enterprise outcome score after impact survey submission" ;
+  }
+
+  rule GrantVerifiedBadge {
+    if outcome_score >= 60 ;
+    then {
+      grant_verified_badge() ;
+      update_directory_ranking() ;
+    }
+    label = "Grant 'DTI Verified Beneficiary' badge to enterprises with high outcome scores" ;
+  }
+
+  rule FlagEnterpriseForPolicyIntervention {
+    if activity_score < 20 ;
+    if is_in_creative_sector == true ;
+    then {
+      flag_for_policy_review("Low-activity creative enterprise — potential desert zone indicator.") ;
+    }
+    label = "Flag low-activity enterprises in creative sectors for policy planning review" ;
+  }
+
+  rule AggregateRegionalImpact {
+    if new_impact_data_point_created == true ;
+    then {
+      trigger_etl_regional_aggregate() ;
+    }
+    label = "Trigger ETL aggregation whenever a new impact data point is submitted" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DECISION TABLES
+  // ─────────────────────────────────────────────
+
+  decision-table TNAModuleDecisionTable {
+    label = "Determine recommended modules based on TNA composite score and knowledge gaps" ;
+
+    inputs : [
+      composite_score_range
+      primary_skill_gap
+    ]
+
+    outputs : [
+      recommended_module_id
+      priority_level
+    ]
+
+    row { composite_score_range = "<40"         ; primary_skill_gap = "any"     ; recommended_module_id = "DTI-MOD-001" ; priority_level = "high" ; }
+    row { composite_score_range = "40-69"       ; primary_skill_gap = "finance" ; recommended_module_id = "DTI-MOD-004" ; priority_level = "high" ; }
+    row { composite_score_range = "40-69"       ; primary_skill_gap = "other"   ; recommended_module_id = "DTI-MOD-002" ; priority_level = "medium" ; }
+    row { composite_score_range = ">=70"        ; primary_skill_gap = "export"  ; recommended_module_id = "DTI-MOD-003" ; priority_level = "high" ; }
+    row { composite_score_range = ">=70"        ; primary_skill_gap = "none"    ; recommended_module_id = "DTI-MOD-003" ; priority_level = "low" ; }
+  }
+
+  decision-table EventStatusTransitionTable {
+    label = "Allowable event status transitions by role" ;
+
+    inputs : [
+      current_status
+      actor_role
+    ]
+
+    outputs : [
+      allowed
+      next_status
+    ]
+
+    row { current_status = "draft"              ; actor_role = "program_manager" ; allowed = true  ; next_status = "published" ; }
+    row { current_status = "published"          ; actor_role = "event_organizer" ; allowed = true  ; next_status = "registration_open" ; }
+    row { current_status = "registration_open"  ; actor_role = "event_organizer" ; allowed = true  ; next_status = "registration_closed" ; }
+    row { current_status = "registration_closed" ; actor_role = "event_organizer" ; allowed = true ; next_status = "ongoing" ; }
+    row { current_status = "ongoing"            ; actor_role = "event_organizer" ; allowed = true  ; next_status = "completed" ; }
+    row { current_status = "draft"              ; actor_role = "participant"      ; allowed = false ; next_status = "none" ; }
+    row { current_status = "ongoing"            ; actor_role = "participant"      ; allowed = false ; next_status = "none" ; }
+  }
+
+  decision-table CertificateEligibilityTable {
+    label = "Certificate issuance eligibility matrix" ;
+
+    inputs : [
+      completion_status
+      tna_completed
+      certificate_already_issued
+    ]
+
+    outputs : [
+      generate_certificate
+      reason
+    ]
+
+    row { completion_status = true  ; tna_completed = true  ; certificate_already_issued = false ; generate_certificate = true  ; reason = "Eligible" ; }
+    row { completion_status = true  ; tna_completed = false ; certificate_already_issued = false ; generate_certificate = false ; reason = "TNA not completed" ; }
+    row { completion_status = false ; tna_completed = true  ; certificate_already_issued = false ; generate_certificate = false ; reason = "Attendance threshold not met" ; }
+    row { completion_status = true  ; tna_completed = true  ; certificate_already_issued = true  ; generate_certificate = false ; reason = "Certificate already issued" ; }
+  }
+
+  decision-table SurveyDispatchDecisionTable {
+    label = "Survey dispatch routing based on event phase and survey kind" ;
+
+    inputs : [
+      event_phase
+      survey_kind
+      hours_since_event_end
+    ]
+
+    outputs : [
+      dispatch_now
+      dispatch_method
+    ]
+
+    row { event_phase = "completed" ; survey_kind = "csf"           ; hours_since_event_end = ">=1"     ; dispatch_now = true  ; dispatch_method = "email_queue" ; }
+    row { event_phase = "completed" ; survey_kind = "impact_6month" ; hours_since_event_end = ">=4320"  ; dispatch_now = true  ; dispatch_method = "email_queue" ; }
+    row { event_phase = "ongoing"   ; survey_kind = "csf"           ; hours_since_event_end = "any"     ; dispatch_now = false ; dispatch_method = "none" ; }
+    row { event_phase = "completed" ; survey_kind = "csf"           ; hours_since_event_end = "<1"      ; dispatch_now = false ; dispatch_method = "schedule" ; }
+  }
+
+  // ─────────────────────────────────────────────
+  // CONSTRAINTS
+  // ─────────────────────────────────────────────
+
+  constraint EventDateOrder {
+    start_datetime < end_datetime ;
+    label = "Event start must be before end datetime" ;
+  }
+
+  constraint RegistrationDeadlineBeforeStart {
+    registration_deadline <= start_datetime ;
+    label = "Registration deadline must not exceed event start" ;
+  }
+
+  constraint MaxParticipantsPositive {
+    max_participants > 0 ;
+    label = "Maximum participant count must be a positive integer" ;
+  }
+
+  constraint EmailUniqueness {
+    email IS UNIQUE ACROSS UserProfile ;
+    label = "Email address must be unique across all user profiles" ;
+  }
+
+  constraint TNAScoreRange {
+    computed_score >= 0 ;
+    computed_score <= 100 ;
+    label = "TNA composite score must be between 0 and 100" ;
+  }
+
+  constraint ActivityScoreNormalized {
+    activity_score >= 0 ;
+    activity_score <= 100 ;
+    label = "Enterprise activity score is normalized to 0-100 range" ;
+  }
+
+  constraint ImpactSurveyOnlyForCompletedParticipants {
+    participation.completion_status == true ;
+    label = "Impact survey may only be dispatched to participants who completed the event" ;
+  }
+
+  constraint CSFScoreRange {
+    satisfaction_score >= 0 ;
+    satisfaction_score <= 5 ;
+    label = "CSF satisfaction score must be between 0 and 5" ;
+  }
+
+  constraint CertificateNoMustBeUnique {
+    certificate_no IS UNIQUE ACROSS Certificate ;
+    label = "Certificate number must be globally unique" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // BAYESIAN NETWORK — TNA Score Prediction (Phase 3)
+  // ─────────────────────────────────────────────
+
+  bayesian-network TNAScorePrediction {
+    label       = "Predict recommended program track from enterprise profile and incomplete TNA" ;
+    description = "Used as a soft fallback recommendation engine when a participant's TNA is partially complete or when recommending upcoming events for a known profile." ;
+
+    node IndustrySector {
+      states = [ creative, technology, retail, manufacturing, food_processing, services ] ;
+    }
+
+    node EnterpriseStage {
+      states = [ ideation, startup, growth, maturity, export_ready ] ;
+    }
+
+    node PriorEventHistory {
+      states = [ none, beginner_only, mixed, advanced_only ] ;
+    }
+
+    node RecommendedTrack {
+      states = [ foundational, growth, advanced_export ] ;
+      parents = [ IndustrySector, EnterpriseStage, PriorEventHistory ] ;
+      cpt {
+        // Simplified CPT entries — to be refined from actual training history data
+        // Format: P(RecommendedTrack | IndustrySector, EnterpriseStage, PriorEventHistory)
+        row { IndustrySector = creative ;     EnterpriseStage = ideation   ; PriorEventHistory = none           ; RecommendedTrack = foundational    ; probability = 0.80 ; }
+        row { IndustrySector = creative ;     EnterpriseStage = startup    ; PriorEventHistory = beginner_only  ; RecommendedTrack = growth           ; probability = 0.65 ; }
+        row { IndustrySector = technology ;   EnterpriseStage = growth     ; PriorEventHistory = mixed          ; RecommendedTrack = advanced_export  ; probability = 0.70 ; }
+        row { IndustrySector = retail ;       EnterpriseStage = maturity   ; PriorEventHistory = advanced_only  ; RecommendedTrack = advanced_export  ; probability = 0.75 ; }
+        row { IndustrySector = services ;     EnterpriseStage = ideation   ; PriorEventHistory = none           ; RecommendedTrack = foundational     ; probability = 0.85 ; }
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // POLICIES
+  // ─────────────────────────────────────────────
+
+  policy DataPrivacyPolicy {
+    label = "DPA RA 10173 Business Rule Compliance" ;
+    rule  = RequireDPAConsent ;
+    rule  = RequireDPAConsent ;
+    description = "All personal data collection must be gated by explicit DPA consent. Consent timestamp must be recorded." ;
+  }
+
+  policy CapacityManagementPolicy {
+    label = "Event Capacity and Waitlist Policy" ;
+    rule  = EnforceMaxCapacity ;
+    rule  = AllowWaitlistPromotion ;
+    description = "Events must enforce maximum participant limits. Overflow participants are automatically waitlisted and promoted when capacity opens." ;
+  }
+
+  policy CertificateIntegrityPolicy {
+    label = "Certificate Issuance Integrity" ;
+    rule  = EligibleForCertificate ;
+    rule  = BlockDuplicateCertificate ;
+    description = "Certificates are issued only to participants who met the ≥80% attendance threshold and completed the TNA. No duplicate issuance." ;
+  }
+
+  policy SurveyTimingPolicy {
+    label = "Survey Dispatch Timing Policy" ;
+    rule  = DispatchCSFSurveyOnEventEnd ;
+    rule  = DispatchImpactSurveyAt6Months ;
+    rule  = SkipSurveyIfAlreadySent ;
+    rule  = MarkSurveyExpired ;
+    description = "CSF dispatched 1 hour post-event. Impact survey dispatched 180 days post-event. Idempotent dispatch prevents duplicates." ;
+  }
+
+  policy DirectoryVisibilityPolicy {
+    label = "Public Directory Eligibility Policy" ;
+    rule  = GrantPublicDirectoryVisibility ;
+    rule  = MarkEnterpriseVerified ;
+    description = "Only verified DTI beneficiaries may appear in the public enterprise directory." ;
+  }
+
+}

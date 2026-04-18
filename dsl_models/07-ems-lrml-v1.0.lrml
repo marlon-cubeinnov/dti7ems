@@ -1,0 +1,920 @@
+// ============================================================
+// LRML v1.0 — Reporting & Dashboard Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Purpose : Define all datasets, metrics, reports, and
+//           dashboard layouts for the EMS Organizer Console,
+//           Admin Console, and Industry Dashboard.
+//
+// STATUS  : Reflects Phase 1–2 implementation.
+//           Organizer-level reports (CSF, Event) are active.
+//           Impact datasets, Admin dashboards, and Industry
+//           Dashboard are Phase 3 (NOT IMPLEMENTED).
+//           CSF survey data is in event-service (not survey-service).
+// ============================================================
+
+lrml model DTI_EMS_Reporting {
+
+  import "./01-ems-dbml-v1.0.dbml" as domain ;
+  import "./05-ems-blml-v1.0.blml" as logic ;
+
+  // ─────────────────────────────────────────────
+  // DATASETS
+  // ─────────────────────────────────────────────
+
+  // --- Identity & Profiles ---
+
+  dataset UserProfileDataset {
+    source = dbml : domain.IdentityContext.UserProfile ;
+    filter {
+      status == "active" ;
+    }
+  }
+
+  dataset EnterpriseDataset {
+    source = dbml : domain.IdentityContext.EnterpriseProfile ;
+  }
+
+  dataset VerifiedEnterpriseDataset {
+    source = dbml : domain.IdentityContext.EnterpriseProfile ;
+    filter {
+      verification_status == "verified" ;
+      beneficiary_status  == true ;
+    }
+  }
+
+  dataset EcosystemEnablerDataset {
+    source = dbml : domain.IdentityContext.EcosystemEnabler ;
+  }
+
+  dataset AuditLogDataset {
+    source = dbml : domain.IdentityContext.AuditLog ;
+  }
+
+  // --- Events ---
+
+  dataset EventDataset {
+    source = dbml : domain.EventContext.Event ;
+  }
+
+  dataset CompletedEventDataset {
+    source = dbml : domain.EventContext.Event ;
+    filter {
+      status == "completed" ;
+    }
+  }
+
+  dataset ParticipationDataset {
+    source = dbml : domain.EventContext.EventParticipation ;
+  }
+
+  dataset CheckedInParticipationDataset {
+    source = dbml : domain.EventContext.EventParticipation ;
+    filter {
+      status == "checked_in" ;
+    }
+  }
+
+  dataset CompletedParticipationDataset {
+    source = dbml : domain.EventContext.EventParticipation ;
+    filter {
+      completion_status == true ;
+    }
+  }
+
+  dataset AttendanceRecordDataset {
+    source = dbml : domain.EventContext.AttendanceRecord ;
+  }
+
+  dataset CertificateDataset {
+    source = dbml : domain.EventContext.Certificate ;
+    filter {
+      status == "issued" ;
+    }
+  }
+
+  dataset TNAResponseDataset {
+    source = dbml : domain.EventContext.TNAResponse ;
+  }
+
+  // --- Surveys & Impact ---
+
+  dataset CSFResponseDataset {
+    // Note: CSF survey data is in event-service (CsfSurveyResponse model),
+    // not a separate survey-service.
+    source = dbml : domain.SurveyContext.SurveyResponse ;
+    filter {
+      kind   == "csf" ;
+      status == "completed" ;
+    }
+    compute {
+      avg_satisfaction_score = avg(satisfaction_score) ;
+    }
+  }
+
+  // Phase 3: Impact survey datasets (not implemented)
+  dataset ImpactSurveyDataset {
+    source = dbml : domain.SurveyContext.SurveyResponse ;
+    filter {
+      kind   == "impact_6month" ;
+      status == "completed" ;
+    }
+  }
+
+  dataset ImpactDataPointDataset {
+    source = dbml : domain.SurveyContext.ImpactDataPoint ;
+  }
+
+  dataset SixMonthCohortDataset {
+    source = dbml : domain.SurveyContext.ImpactDataPoint ;
+    groupBy {
+      measurement_date ;
+      region ;
+    }
+    compute {
+      total_jobs   = sum(jobs_created) ;
+      avg_revenue  = avg(revenue_php) ;
+      exporter_pct = count(is_exporting) ;
+    }
+  }
+
+  dataset RegionalEnterpriseDataset {
+    source = dbml : domain.IdentityContext.EnterpriseProfile ;
+    groupBy {
+      region ;
+      enterprise_type ;
+      stage ;
+    }
+    compute {
+      enterprise_count = count(id) ;
+      avg_score        = avg(activity_score) ;
+    }
+  }
+
+  dataset BeneficiaryByProgramDataset {
+    source = dbml : domain.EventContext.EventParticipation ;
+    groupBy {
+      event_id ;
+    }
+    compute {
+      participant_count = count(user_profile_id) ;
+      completion_count  = count(completion_status) ;
+    }
+  }
+
+  // Enterprise training completion — which companies completed which trainings
+  dataset EnterpriseTrainingCompletionDataset {
+    source = dbml : domain.EventContext.EventParticipation ;
+    filter {
+      enterprise_id != null ;
+      status in ["ATTENDED", "COMPLETED"] ;
+    }
+    groupBy {
+      enterprise_id ;
+      enterprise_name ;
+      event_id ;
+    }
+    compute {
+      members_attended  = count(distinct user_profile_id) ;
+      events_completed  = count(distinct event_id) ;
+    }
+  }
+
+  dataset EnterpriseMembershipDataset {
+    source = dbml : domain.IdentityContext.EnterpriseMembership ;
+    filter {
+      is_active == true ;
+    }
+  }
+
+  // Phase 3: notification-service currently uses BullMQ queues,
+  // no NotificationLog DB entity yet
+  dataset NotificationDeliveryDataset {
+    source = dbml : domain.NotificationContext.NotificationLog ;  // Phase 3
+    groupBy {
+      channel ;
+      template_key ;
+    }
+    compute {
+      sent_count   = count(id) ;
+      failed_count = count(error_message) ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // METRICS
+  // ─────────────────────────────────────────────
+
+  metric TotalRegisteredUsers {
+    dataset = UserProfileDataset ;
+    value   = count(id) ;
+    label   = "Total Registered Participants" ;
+    format  = "0,0" ;
+  }
+
+  metric TotalEnterprises {
+    dataset = EnterpriseDataset ;
+    value   = count(id) ;
+    label   = "Total Enterprise Profiles" ;
+    format  = "0,0" ;
+  }
+
+  metric VerifiedEnterprises {
+    dataset = VerifiedEnterpriseDataset ;
+    value   = count(id) ;
+    label   = "DTI-Verified Beneficiary Enterprises" ;
+    format  = "0,0" ;
+  }
+
+  metric EnterprisesWithTraining {
+    dataset = EnterpriseTrainingCompletionDataset ;
+    value   = count(distinct enterprise_id) ;
+    label   = "Enterprises with Completed Trainings" ;
+    format  = "0,0" ;
+  }
+
+  metric EnterpriseTrainingCompletionRate {
+    dataset = EnterpriseTrainingCompletionDataset ;
+    value   = enterprises_completed / total_enterprises * 100 ;
+    label   = "Enterprise Training Completion Rate (%)" ;
+    format  = "0.0%" ;
+  }
+
+  metric TotalEventsCompleted {
+    dataset = CompletedEventDataset ;
+    value   = count(id) ;
+    label   = "Completed Training Events" ;
+    format  = "0,0" ;
+  }
+
+  metric TotalParticipations {
+    dataset = ParticipationDataset ;
+    value   = count(id) ;
+    label   = "Total Event Registrations" ;
+    format  = "0,0" ;
+  }
+
+  metric TotalCheckedIn {
+    dataset = CheckedInParticipationDataset ;
+    value   = count(id) ;
+    label   = "Total Attendees (Checked-In)" ;
+    format  = "0,0" ;
+  }
+
+  metric TotalCompletions {
+    dataset = CompletedParticipationDataset ;
+    value   = count(id) ;
+    label   = "Total Event Completions (≥80% Attendance)" ;
+    format  = "0,0" ;
+  }
+
+  metric OverallAttendanceRate {
+    dataset = ParticipationDataset ;
+    value   = avg(completion_status) ;
+    label   = "Overall Attendance Completion Rate" ;
+    format  = "0.0%" ;
+  }
+
+  metric AverageCSFScore {
+    dataset = CSFResponseDataset ;
+    value   = avg_satisfaction_score ;
+    label   = "Average Customer Satisfaction Score (CSF)" ;
+    format  = "0.00" ;
+  }
+
+  metric TotalCertificatesIssued {
+    dataset = CertificateDataset ;
+    value   = count(id) ;
+    label   = "Certificates Issued" ;
+    format  = "0,0" ;
+  }
+
+  metric TotalJobsCreated {
+    dataset = ImpactDataPointDataset ;
+    value   = sum(jobs_created) ;
+    label   = "Total Jobs Created (Self-Reported, 6-Month Survey)" ;
+    format  = "0,0" ;
+  }
+
+  metric AverageRevenueGrowth {
+    dataset = SixMonthCohortDataset ;
+    value   = avg_revenue ;
+    label   = "Average Post-Program Revenue (PHP)" ;
+    format  = "₱0,0.00" ;
+  }
+
+  metric ExporterCount {
+    dataset = ImpactDataPointDataset ;
+    value   = count(is_exporting) ;
+    label   = "Participants Now Exporting" ;
+    format  = "0,0" ;
+  }
+
+  metric TNAAverageScore {
+    dataset = TNAResponseDataset ;
+    value   = avg(computed_score) ;
+    label   = "Average TNA Composite Score" ;
+    format  = "0.0" ;
+  }
+
+  metric SurveyResponseRate_CSF {
+    dataset = CSFResponseDataset ;
+    value   = count(id) ;
+    label   = "CSF Survey Responses Received" ;
+    format  = "0,0" ;
+  }
+
+  metric SurveyResponseRate_Impact {
+    dataset = ImpactSurveyDataset ;
+    value   = count(id) ;
+    label   = "Impact Survey Responses Received" ;
+    format  = "0,0" ;
+  }
+
+  metric NotificationDeliveryRate {
+    dataset = NotificationDeliveryDataset ;
+    value   = avg(sent_count) ;
+    label   = "Notification Delivery Rate" ;
+    format  = "0.0%" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // REPORTS
+  // ─────────────────────────────────────────────
+
+  report EventCompletionReport {
+    kind     = tabular ;
+
+    dataset  = CompletedEventDataset ;
+    dataset  = ParticipationDataset ;
+    metric   = TotalEventsCompleted ;
+    metric   = TotalParticipations ;
+    metric   = TotalCheckedIn ;
+    metric   = TotalCompletions ;
+    metric   = OverallAttendanceRate ;
+    metric   = AverageCSFScore ;
+    metric   = TotalCertificatesIssued ;
+
+    section EventSummarySection {
+      title   = "Event Completion Summary" ;
+      content = "Tabular breakdown of all completed events including participant count, attendance rate, CSF score, and certificates issued." ;
+      columns = [
+        event.title
+        event.start_datetime
+        event.region
+        participant_count
+        attendance_rate
+        avg_csf_score
+        certificates_issued
+      ]
+    }
+
+    output = pdf ;
+  }
+
+  report BeneficiaryMasterReport {
+    kind     = tabular ;
+
+    dataset  = UserProfileDataset ;
+    dataset  = EnterpriseDataset ;
+    dataset  = CompletedParticipationDataset ;
+    metric   = TotalRegisteredUsers ;
+    metric   = TotalCompletions ;
+    metric   = TotalCertificatesIssued ;
+
+    printProfile {
+      orientation = landscape ;
+      pageSize    = A4 ;
+      margins     = 15 ;
+      watermark   = "CONFIDENTIAL — DTI INTERNAL USE ONLY" ;
+    }
+
+    section BeneficiaryListSection {
+      title   = "Beneficiary Master List" ;
+      content = "Full list of DTI beneficiaries with their linked enterprises, events attended, and certificates earned." ;
+      columns = [
+        user.first_name
+        user.last_name
+        user.email
+        user.region
+        enterprise.legal_name
+        events_attended_count
+        certificates_earned
+      ]
+    }
+
+    output = pdf ;
+  }
+
+  report CSFDetailedReport {
+    kind    = summary ;
+
+    dataset = CSFResponseDataset ;
+    metric  = AverageCSFScore ;
+    metric  = SurveyResponseRate_CSF ;
+
+    section CSFScoreSummary {
+      title   = "Customer Satisfaction Summary" ;
+      content = "Average satisfaction scores per training event with response breakdown and verbatim comments." ;
+      columns = [
+        event.title
+        response_count
+        avg_satisfaction_score
+        top_positive_comments
+        top_improvement_comments
+      ]
+    }
+
+    section CSFScoreDistribution {
+      title   = "Score Distribution" ;
+      content = "Distribution of CSF scores across 5 rating bands (1-5)." ;
+    }
+
+    output = pdf ;
+  }
+
+  report ImpactSummaryReport {
+    kind    = summary ;
+
+    dataset = ImpactDataPointDataset ;
+    dataset = SixMonthCohortDataset ;
+    metric  = TotalJobsCreated ;
+    metric  = AverageRevenueGrowth ;
+    metric  = ExporterCount ;
+    metric  = SurveyResponseRate_Impact ;
+
+    section ImpactOverviewSection {
+      title   = "6-Month Program Impact Summary" ;
+      content = "Aggregated outcomes reported 6 months after program completion. Covers employment, revenue growth, and export activity." ;
+    }
+
+    section CohortComparisonSection {
+      title   = "Cohort Comparison: Pre vs. Post Program" ;
+      content = "Side-by-side comparison of key metrics before and after program participation by cohort." ;
+      columns = [
+        cohort_year
+        participant_count
+        avg_revenue_before
+        avg_revenue_after
+        revenue_growth_pct
+        jobs_created
+        new_exporters
+      ]
+    }
+
+    output = pdf ;
+  }
+
+  report RegionalEcosystemReport {
+    kind    = domain ;
+
+    dataset = RegionalEnterpriseDataset ;
+    dataset = EcosystemEnablerDataset ;
+    metric  = TotalEnterprises ;
+    metric  = VerifiedEnterprises ;
+
+    section RegionalBreakdownSection {
+      title   = "Enterprise Distribution by Region" ;
+      content = "Count and stage breakdown of enterprises across Region 7 provinces." ;
+      columns = [
+        region
+        province
+        enterprise_count
+        stage_distribution
+        avg_activity_score
+      ]
+    }
+
+    section EnablerCoverageSection {
+      title   = "Ecosystem Enabler Coverage" ;
+      content = "Accelerators, co-working spaces, and government agencies mapped per region." ;
+      columns = [
+        enabler.name
+        enabler.type
+        enabler.region
+        enterprises_linked
+      ]
+    }
+
+    output = pdf ;
+  }
+
+  report AuditTrailReport {
+    kind    = audit ;
+
+    dataset = AuditLogDataset ;
+
+    section AuditLogSection {
+      title   = "System Audit Trail" ;
+      content = "Complete record of all data mutations, exports, and login events within the selected date range." ;
+      columns = [
+        created_at
+        actor_id
+        actor_name
+        action
+        target_type
+        target_id
+        ip_address
+      ]
+    }
+
+    printProfile {
+      orientation = portrait ;
+      pageSize    = A4 ;
+      watermark   = "OFFICIAL RECORD — DTI AUDIT LOG" ;
+    }
+
+    output = pdf ;
+  }
+
+  report RegistrationSurgeReport {
+    kind    = tabular ;
+
+    dataset = ParticipationDataset ;
+    metric  = TotalParticipations ;
+
+    section SurgeAnalysisSection {
+      title   = "Registration Volume by Day" ;
+      content = "Hourly and daily registration volume chart to identify surge periods and infrastructure scaling needs." ;
+      columns = [
+        registration_date
+        event.title
+        registrations_count
+        confirmed_count
+        waitlisted_count
+      ]
+    }
+
+    output = pdf ;
+  }
+
+  report DPAComplianceReport {
+    kind    = compliance ;
+
+    dataset = UserProfileDataset ;
+    dataset = AuditLogDataset ;
+
+    section ConsentStatusSection {
+      title   = "DPA Consent Status" ;
+      content = "Summary of DPA consent collection rates and consent timestamps per registration cohort." ;
+      columns = [
+        consent_month
+        total_registrations
+        consent_given_count
+        consent_rate
+      ]
+    }
+
+    section DataAccessLogSection {
+      title   = "Sensitive Data Access Log" ;
+      content = "All export and bulk-access events for PII data within the reporting period." ;
+      columns = [
+        created_at
+        actor_name
+        action
+        target_type
+        ip_address
+      ]
+    }
+
+    printProfile {
+      watermark = "DPA COMPLIANCE REPORT — DTI REGION 7" ;
+    }
+
+    output = pdf ;
+  }
+
+  report NotificationDeliveryReport {
+    kind    = tabular ;
+
+    dataset = NotificationDeliveryDataset ;
+    metric  = NotificationDeliveryRate ;
+
+    section DeliveryByChannelSection {
+      title   = "Notification Delivery by Channel" ;
+      content = "Breakdown of notification delivery success and failure rates by channel (email, SMS, push) and template type." ;
+      columns = [
+        channel
+        template_key
+        sent_count
+        failed_count
+        delivery_rate
+      ]
+    }
+
+    output = json ;
+  }
+
+  report EnterpriseTrainingCompletionReport {
+    kind     = tabular ;
+
+    dataset  = EnterpriseTrainingCompletionDataset ;
+    dataset  = EnterpriseMembershipDataset ;
+    metric   = EnterprisesWithTraining ;
+    metric   = EnterpriseTrainingCompletionRate ;
+
+    section EnterpriseCompletionSummary {
+      title   = "Enterprise Training Completion Summary" ;
+      content = "Company-level view of training completion. Shows which enterprises have completed required training programs, including which members attended on behalf of the company." ;
+      columns = [
+        enterprise.business_name
+        enterprise.region
+        event.title
+        event.start_datetime
+        members_attended_count
+        members_attended_names
+        completion_status
+      ]
+    }
+
+    section EnterpriseComplianceMatrix {
+      title   = "Enterprise Training Compliance Matrix" ;
+      content = "Cross-reference matrix showing each enterprise against required training programs, with completion status per program." ;
+      columns = [
+        enterprise.business_name
+        training_program
+        is_completed
+        completed_by
+        completion_date
+      ]
+    }
+
+    printProfile {
+      orientation = landscape ;
+      pageSize    = A4 ;
+      watermark   = "DTI REGION 7 — ENTERPRISE TRAINING COMPLIANCE" ;
+    }
+
+    output = pdf ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DASHBOARDS
+  // ─────────────────────────────────────────────
+
+  dashboard OrganizerOperationsDashboard {
+    title       = "Event Organizer Dashboard" ;
+    description = "Real-time operational view for event organizers managing registrations, attendance, and CSF." ;
+    audience    = "event_organizer, program_manager" ;
+    refresh     = "live (WebSocket polling)" ;
+
+    section KeyMetricsStrip {
+      style    = "metric-cards-horizontal" ;
+      metrics  = [
+        TotalParticipations
+        TotalCheckedIn
+        TotalCompletions
+        AverageCSFScore
+        TotalCertificatesIssued
+      ]
+    }
+
+    section ParticipantStatusBreakdown {
+      style   = "pie-chart" ;
+      dataset = ParticipationDataset ;
+      groupBy = status ;
+      title   = "Participant Status Breakdown" ;
+    }
+
+    section RecentCheckIns {
+      style   = "live-feed" ;
+      dataset = CheckedInParticipationDataset ;
+      sort    = "checked_in_at DESC" ;
+      limit   = 20 ;
+      title   = "Recent Check-Ins" ;
+    }
+
+    section AttendanceRateTrend {
+      style   = "line-chart" ;
+      dataset = CompletedEventDataset ;
+      x_axis  = start_datetime ;
+      y_axis  = attendance_rate ;
+      title   = "Attendance Rate Over Time" ;
+    }
+  }
+
+  dashboard AdminSystemDashboard {
+    title       = "System Administration Dashboard" ;
+    description = "High-level system health and beneficiary overview for DTI admin staff and super admins." ;
+    audience    = "super_admin, dti_staff" ;
+    refresh     = "every 5 minutes" ;
+
+    section SystemKPIs {
+      style   = "metric-cards-horizontal" ;
+      metrics = [
+        TotalRegisteredUsers
+        TotalEnterprises
+        VerifiedEnterprises
+        TotalEventsCompleted
+        TotalCertificatesIssued
+        TotalJobsCreated
+      ]
+    }
+
+    section EventPipelineStatus {
+      style   = "status-bar" ;
+      dataset = EventDataset ;
+      groupBy = status ;
+      title   = "Event Pipeline — Status Overview" ;
+    }
+
+    section BeneficiaryGrowthChart {
+      style   = "area-chart" ;
+      dataset = UserProfileDataset ;
+      x_axis  = created_at ;
+      y_axis  = TotalRegisteredUsers ;
+      title   = "Beneficiary Growth Over Time" ;
+    }
+
+    section RegionalHeatmap {
+      style   = "geographic-heatmap" ;
+      dataset = RegionalEnterpriseDataset ;
+      geo     = region ;
+      value   = enterprise_count ;
+      title   = "Enterprise Distribution by Region (Region 7)" ;
+    }
+
+    section CSFScoreByEvent {
+      style   = "bar-chart" ;
+      dataset = CSFResponseDataset ;
+      x_axis  = event.title ;
+      y_axis  = avg_satisfaction_score ;
+      title   = "CSF Score by Training Event" ;
+    }
+
+    section TopActiveEnterprises {
+      style   = "table" ;
+      dataset = VerifiedEnterpriseDataset ;
+      sort    = "activity_score DESC" ;
+      limit   = 10 ;
+      columns = [ legal_name, region, stage, activity_score, events_attended ]
+      title   = "Top 10 Most Active Enterprises" ;
+    }
+
+    section NotificationDeliveryStatus {
+      style   = "donut-chart" ;
+      dataset = NotificationDeliveryDataset ;
+      groupBy = channel ;
+      value   = sent_count ;
+      title   = "Notification Delivery by Channel" ;
+    }
+  }
+
+  // Phase 3: Industry and Impact dashboards (NOT IMPLEMENTED)
+  /*
+  dashboard IndustryPublicDashboard {
+    title       = "DTI Region 7 Creative Industry Overview" ;
+    description = "Public-facing sector dashboard showing aggregate industry data, ecosystem map, and program impact." ;
+    audience    = "public" ;
+    privacy     = "aggregated only — no PII exposed" ;
+    refresh     = "every 24 hours (post-ETL)" ;
+
+    section PublicSectorHighlights {
+      style   = "metric-cards-horizontal" ;
+      metrics = [
+        TotalEnterprises
+        VerifiedEnterprises
+        TotalEventsCompleted
+        TotalJobsCreated
+        ExporterCount
+      ]
+    }
+
+    section EnterpriseByStage {
+      style   = "donut-chart" ;
+      dataset = EnterpriseDataset ;
+      groupBy = stage ;
+      value   = enterprise_count ;
+      title   = "Enterprise Stage Distribution" ;
+    }
+
+    section SectorGrowthTimeline {
+      style   = "line-chart" ;
+      dataset = SixMonthCohortDataset ;
+      x_axis  = measurement_date ;
+      y_axis  = total_jobs ;
+      title   = "Jobs Created — 6-Month Cohort Trend" ;
+    }
+
+    section RegionalEcosystemMap {
+      style   = "geographic-map" ;
+      dataset = RegionalEnterpriseDataset ;
+      geo     = region ;
+      layers  = [ enterprise-markers, enabler-pins, heatmap ]
+      title   = "Creative Industry Ecosystem Map — Region 7" ;
+    }
+
+    section IndustrySectorBreakdown {
+      style   = "bar-chart" ;
+      dataset = EnterpriseDataset ;
+      groupBy = industry_tags ;
+      value   = count(id) ;
+      title   = "Enterprises by Industry Sector" ;
+    }
+
+    section ImpactHighlight {
+      style   = "stat-banner" ;
+      metrics = [ TotalJobsCreated, ExporterCount, AverageRevenueGrowth ]
+      title   = "6-Month Program Impact Highlights" ;
+    }
+  }
+
+  dashboard InternalImpactDashboard {
+    title       = "Internal Impact Tracking Dashboard" ;
+    description = "DTI staff view for monitoring longitudinal program outcomes, KPIs, and policy planning insights." ;
+    audience    = "super_admin, dti_staff" ;
+    privacy     = "PII visible to authorized roles only" ;
+    refresh     = "every 24 hours (post-ETL)" ;
+
+    section ImpactKPIs {
+      style   = "metric-cards-horizontal" ;
+      metrics = [
+        TotalJobsCreated
+        AverageRevenueGrowth
+        ExporterCount
+        SurveyResponseRate_Impact
+        VerifiedEnterprises
+      ]
+    }
+
+    section RevenueTrendTimeSeries {
+      style   = "line-chart" ;
+      dataset = SixMonthCohortDataset ;
+      x_axis  = measurement_date ;
+      y_axis  = avg_revenue ;
+      title   = "Average Revenue per Cohort — 6-Month Intervals" ;
+      unit    = "PHP" ;
+    }
+
+    section JobsTrendTimeSeries {
+      style   = "bar-chart" ;
+      dataset = SixMonthCohortDataset ;
+      x_axis  = measurement_date ;
+      y_axis  = total_jobs ;
+      title   = "Cumulative Jobs Created by Cohort" ;
+    }
+
+    section ExportersByRegion {
+      style   = "stacked-bar-chart" ;
+      dataset = ImpactDataPointDataset ;
+      groupBy = [ measurement_date, region ] ;
+      value   = count(is_exporting) ;
+      title   = "New Exporters by Region — Rolling 12 Months" ;
+    }
+
+    section SurveyCompletionRate {
+      style   = "gauge" ;
+      dataset = ImpactSurveyDataset ;
+      value   = count(id) ;
+      title   = "6-Month Survey Completion Rate" ;
+    }
+
+    section PolicyFocusZones {
+      style   = "alert-table" ;
+      dataset = RegionalEnterpriseDataset ;
+      filter {
+        avg_score < 20 ;
+      }
+      columns = [ region, province, enterprise_count, avg_score ]
+      title   = "Policy Focus Zones — Low Activity Regions" ;
+    }
+
+    section BeneficiaryDetailTable {
+      style   = "paginated-table" ;
+      dataset = CompletedParticipationDataset ;
+      columns = [
+        user.first_name
+        user.last_name
+        enterprise.legal_name
+        event.title
+        completion_status
+        outcome_score
+        is_exporting
+        jobs_created
+      ]
+      title   = "Beneficiary Impact Detail Table (Internal Only)" ;
+    }
+  }
+  */
+
+  // ─────────────────────────────────────────────
+  // STYLE DEFINITIONS
+  // ─────────────────────────────────────────────
+
+  style DTI_ReportStyle {
+    primary_color    = "#003087" ;
+    accent_color     = "#F58220" ;
+    font_family      = "'Inter', 'Helvetica Neue', Arial, sans-serif" ;
+    heading_weight   = 700 ;
+    body_weight      = 400 ;
+    page_background  = "#FFFFFF" ;
+    header_logo      = "gcs://dti-ems-avatars/dti-region7-logo.png" ;
+    footer_text      = "Department of Trade and Industry — Region 7 | Generated by DTI EMS v1.0" ;
+    date_format      = "MMMM D, YYYY" ;
+    currency_symbol  = "₱" ;
+    locale           = "en-PH" ;
+  }
+
+}

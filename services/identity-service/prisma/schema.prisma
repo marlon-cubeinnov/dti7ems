@@ -1,0 +1,223 @@
+// This is your Prisma schema file for the Identity Service.
+// Run: pnpm --filter identity-service db:generate
+// Run: pnpm --filter identity-service db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  PARTICIPANT
+  ENTERPRISE_REPRESENTATIVE
+  PROGRAM_MANAGER
+  EVENT_ORGANIZER
+  SYSTEM_ADMIN
+  SUPER_ADMIN
+
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+
+}
+
+enum EnterpriseStage {
+  PRE_STARTUP
+  STARTUP
+  GROWTH
+  EXPANSION
+  MATURE
+
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+model UserProfile {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(PARTICIPANT)
+  status       UserStatus @default(PENDING_VERIFICATION)
+
+  // Personal info
+  firstName        String  @map("first_name")
+  lastName         String  @map("last_name")
+  middleName       String? @map("middle_name")
+  mobileNumber     String? @map("mobile_number")
+
+  // Address
+  region           String?
+  province         String?
+  cityMunicipality String? @map("city_municipality")
+  barangay         String?
+
+  // Professional
+  jobTitle                String? @map("job_title")
+  industryClassification  String? @map("industry_classification")
+
+  // DPA RA 10173 consent
+  dpaConsentGiven Boolean   @default(false) @map("dpa_consent_given")
+  dpaConsentAt    DateTime? @map("dpa_consent_at")
+
+  // Verification
+  emailVerified    Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt  DateTime? @map("email_verified_at")
+  verifyToken      String?   @map("verify_token")
+  verifyTokenExp   DateTime? @map("verify_token_exp")
+
+  // Password reset
+  resetToken    String?   @map("reset_token")
+  resetTokenExp DateTime? @map("reset_token_exp")
+
+  // Employee invite
+  inviteToken    String?   @map("invite_token")
+  inviteTokenExp DateTime? @map("invite_token_exp")
+  invitedBy      String?   @map("invited_by")
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastLoginAt DateTime? @map("last_login_at")
+
+  // Relations
+  enterpriseProfiles    EnterpriseProfile[]
+  enterpriseMemberships EnterpriseMembership[]
+  auditLogs             AuditLog[]
+
+  @@map("user_profiles")
+}
+
+model EnterpriseProfile {
+  id               String          @id @default(cuid())
+  userId           String          @map("user_id")
+
+  businessName     String          @map("business_name")
+  tradeName        String?         @map("trade_name")
+  registrationNo   String?         @map("registration_no")
+  tinNumber        String?         @map("tin_number")
+
+  industrySector   String          @map("industry_sector")
+  industryTags     String[]        @map("industry_tags")
+  stage            EnterpriseStage @default(STARTUP)
+
+  employeeCount    Int?            @map("employee_count")
+  annualRevenue    Decimal?        @map("annual_revenue") @db.Decimal(15, 2)
+
+  // Address
+  region           String?
+  province         String?
+  cityMunicipality String?         @map("city_municipality")
+  barangay         String?
+  latitude         Decimal?        @db.Decimal(10, 7)
+  longitude        Decimal?        @db.Decimal(10, 7)
+
+  isVerified       Boolean         @default(false) @map("is_verified")
+  isPubliclyListed Boolean         @default(false) @map("is_publicly_listed")
+
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  user             UserProfile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberships      EnterpriseMembership[]
+
+  @@map("enterprise_profiles")
+}
+
+model EnterpriseMembership {
+  id           String         @id @default(cuid())
+  enterpriseId String         @map("enterprise_id")
+  userId       String         @map("user_id")
+  role         MembershipRole @default(MEMBER)
+  isActive     Boolean        @default(true) @map("is_active")
+  joinedAt     DateTime       @default(now()) @map("joined_at")
+
+  enterprise   EnterpriseProfile @relation(fields: [enterpriseId], references: [id], onDelete: Cascade)
+  user         UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([enterpriseId, userId])
+  @@index([userId])
+  @@map("enterprise_memberships")
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String?   @map("user_id")
+  action     String
+  entityType String    @map("entity_type")
+  entityId   String    @map("entity_id")
+  oldData    Json?     @map("old_data")
+  newData    Json?     @map("new_data")
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user       UserProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ── Roles & Permissions ──────────────────────────────────────────────────────
+
+model RoleConfig {
+  id          String   @id @default(cuid())
+  name        String   @unique                // matches UserRole enum value e.g. "PARTICIPANT"
+  label       String                          // human-readable e.g. "Participant"
+  description String?  @db.Text
+  isSystem    Boolean  @default(false) @map("is_system")  // system roles can't be deleted
+  isActive    Boolean  @default(true)  @map("is_active")
+  createdAt   DateTime @default(now())  @map("created_at")
+  updatedAt   DateTime @updatedAt       @map("updated_at")
+
+  permissions RolePermission[]
+
+  @@map("role_configs")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique                // e.g. "events.create", "users.manage"
+  label       String                          // e.g. "Create Events"
+  group       String                          // grouping category e.g. "Events", "Users"
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles       RolePermission[]
+
+  @@index([group])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  grantedAt    DateTime @default(now()) @map("granted_at")
+  grantedBy    String?  @map("granted_by")
+
+  role         RoleConfig @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}

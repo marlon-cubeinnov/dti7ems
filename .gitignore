@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+
+# Turbo
+.turbo/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Prisma generated
+prisma/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Docker volumes (local data)
+postgres_data/
+redis_data/
+
+# Type check incremental cache
+*.tsbuildinfo
+
+# Misc
+*.pem
+*.key
+*.crt

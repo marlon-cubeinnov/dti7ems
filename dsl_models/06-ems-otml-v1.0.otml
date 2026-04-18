@@ -1,0 +1,583 @@
+// ============================================================
+// OTML v1.7 — Operational & Service Infrastructure Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Purpose : Model cloud-hosted microservices, message brokers,
+//           pipelines, monitoring, and operational workflows
+//           using OTML's service-oriented metaphor.
+//
+// STATUS  : Reflects Phase 1–2 implementation (local dev).
+//           Phase 3 nodes are annotated but not implemented.
+// ============================================================
+
+namespace DTI.EMS.Operations version "1.0.0" ;
+
+import "./01-ems-dbml-v1.0.dbml" as domain ;
+import "./02-ems-sdml-v1.0.sdml" as security ;
+import "./05-ems-blml-v1.0.blml" as logic ;
+
+// ─────────────────────────────────────────────
+// SYSTEM BLOCK — Cloud Platform Overview
+// ─────────────────────────────────────────────
+
+SystemBlock "DTI_EMS_Platform" {
+  domain : "Event Management & Industry Dashboard" ;
+  area   : "Local Docker Compose (dev) → GCP (production, Phase 3)" ;
+
+  // ── Active Nodes (Phase 1–2) ──
+  node : IdentityServiceNode ;     // Port 3011
+  node : EventServiceNode ;        // Port 3012 — includes surveys, certificates, PDF generation
+  node : NotificationServiceNode ; // Port 3013 — BullMQ + Resend email + Semaphore SMS
+  node : PostgreSQLNode ;          // Port 5433 (Docker)
+  node : RedisNode ;               // Port 6379 (localhost)
+
+  // ── Phase 3 Nodes (NOT IMPLEMENTED) ──
+  // node : AnalyticsServiceNode ;
+  // node : DirectoryServiceNode ;
+  // node : ETLPipelineNode ;
+  // node : APIGatewayNode ;       // Kong Gateway
+  // node : MessageBrokerNode ;    // Apache Kafka
+  // node : ElasticsearchNode ;
+  // node : ObjectStorageNode ;    // GCS
+  // node : MonitoringNode ;       // OpenTelemetry + Grafana
+}
+
+// ─────────────────────────────────────────────
+// SERVICE NODES (Node Blocks)
+// ─────────────────────────────────────────────
+
+node IdentityServiceNode {
+  runtime     : "Node.js 20 LTS (Fastify v5)" ;
+  container   : "Docker (dev) → Cloud Run (prod, Phase 3)" ;
+  port        : 3011 ;
+  replicas    : 1 ;
+  endpoints : [
+    "POST /auth/register"
+    "POST /auth/login"
+    "POST /auth/logout"
+    "POST /auth/refresh-token"
+    "GET  /users/me"
+    "GET  /users/:id"
+    "PATCH /users/:id"
+    "GET  /enterprises"
+    "POST /enterprises"
+    "PATCH /enterprises/:id"
+  ]
+  auth        : "JWT RS256 (15-min access + 7-day refresh, firstName/lastName in payload)" ;
+  password_hash : "Argon2" ;
+  token_blacklist : "Redis" ;
+  orm         : "Prisma" ;
+}
+
+node EventServiceNode {
+  runtime     : "Node.js 20 LTS (Fastify v5)" ;
+  container   : "Docker (dev) → Cloud Run (prod, Phase 3)" ;
+  port        : 3012 ;
+  replicas    : 1 ;
+  endpoints : [
+    // Event CRUD
+    "GET    /events"
+    "GET    /events/:id"
+    "GET    /events/mine"
+    "POST   /events"
+    "PATCH  /events/:id"
+    "PATCH  /events/:id/status"
+    // Sessions
+    "GET    /events/:id/sessions"
+    "POST   /events/:id/sessions"
+    "DELETE /events/:id/sessions/:sessionId"
+    // Participants
+    "GET    /events/:id/participants"
+    "GET    /events/:id/participants/export"   // CSV download
+    // Participations
+    "POST   /participations/events/:eventId/register"
+    "GET    /participations/events/:eventId/me"
+    "GET    /participations/me"
+    "GET    /participations/:id"
+    "POST   /participations/:id/tna"
+    "POST   /participations/:id/confirm-rsvp"
+    // QR & Attendance
+    "GET    /participations/:id/qr"             // Permanent HMAC token
+    "POST   /participations/attendance/scan"
+    "POST   /participations/:id/manual-checkin"
+    "GET    /participations/:id/attendance"
+    // Certificates (PDFKit — no Puppeteer/document-service)
+    "POST   /certificates/:participationId/issue"
+    "POST   /certificates/bulk-issue/:eventId"
+    "GET    /certificates/my"
+    "GET    /certificates/:participationId"
+    "PATCH  /certificates/:participationId/revoke"
+    "GET    /certificates/verify/:code"         // Public, no auth
+    "GET    /certificates/:participationId/pdf" // PDFKit landscape A4 stream
+    // CSF Surveys (integrated — no separate survey-service)
+    "POST   /surveys/events/:eventId/csf"
+    "GET    /surveys/events/:eventId/csf/me"
+    "GET    /surveys/events/:eventId/csf/results"
+  ]
+  orm         : "Prisma" ;
+  pdf_engine  : "PDFKit (inline generation, no Puppeteer)" ;
+  qr_engine   : "qrcode npm (server-side)" ;
+  notifies    : "HTTP fire-and-forget to NotificationServiceNode via notify.ts" ;
+  triggers_sent : [
+    "registration-confirmation (on POST /register)"
+    "bulk-csf-invite (1h delay after event → COMPLETED)"
+    "certificate-issued (on certificate issue)"
+  ]
+}
+
+// SurveyServiceNode — REMOVED
+// Survey functionality (CSF) is integrated into EventServiceNode.
+// See EventServiceNode.endpoints for /surveys/* routes.
+
+node NotificationServiceNode {
+  runtime     : "Node.js 20 LTS (Fastify v5 + BullMQ workers)" ;
+  container   : "Docker (dev) → Cloud Run Jobs (prod, Phase 3)" ;
+  port        : 3013 ;
+  replicas    : 1 ;
+  queue_backend : "Redis via BullMQ (queues: mail, sms)" ;
+  channels : [
+    "Email (Resend API — dry-run when RESEND_API_KEY missing)"
+    "SMS   (Semaphore PH API — dry-run when SEMAPHORE_API_KEY missing)"
+  ]
+  // No Kafka — receives work via HTTP trigger endpoints from event-service
+  trigger_endpoints : [
+    "POST /triggers/registration-confirmation"
+    "POST /triggers/rsvp-reminder"
+    "POST /triggers/bulk-csf-invite"
+    "POST /triggers/certificate-issued"
+    "POST /triggers/test-email"
+  ]
+  workers : [
+    "email.worker.ts — processes 'mail' queue via Resend API"
+    "sms.worker.ts   — processes 'sms' queue via Semaphore API"
+  ]
+  templates : [
+    "registration-confirmation (HTML email)"
+    "rsvp-reminder (HTML email)"
+    "csf-survey-invite (HTML email)"
+    "certificate-issued (HTML email)"
+  ]
+}
+
+// DocumentServiceNode — REMOVED
+// PDF certificate generation uses PDFKit inside EventServiceNode.
+// See EventServiceNode endpoint: GET /certificates/:participationId/pdf
+
+// ─────────────────────────────────────────────
+// PHASE 3 NODES (NOT IMPLEMENTED)
+// ─────────────────────────────────────────────
+
+/*
+node AnalyticsServiceNode {
+  runtime     : "Node.js 20 LTS" ;
+  container   : "Docker → Cloud Run (GCP)" ;
+  replicas    : 2 ;
+  autoscale   : true ;
+  min_instances : 1 ;
+  max_instances : 5 ;
+  endpoints : [
+    "GET /analytics/overview"
+    "GET /analytics/events/summary"
+    "GET /analytics/beneficiaries"
+    "GET /analytics/impact"
+    "GET /analytics/impact/timeseries"
+    "GET /analytics/enterprises/activity"
+    "GET /analytics/enterprises/heatmap"
+    "GET /analytics/ecosystem-map"
+  ]
+  db_schema   : "analytics_schema" ;
+  consumes_events : [
+    "attendance.confirmed"
+    "participation.completed"
+    "survey.csf_submitted"
+    "survey.impact_submitted"
+    "enterprise.profile_updated"
+  ]
+  powers_dashboard : "IndustryDashboard_Site" ;
+}
+*/
+
+/*
+node DirectoryServiceNode {
+  runtime      : "Node.js 20 LTS" ;
+  container    : "Docker → Cloud Run (GCP)" ;
+  replicas     : 2 ;
+  autoscale    : true ;
+  search_engine : "Elasticsearch 8.x" ;
+  endpoints : [
+    "GET /directory/enterprises"
+    "GET /directory/enterprises/:id"
+    "GET /directory/enablers"
+    "GET /directory/map"
+    "GET /directory/search"
+  ]
+  consumes_events : [
+    "enterprise.profile_updated"
+    "survey.impact_submitted"
+  ]
+}
+*/
+
+/*
+node ETLPipelineNode {
+  runtime     : "Node.js 20 LTS" ;
+  container   : "Docker → Cloud Run Jobs (scheduled)" ;
+  schedule    : "0 2 * * *" ;
+  description : "Nightly ETL job that aggregates event data into the analytics schema and re-indexes Elasticsearch directory." ;
+  steps : [
+    "extract_event_participation_data"
+    "transform_and_deduplicate_profiles"
+    "load_into_analytics_schema"
+    "aggregate_impact_timeseries"
+    "sync_enterprise_directory_index"
+    "run_data_quality_checks"
+    "emit_etl_run_complete_event"
+  ]
+  db_source   : "PostgreSQL (event_schema + survey_schema)" ;
+  db_target   : "PostgreSQL (analytics_schema)" ;
+  search_target : "Elasticsearch (directory_index)" ;
+}
+*/
+
+/*
+node APIGatewayNode {
+  technology  : "Kong Gateway (self-hosted on GCP GKE)" ;
+  description : "Single entry point for all external API requests. Handles JWT verification, rate limiting, CORS, WAF, and service routing." ;
+  plugins : [
+    "rate-limiting"
+    "jwt"
+    "cors"
+    "ip-restriction"
+    "request-transformer"
+    "response-transformer"
+    "opentelemetry"
+    "acl"
+  ]
+  routes : [
+    "/api/auth/*        → IdentityServiceNode"
+    "/api/events/*      → EventServiceNode"
+    "/api/surveys/*     → SurveyServiceNode"
+    "/api/analytics/*   → AnalyticsServiceNode"
+    "/api/directory/*   → DirectoryServiceNode"
+    "/api/documents/*   → DocumentServiceNode"
+  ]
+  ssl_termination : true ;
+  tls_version     : "1.3" ;
+}
+*/
+
+/*
+node MessageBrokerNode {
+  technology  : "Apache Kafka (Confluent Cloud or GCP Pub/Sub)" ;
+  description : "Async event bus for decoupled inter-service communication. All domain events published here." ;
+  topics : [
+    "ems.registration.submitted"
+    "ems.attendance.confirmed"
+    "ems.participation.completed"
+    "ems.event.status_changed"
+    "ems.survey.csf_submitted"
+    "ems.survey.impact_submitted"
+    "ems.enterprise.profile_updated"
+    "ems.document.certificate_generated"
+    "ems.etl.run_complete"
+    "ems.security.alert"
+  ]
+  schema_registry : "Confluent Schema Registry (Avro)" ;
+  retention_hours : 168 ;
+  replication_factor : 3 ;
+}
+*/
+
+// ─────────────────────────────────────────────
+// INFRASTRUCTURE NODES (Active)
+// ─────────────────────────────────────────────
+
+node PostgreSQLNode {
+  technology   : "PostgreSQL 15" ;
+  hosting      : "Docker (dev, port 5433) → GCP Cloud SQL (prod, Phase 3)" ;
+  database     : "dti_ems_dev" ;
+  replicas     : 1 ;
+  orm          : "Prisma (separate clients per service)" ;
+  schemas : [
+    "identity-service Prisma schema"
+    "event-service Prisma schema (events, sessions, participations, certificates, CSF surveys)"
+  ]
+  // Phase 3: backup_policy, encryption, connection_pool, PostGIS, TimescaleDB
+}
+
+node RedisNode {
+  technology   : "Redis 7 (localhost:6379)" ;
+  hosting      : "Local (dev) → GCP Memorystore (prod, Phase 3)" ;
+  purpose : [
+    "BullMQ job queue (NotificationService: mail + sms queues)"
+    "JWT token blacklist (Identity Service)"
+  ]
+  maxmemory_policy : "allkeys-lru" ;
+}
+
+/*  // Phase 3
+node ElasticsearchNode {
+  technology   : "Elasticsearch 8.x (GCP Marketplace or self-hosted)" ;
+  indices : [
+    "enterprise_directory_v1"
+    "enabler_directory_v1"
+    "event_search_v1"
+  ]
+  shards        : 3 ;
+  replicas      : 1 ;
+  features      : [ "full-text-search", "faceted-filter", "geo-distance-query" ]
+}
+*/
+
+/*  // Phase 3
+node ObjectStorageNode {
+  technology   : "GCP Cloud Storage" ;
+  buckets : [
+    "dti-ems-certificates (private, signed URLs)"
+    "dti-ems-reports      (private, signed URLs, auto-expire 24h)"
+    "dti-ems-uploads      (private, virus-scanned)"
+    "dti-ems-avatars      (public-read CDN)"
+  ]
+  cdn          : "GCP Cloud CDN (avatars bucket only)" ;
+  lifecycle_rules : [
+    "reports: delete after 24 hours"
+    "temp-uploads: delete after 7 days if unprocessed"
+  ]
+}
+*/
+
+/*  // Phase 3
+node MonitoringNode {
+  technology : "OpenTelemetry + GCP Cloud Monitoring + Grafana" ;
+  components : [
+    "Distributed tracing: OpenTelemetry Collector → GCP Trace"
+    "Metrics: Prometheus exporters → GCP Monitoring"
+    "Logs: Structured JSON → GCP Cloud Logging"
+    "Alerts: PagerDuty (on-call rotation for critical services)"
+    "Dashboards: Grafana (service health, throughput, error rates)"
+    "Uptime checks: GCP Uptime Monitoring (5-minute intervals)"
+  ]
+  alert_policies : [
+    "Error rate > 5% for any service → P1 alert"
+    "Memory > 85% → P2 alert"
+    "Kafka consumer lag > 1000 messages → P2 alert"
+    "ETL job failure → P1 alert"
+    "PostgreSQL replication lag > 30s → P1 alert"
+    "Audit log write failure → P1 alert"
+  ]
+}
+*/
+
+// ─────────────────────────────────────────────
+// DEVICE CLASSES (Participant endpoints)
+// ─────────────────────────────────────────────
+
+device_class WebBrowser {
+  description : "Desktop or laptop web browser (Chrome, Firefox, Safari, Edge)" ;
+  capabilities : [ "camera", "notifications", "downloads", "localStorage" ] ;
+  target_services : [ web-public ] ; // Single React SPA with role-based routing
+}
+
+device_class MobileDevice {
+  description : "Smartphone (iOS / Android) — primary QR scanner device" ;
+  capabilities : [ "camera-qr", "gps", "push-notifications", "touch" ] ;
+  target_services : [ web-public ] ; // QR scanner in /organizer/* routes
+  note : "QR scanner uses device camera via browser MediaDevices API (no native app required)" ;
+}
+
+// ─────────────────────────────────────────────
+// WORKFLOWS (Operational)
+// ─────────────────────────────────────────────
+
+workflow_block DeploymentWorkflow {
+  description : "CI/CD pipeline for all microservices" ;
+  steps : [
+    "Developer pushes to feature branch"
+    "GitHub Actions: lint + unit tests + integration tests"
+    "PR review and approval (minimum 1 reviewer)"
+    "Merge to main → Docker build → push to GCP Artifact Registry"
+    "Cloud Build: deploy to staging environment"
+    "Automated E2E tests against staging"
+    "Manual approval gate for production deploy"
+    "Blue/green deployment via Cloud Run traffic splitting"
+    "OpenTelemetry trace validation post-deploy"
+    "Rollback: Cloud Run traffic revert to previous revision (< 2 min)"
+  ]
+}
+
+workflow_block DatabaseMigrationWorkflow {
+  description : "Safe schema migration process for PostgreSQL" ;
+  steps : [
+    "Developer creates migration file via Prisma migrate dev"
+    "Migration reviewed in PR"
+    "Dry-run against staging DB (Prisma migrate deploy -- dry-run)"
+    "Maintenance window scheduled (low-traffic: 2 AM–4 AM PHT)"
+    "Apply migration: Prisma migrate deploy"
+    "Smoke tests run against migrated DB"
+    "Rollback script committed alongside migration"
+  ]
+}
+
+workflow_block IncidentResponseWorkflow {
+  description : "Operational incident response procedure" ;
+  steps : [
+    "Alert fires → on-call engineer paged via PagerDuty"
+    "Engineer acknowledges within 15 minutes"
+    "Initial triage: identify affected service from Grafana dashboard"
+    "Mitigation: scale up replicas / rollback / bypass affected service"
+    "Incident channel created in Slack (auto-created by PagerDuty)"
+    "Data Protection Officer notified if PII breach suspected (within 72h per DPA)"
+    "Root cause analysis (RCA) documented within 48 hours"
+    "Postmortem published to internal wiki"
+    "Control added to SDML / BLML if gap identified"
+  ]
+}
+
+workflow_block ETLRunWorkflow {
+  description : "Nightly ETL pipeline execution procedure" ;
+  steps : [
+    "Cloud Scheduler triggers ETLPipelineNode at 02:00 PHT"
+    "Extract: query event_schema and survey_schema for new records since last run"
+    "Transform: deduplicate profiles, calculate activity scores, normalize metrics"
+    "Load: upsert into analytics_schema"
+    "Aggregate: compute regional heatmap data, timeseries snapshots"
+    "Sync: re-index updated enterprises in Elasticsearch"
+    "Data quality checks: row counts, null checks, schema validation"
+    "Emit ems.etl.run_complete event → Dashboard cache invalidated"
+    "Log run metadata (duration, rows processed, errors)"
+    "Alert on failure → P1 incident created"
+  ]
+}
+
+workflow_block BackupRecoveryWorkflow {
+  description : "Disaster recovery and backup validation procedure" ;
+  steps : [
+    "Automated daily snapshot: Cloud SQL → GCS (cross-region replication)"
+    "Weekly PITR test restore to isolated test environment"
+    "Monthly full DR drill: restore all services from backup in isolated VPC"
+    "RTO target: 4 hours | RPO target: 24 hours"
+    "Backup integrity verified by automated hash check"
+  ]
+}
+
+// ─────────────────────────────────────────────
+// CONDITION BLOCKS (Operational gates)
+// ─────────────────────────────────────────────
+
+condition_block ProductionDeployGate {
+  all_tests_pass       == true ;
+  staging_e2e_pass     == true ;
+  manual_approval      == true ;
+  description : "All conditions must be true before Cloud Run traffic shift to production" ;
+}
+
+condition_block ETLSuccessGate {
+  row_count_matches    == true ;
+  null_check_pass      == true ;
+  schema_valid         == true ;
+  description : "ETL must pass all data quality gates before emitting run_complete event" ;
+}
+
+condition_block ExportApprovalGate {
+  supervisor_approved  == true ;
+  purpose_logged       == true ;
+  recipient_logged     == true ;
+  description : "All conditions must be met before generating bulk export file" ;
+}
+
+// ─────────────────────────────────────────────
+// POLICY BLOCKS (Operational)
+// ─────────────────────────────────────────────
+
+policy_block DataRetentionPolicy {
+  description : "Data lifecycle and retention rules per DPA and DTI records management" ;
+  rules : [
+    "PII in UserProfile: retained for 7 years after last activity, then anonymized"
+    "AuditLog records: retained for 7 years (immutable, no delete)"
+    "EventParticipation records: retained for 7 years"
+    "ImpactDataPoint records: retained indefinitely (aggregate national data)"
+    "Exported reports: deleted from storage after 24 hours"
+    "JWT refresh tokens: expire after 7 days"
+    "Notification logs: retained for 1 year"
+    "ETL run logs: retained for 90 days"
+  ]
+}
+
+policy_block ScalingPolicy {
+  description : "Auto-scaling and capacity planning rules" ;
+  rules : [
+    "Scale out EventService when CPU > 70% for 2 consecutive minutes"
+    "Scale out NotificationService when BullMQ queue depth > 500 jobs"
+    "Scale out AnalyticsService when response time P95 > 2 seconds"
+    "Never scale below min_instances (availability during off-peak)"
+    "Registration surge handling: pre-scale EventService before published event registration opens"
+  ]
+}
+
+policy_block SecretsRotationPolicy {
+  description : "Secret and credential rotation schedule" ;
+  rules : [
+    "JWT signing keys: rotate every 90 days (blue/green key rotation)"
+    "Database passwords: rotate every 180 days via GCP Secret Manager"
+    "SMTP API keys: rotate every 180 days"
+    "QR token HMAC secret: rotate every 365 days (coordinated with event cycle)"
+    "All secrets stored in GCP Secret Manager — no hardcoded values in code"
+  ]
+}
+
+// ─────────────────────────────────────────────
+// HISTORIAN (Metrics time-series)
+// ─────────────────────────────────────────────
+
+historian_block OperationalMetrics {
+  description : "Key operational metrics tracked over time" ;
+  metrics : [
+    "EventService.requests_per_second"
+    "EventService.p95_latency_ms"
+    "EventService.pdf_generation_time_ms"
+    "IdentityService.auth_success_rate"
+    "NotificationService.delivery_success_rate"
+    "NotificationService.queue_depth"
+    "PostgreSQL.active_connections"
+    "Redis.queue_depth"
+  ]
+  retention_days : 365 ;
+  storage : PostgreSQLNode ;
+  // Phase 3: extension : "TimescaleDB" ;
+}
+
+// ─────────────────────────────────────────────
+// CBM PIPELINE (Condition-Based Monitoring)
+// ─────────────────────────────────────────────
+
+cbm_pipeline ServiceHealthPipeline {
+  description : "Continuous health monitoring pipeline for all services" ;
+  checks : [
+    "HTTP health endpoint /healthz returns 200 every 30 seconds"
+    "PostgreSQL connection pool utilization < 80%"
+    "Redis memory usage < 75%"
+    "BullMQ queue depth < 500 (mail + sms queues)"
+  ]
+  // Phase 3: add Kafka consumer heartbeat, ETL timestamp, Elasticsearch checks
+  on_anomaly : "log alert and emit warning" ;
+  on_failure : "trigger IncidentResponseWorkflow" ;
+}
+
+// ─────────────────────────────────────────────
+// META
+// ─────────────────────────────────────────────
+
+meta_block ProjectMeta {
+  name        : "DTI Region 7 EMS & Industry Dashboard" ;
+  version     : "1.1.0" ;
+  env         : "development (local Docker Compose)" ;
+  cloud       : "GCP (Phase 3 — primary region: asia-southeast1)" ;
+  iac_tool    : "Docker Compose (dev) → Terraform (Phase 3)" ;
+  container_orchestration : "Docker Compose (dev) → GCP Cloud Run (Phase 3)" ;
+  ci_cd       : "Manual (dev) → GitHub Actions (Phase 3)" ;
+  source_control : "GitHub (private organization repository)" ;
+  team_size   : "5-8 engineers (1 TL, 2-3 FE, 2 BE, 1 DevOps, 1 QA)" ;
+  contact     : "dti-region7-ict@dti.gov.ph" ;
+}

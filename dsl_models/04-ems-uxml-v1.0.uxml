@@ -1,0 +1,1029 @@
+// ============================================================
+// UXML v3.1 — User Experience & App Flow Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.1
+// Date    : 2026-04-16
+// Updated : 2026-04-17
+// Stack   : React 19 + React Router v6 · TypeScript
+//
+// STATUS  : Reflects Phase 1–2 implementation.
+//           All channels run in a single web-public SPA
+//           with role-based routing (/participant/*, /organizer/*).
+//           Admin Console and Industry Dashboard are Phase 3.
+// ============================================================
+
+uxml model DTI_EMS_UX {
+
+  import "./01-ems-dbml-v1.0.dbml"   as domain ;
+  import "./03-ems-wdml-v1.0.wdml"   as design ;
+  import "./02-ems-sdml-v1.0.sdml"   as security ;
+
+  security use security.DTI_SecurityModel ;
+
+  // ─────────────────────────────────────────────
+  // THEMES
+  // ─────────────────────────────────────────────
+
+  theme DTI_Theme {
+    label = "DTI Region 7 UI Theme" ;
+    use   = "design.DTI_DesignSystem" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // CHANNELS
+  // ─────────────────────────────────────────────
+
+  // All channels below run inside a single web-public React SPA
+  // with role-based routing. Separate channels are modeled for
+  // conceptual clarity, but deployed as one app.
+
+  channel PublicPortalChannel {
+    label      = "Public Portal" ;
+    kind       = web-app ;
+    entry-view = PublicHomeView ;
+    // Routes: /, /events, /events/:id, /register/:eventId, /login, /verify-certificate/:code
+  }
+
+  channel ParticipantChannel {
+    label      = "Participant Portal" ;
+    kind       = web-app ;
+    entry-view = ParticipantDashboardView ;
+    // Routes: /participant/*
+  }
+
+  channel OrganizerChannel {
+    label      = "Organizer Console" ;
+    kind       = web-app ;
+    entry-view = OrganizerDashboardView ;
+    // Routes: /organizer/*
+  }
+
+  // Phase 3: AdminChannel and IndustryDashboardChannel
+  /*
+  channel AdminChannel {
+    label      = "Admin Console" ;
+    kind       = admin-console ;
+    entry-view = AdminDashboardView ;
+  }
+
+  channel IndustryDashboardChannel {
+    label      = "Industry Dashboard" ;
+    kind       = web-app ;
+    entry-view = IndustryPublicOverviewView ;
+  }
+  */
+
+  // ─────────────────────────────────────────────
+  // LAYOUTS
+  // ─────────────────────────────────────────────
+
+  layout PublicShellLayout {
+    label = "Public Site Shell" ;
+    kind  = shell ;
+
+    slot topNav    { region = "top-bar" ;       default-component = PublicNavbar ; }
+    slot mainArea  { region = "main" ; }
+    slot footer    { region = "bottom" ;         default-component = SiteFooter ; }
+  }
+
+  layout AuthShellLayout {
+    label = "Authenticated App Shell" ;
+    kind  = shell ;
+
+    slot sidebar   { region = "sidebar-left" ;  default-component = AppSidebar ; }
+    slot topBar    { region = "top-bar" ;        default-component = AppTopBar ; }
+    slot main      { region = "main" ; }
+    slot toastArea { region = "overlay" ;        default-component = ToastContainer ; }
+  }
+
+  layout FullPageFormLayout {
+    label = "Full Page Centered Form" ;
+    kind  = page ;
+
+    slot form { region = "center" ; }
+  }
+
+  layout ScannerLayout {
+    label = "QR Scanner Full Screen" ;
+    kind  = page ;
+
+    slot scanner  { region = "center" ; }
+    slot controls { region = "bottom" ; }
+  }
+
+  layout MapLayout {
+    label = "Geospatial Map View" ;
+    kind  = page ;
+
+    slot filters { region = "sidebar-left" ; }
+    slot map     { region = "main" ; }
+    slot details { region = "sidebar-right" ; }
+  }
+
+  // ─────────────────────────────────────────────
+  // COMPONENTS
+  // ─────────────────────────────────────────────
+
+  component PublicNavbar {
+    label = "Public Navigation Bar" ;
+    slots : [ logo navLinks loginButton ]
+  }
+
+  component AppSidebar {
+    label = "Authenticated App Sidebar" ;
+    slots : [ dtiLogo navMenu userRoleBadge bottomLinks ]
+  }
+
+  component AppTopBar {
+    label = "App Top Bar" ;
+    slots : [ breadcrumb globalSearch notificationBell userMenu ]
+  }
+
+  component SiteFooter {
+    label = "Site Footer" ;
+    slots : [ dtiLogoFooter links dpaConsentLink ]
+  }
+
+  component ToastContainer {
+    label = "Toast Notification Container" ;
+  }
+
+  component EventCard {
+    label  = "Event Card" ;
+    entity = domain.EventContext.Event ;
+    slots  : [ eventTitle eventDate eventFormat statusPill registerButton ]
+  }
+
+  component ParticipantStatusPill {
+    label  = "Participant Status Pill" ;
+    entity = domain.EventContext.EventParticipation ;
+  }
+
+  component QRCodeDisplay {
+    label  = "QR Code Display" ;
+    entity = domain.EventContext.EventParticipation ;
+    slots  : [ qrCodeImg downloadButton ]
+  }
+
+  component MetricCard {
+    label  = "Dashboard Metric Card" ;
+    slots  : [ metricLabel metricValue trend ]
+  }
+
+  component GeospatialMapView {
+    label  = "Leaflet/MapBox Geospatial Map" ;
+    slots  : [ mapCanvas tooltip clusterLayer heatmapLayer ]
+  }
+
+  component SurveyQuestionRenderer {
+    label  = "Dynamic Survey Question Renderer" ;
+    slots  : [ questionText answerInput progressIndicator ]
+  }
+
+  component CertificatePDFPreview {
+    label  = "Certificate PDF Inline Preview" ;
+    entity = domain.EventContext.Certificate ;
+  }
+
+  component EnterpriseCard {
+    label  = "Enterprise Directory Card" ;
+    entity = domain.IdentityContext.EnterpriseProfile ;
+    slots  : [ logo enterpriseName stageBadge industryTags region verifiedBadge ]
+  }
+
+  component AuditLogRow {
+    label  = "Audit Log Table Row" ;
+    entity = domain.IdentityContext.AuditLog ;
+  }
+
+  // ─────────────────────────────────────────────
+  // LOGIC HANDLERS
+  // ─────────────────────────────────────────────
+
+  logic AuthGuard {
+    label = "Route authentication & authorization guard" ;
+    use view PublicHomeView ;
+    config redirect_unauthenticated = "/login" ;
+    config redirect_unauthorized    = "/unauthorized" ;
+  }
+
+  logic PreFillProfileLogic {
+    label = "Pre-fill registration form from existing UserProfile if logged in" ;
+    use view RegistrationFormView ;
+  }
+
+  logic TNAScoringLogic {
+    label = "Score TNA answers and return recommended modules" ;
+    use view TNAFormView ;
+  }
+
+  logic QRScanLogic {
+    label = "Validate permanent HMAC QR token, extract userId, look up participation, record attendance" ;
+    use view QRScannerView ;
+  }
+
+  logic SurveyDispatchLogic {
+    label = "CSF surveys auto-created in event-service when event status → COMPLETED; bulk email via notification-service" ;
+    use view SurveyManagementView ;
+  }
+
+  logic CertificateGenerationLogic {
+    label = "PDFKit inline PDF generation in event-service on certificate issue" ;
+    use view CertificateManagementView ;
+  }
+
+  logic GeoFilterLogic {
+    label = "Phase 3: Apply region/province/city filters to GIS map and directory" ;
+    use view EcosystemMapView ;
+    use view DirectoryView ;
+  }
+
+  logic ETLStatusMonitorLogic {
+    label = "Phase 3: Poll ETL pipeline job status and surface failures" ;
+    use view ETLStatusView ;
+  }
+
+  logic ExportApprovalLogic {
+    label = "Enforce two-step approval workflow before generating export file" ;
+    use view ReportsView ;
+  }
+
+  // ─────────────────────────────────────────────
+  // PUBLIC PORTAL VIEWS
+  // ─────────────────────────────────────────────
+
+  view PublicHomeView {
+    label  = "Home Page" ;
+    layout = PublicShellLayout ;
+    theme  = DTI_Theme ;
+
+    uses entity domain.EventContext.Event ;
+
+    slot mainArea {
+      component HeroBanner {
+        title    = "Empowering the Creative Economy of Region 7" ;
+        subtitle = "Discover DTI training programs, register, and grow your enterprise." ;
+      }
+      component UpcomingEventsStrip { entity = domain.EventContext.Event ; }
+      component StatsHighlightBar   { }
+    }
+  }
+
+  view EventListView {
+    label  = "Event Listing" ;
+    layout = PublicShellLayout ;
+
+    uses entity domain.EventContext.Event ;
+
+    slot mainArea {
+      component EventFilterBar { filters = [ region, format, date_range ] ; }
+      component EventCardGrid  { entity = domain.EventContext.Event ; }
+      component PaginationBar  { }
+    }
+  }
+
+  view EventDetailView {
+    label  = "Event Detail Page" ;
+    layout = PublicShellLayout ;
+
+    uses entity domain.EventContext.Event ;
+    uses entity domain.EventContext.EventSession ;
+
+    slot mainArea {
+      component EventHeroBanner    { }
+      component EventDetailsPanel  { }
+      component SpeakersSection    { }
+      component LocationMap        { bind_to = Event.venue_latitude ; }
+      component RegistrationCTABar { }
+    }
+  }
+
+  view RegistrationFormView {
+    label  = "Event Registration Form" ;
+    layout = FullPageFormLayout ;
+
+    uses entity domain.IdentityContext.UserProfile ;
+    uses entity domain.EventContext.EventParticipation ;
+    uses logic  PreFillProfileLogic ;
+
+    slot form {
+      component ProfilePreFillBanner {
+        text = "We found your profile. Fields have been pre-filled. Please review." ;
+      }
+      component PersonalInfoFields    { entity = domain.IdentityContext.UserProfile ; }
+      component EnterpriseLinkerStep  { entity = domain.IdentityContext.EnterpriseProfile ; }
+      component DPA_ConsentCheckbox   { required = true ; }
+      component CaptchaWidget         { provider = "hCaptcha" ; }
+      component SubmitRegistrationBtn { label = "Complete Registration" ; }
+    }
+  }
+
+  view TNAFormView {
+    label  = "Training Needs Assessment Form" ;
+    layout = FullPageFormLayout ;
+
+    uses entity domain.EventContext.TNAResponse ;
+    uses logic  TNAScoringLogic ;
+
+    slot form {
+      component TNAIntroductionCard   { }
+      component SurveyQuestionRenderer { kind = "tna" ; }
+      component TNAProgressBar         { }
+      component SubmitTNABtn           { label = "Submit Assessment" ; }
+    }
+  }
+
+  view RSVPConfirmationView {
+    label  = "Registration Confirmation" ;
+    layout = FullPageFormLayout ;
+
+    uses entity domain.EventContext.EventParticipation ;
+
+    slot form {
+      component SuccessBanner         { text = "You're registered! A confirmation email has been sent." ; }
+      component EventReminderCard     { }
+      component QRCodeDisplay         { entity = domain.EventContext.EventParticipation ; }
+      component AddToCalendarButtons  { }
+    }
+  }
+
+  view DirectoryView {
+    label  = "Phase 3: Public Enterprise Directory" ;
+    layout = MapLayout ;
+    uses entity domain.IdentityContext.EnterpriseProfile ;
+    uses logic  GeoFilterLogic ;
+
+    slot filters {
+      component DirectorySearchBar  { }
+      component IndustryTagFilter   { }
+      component StageFilter         { }
+      component RegionFilter        { }
+    }
+
+    slot map {
+      component GeospatialMapView {
+        entity = domain.IdentityContext.EnterpriseProfile ;
+        layers = [ markers clusterLayer ]
+      }
+    }
+
+    slot details {
+      component EnterpriseCard { entity = domain.IdentityContext.EnterpriseProfile ; }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // PARTICIPANT PORTAL VIEWS
+  // ─────────────────────────────────────────────
+
+  view ParticipantDashboardView {
+    label  = "Participant Dashboard" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.UserProfile ;
+    uses entity domain.EventContext.EventParticipation ;
+    uses entity domain.EventContext.Certificate ;
+    uses entity domain.SurveyContext.SurveyResponse ;
+
+    slot main {
+      component WelcomeBanner            { bind_to = UserProfile.display_name ; }
+      component UpcomingEventsWidget     { }
+      component PendingSurveysAlert      { entity = domain.SurveyContext.SurveyResponse ; }
+      component ParticipationHistoryTable { entity = domain.EventContext.EventParticipation ; }
+      component MyCertificatesWidget     { entity = domain.EventContext.Certificate ; }
+    }
+  }
+
+  view MyProfileView {
+    label  = "My Profile" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.UserProfile ;
+
+    slot main {
+      component ProfileAvatarUpload  { }
+      component PersonalInfoForm     { entity = domain.IdentityContext.UserProfile ; }
+      component ContactInfoForm      { }
+      component PasswordChangeForm   { }
+      component DPA_ConsentSection   { }
+      component SaveProfileBtn       { }
+    }
+  }
+
+  view MyEnterpriseView {
+    label  = "My Enterprise Profile" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.EnterpriseProfile ;
+
+    slot main {
+      component EnterpriseCard           { }
+      component EnterpriseDetailsForm    { entity = domain.IdentityContext.EnterpriseProfile ; }
+      component TeamMembersSection       { }
+      component VerificationStatusBadge  { }
+      component SaveEnterpriseBtn        { }
+    }
+  }
+
+  view SurveyResponseView {
+    label  = "Survey Response Page" ;
+    layout = FullPageFormLayout ;
+
+    uses entity domain.SurveyContext.SurveyResponse ;
+    uses entity domain.SurveyContext.SurveyTemplate ;
+
+    slot form {
+      component SurveyHeaderCard        { }
+      component SurveyQuestionRenderer  { }
+      component SurveyProgressIndicator { }
+      component SubmitSurveyBtn         { }
+    }
+  }
+
+  view MyCertificatesView {
+    label  = "My Certificates" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.Certificate ;
+
+    slot main {
+      component CertificateCardList      { entity = domain.EventContext.Certificate ; }
+      component CertificatePDFPreview    { }
+      component CertificateDownloadButton { }
+    }
+  }
+
+  view MyQrCodeView {
+    label  = "My QR Code" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.EventParticipation ;
+
+    slot main {
+      component QRCodeDisplay        { entity = domain.EventContext.EventParticipation ; }
+      component QRInstructionsCard   { text = "Show this QR code at the event for attendance scanning." ; }
+    }
+  }
+
+  view VerifyCertificateView {
+    label  = "Public Certificate Verification" ;
+    layout = PublicShellLayout ;
+
+    uses entity domain.EventContext.Certificate ;
+
+    slot mainArea {
+      component CertificateVerificationResult { entity = domain.EventContext.Certificate ; }
+      component CertificateDetailsCard        { }
+    }
+  }
+
+  view CsfSurveyView {
+    label  = "CSF Survey Form (Star Ratings)" ;
+    layout = FullPageFormLayout ;
+
+    uses entity domain.SurveyContext.SurveyResponse ;
+
+    slot form {
+      component SurveyHeaderCard       { }
+      component StarRatingQuestionSet  { dimensions = [ "relevance", "content_quality", "speaker_effectiveness", "logistics", "overall_satisfaction" ] ; }
+      component TextFeedbackFields     { fields = [ "strengths", "improvements", "additional_comments" ] ; }
+      component SubmitSurveyBtn        { }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // ORGANIZER CONSOLE VIEWS
+  // ─────────────────────────────────────────────
+
+  view OrganizerDashboardView {
+    label  = "Organizer Dashboard" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.Event ;
+    uses entity domain.EventContext.EventParticipation ;
+
+    slot main {
+      component EventSummaryMetrics       { entity = domain.EventContext.Event ; }
+      component ParticipantStatusPieChart { entity = domain.EventContext.EventParticipation ; }
+      component RecentActivityFeed        { }
+      component QuickActionsPanel         { actions = [ CreateEvent, ScanAttendance, ViewCSF ] ; }
+    }
+  }
+
+  view EventManagementView {
+    label  = "Event Create / Edit" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.Event ;
+    uses entity domain.EventContext.EventSession ;
+
+    slot main {
+      component EventDetailForm      { entity = domain.EventContext.Event ; }
+      component EventSessionManager  { entity = domain.EventContext.EventSession ; }
+      component EventStatusWorkflow  { workflow = domain.EventWorkflow ; }
+      component PublishEventBtn      { }
+    }
+  }
+
+  view ParticipantListView {
+    label  = "Participant Management" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.EventParticipation ;
+    uses entity domain.IdentityContext.UserProfile ;
+
+    slot main {
+      component ParticipantSearchBar    { }
+      component ParticipantStatusFilter { }
+      component ParticipantDataTable    {
+        entity  = domain.EventContext.EventParticipation ;
+        columns = [ name, email, enterprise, status, tna_score, registered_at ]
+      }
+      component BulkStatusUpdateBar     { }
+      component ExportParticipantsBtn   { approval_required = true ; }
+    }
+  }
+
+  view QRScannerView {
+    label  = "QR Attendance Scanner" ;
+    layout = ScannerLayout ;
+
+    uses entity domain.EventContext.AttendanceRecord ;
+    uses logic  QRScanLogic ;
+
+    slot scanner {
+      component QRScannerViewport   { }
+      component CheckInSuccessToast { }
+      component CheckInErrorAlert   { }
+    }
+
+    slot controls {
+      component SessionSelectorDropdown { entity = domain.EventContext.EventSession ; }
+      component ManualCheckInFallback   { }
+    }
+  }
+
+  view CSFResultsView {
+    label  = "CSF Survey Results" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.SurveyContext.SurveyResponse ;
+    uses logic  SurveyDispatchLogic ;
+
+    slot main {
+      component CSFScoreGauge            { entity = domain.SurveyContext.SurveyResponse ; }
+      component ResponseBreakdownChart   { }
+      component OpenEndedCommentsList    { }
+      component ExportCSFReportBtn       { }
+      component ManualSurveyResendButton { }
+    }
+  }
+
+  view CertificateManagementView {
+    label  = "Certificate Management" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.EventContext.Certificate ;
+    uses logic  CertificateGenerationLogic ;
+
+    slot main {
+      component CertificateStatusTable  { entity = domain.EventContext.Certificate ; }
+      component BulkGenerateCertsBtn    { }
+      component CertificatePreviewModal { entity = domain.EventContext.Certificate ; }
+      component RevokeCertificateBtn    { roles = [ super_admin, program_manager ] ; }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // ADMIN CONSOLE VIEWS (Phase 3 — NOT IMPLEMENTED)
+  // ─────────────────────────────────────────────
+
+  /*
+
+  view AdminDashboardView {
+    label  = "System Admin Dashboard" ;
+    layout = AuthShellLayout ;
+
+    slot main {
+      component SystemHealthMetrics            { }
+      component TotalBeneficiariesCard         { entity = domain.IdentityContext.UserProfile ; }
+      component RegionalImpactHeatmap          { }
+      component EventPipelineSummaryChart      { entity = domain.EventContext.Event ; }
+      component TopActiveEnterprisesTable      { entity = domain.IdentityContext.EnterpriseProfile ; }
+    }
+  }
+
+  view UserManagementView {
+    label  = "User Management" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.UserProfile ;
+
+    slot main {
+      component UserSearchBar         { }
+      component RoleFilterTabs        { }
+      component UserDataTable         {
+        entity  = domain.IdentityContext.UserProfile ;
+        columns = [ name, email, role, status, last_login_at ]
+      }
+      component UserStatusToggle      { }
+      component InviteUserBtn         { }
+      component ExportUsersBtn        { approval_required = true ; }
+    }
+  }
+
+  view EnterpriseManagementView {
+    label  = "Enterprise Management" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.EnterpriseProfile ;
+
+    slot main {
+      component EnterpriseSearchBar       { }
+      component VerificationStatusFilter  { }
+      component EnterpriseDataTable       {
+        entity  = domain.IdentityContext.EnterpriseProfile ;
+        columns = [ legal_name, type, stage, region, verification_status, activity_score ]
+      }
+      component VerifyEnterpriseBtn       { }
+      component LinkProfileToEnterpriseBtn { }
+    }
+  }
+
+  view ReportsView {
+    label  = "Reports & Data Export" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.SurveyContext.SurveyResponse ;
+    uses entity domain.SurveyContext.ImpactDataPoint ;
+    uses logic  ExportApprovalLogic ;
+
+    slot main {
+      component ReportTypePicker      { types = [ EventCompletion, ImpactSummary, AuditLog, BeneficiaryCSV ] ; }
+      component DateRangePicker       { }
+      component RegionScopePicker     { }
+      component ReportPreviewPanel    { }
+      component DownloadReportBtn     { approval_required = true ; }
+    }
+  }
+
+  view AuditLogView {
+    label  = "Audit Log Viewer" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.IdentityContext.AuditLog ;
+
+    slot main {
+      component AuditLogFilters       { filters = [ actor_id, action, target_type, date_range ] ; }
+      component AuditDataTable        { entity = domain.IdentityContext.AuditLog ; }
+      component ExportAuditBtn        { roles = [ super_admin ] ; }
+    }
+  }
+
+  view SystemSettingsView {
+    label  = "System Settings" ;
+    layout = AuthShellLayout ;
+
+    slot main {
+      component SMTPConfigForm              { }
+      component SMSGatewayConfigForm        { }
+      component NotificationTemplateEditor  { }
+      component SurveyTemplateManager       { entity = domain.SurveyContext.SurveyTemplate ; }
+      component SaveSettingsBtn             { }
+    }
+  }
+  */
+
+  // ─────────────────────────────────────────────
+  // INDUSTRY DASHBOARD VIEWS (Phase 3 — NOT IMPLEMENTED)
+  // ─────────────────────────────────────────────
+
+  /*
+
+  view IndustryPublicOverviewView {
+    label  = "Industry Dashboard — Public Overview" ;
+    layout = AuthShellLayout ;
+
+    slot main {
+      component SectorHighlightCards     { }
+      component EnterpriseGrowthChart    { entity = domain.IdentityContext.EnterpriseProfile ; }
+      component RegionalHeatmapWidget    { }
+      component ExportersByRegionChart   { }
+      component ProgramImpactSummary     { entity = domain.SurveyContext.ImpactDataPoint ; }
+    }
+  }
+
+  view EcosystemMapView {
+    label  = "Ecosystem Map — Geospatial View" ;
+    layout = MapLayout ;
+
+    uses entity domain.IdentityContext.EnterpriseProfile ;
+    uses entity domain.IdentityContext.EcosystemEnabler ;
+    uses logic  GeoFilterLogic ;
+
+    slot filters {
+      component EcosystemTypeFilter { }
+      component RegionScopeFilter   { }
+      component StageFilter         { }
+    }
+
+    slot map {
+      component GeospatialMapView {
+        layers = [ enterpriseMarkers enablerMarkers clusterHeatmap creativeDesertZone ]
+        entity  = domain.IdentityContext.EnterpriseProfile ;
+      }
+    }
+
+    slot details {
+      component EnterpriseCard           { }
+      component EnablerRelationshipGraph { entity = domain.IdentityContext.EcosystemEnabler ; }
+    }
+  }
+
+  view ImpactTrackingView {
+    label  = "Impact Tracking — Longitudinal Dashboard" ;
+    layout = AuthShellLayout ;
+
+    uses entity domain.SurveyContext.ImpactDataPoint ;
+    uses entity domain.SurveyContext.SurveyResponse ;
+
+    slot main {
+      component ImpactMetricSelector      { metrics = [ revenue, employment, exports, investment ] ; }
+      component TimeSeriesChart_Revenue   { entity = domain.SurveyContext.ImpactDataPoint ; }
+      component TimeSeriesChart_Employment { }
+      component CohortComparisonTable     { label = "Before vs. After Program Participation" ; }
+      component SurveyResponseRateWidget  { entity = domain.SurveyContext.SurveyResponse ; }
+    }
+  }
+
+  view ETLStatusView {
+    label  = "ETL Pipeline Status" ;
+    layout = AuthShellLayout ;
+
+    uses logic ETLStatusMonitorLogic ;
+
+    slot main {
+      component PipelineRunHistoryTable { }
+      component FailedJobAlert          { }
+      component RerunJobBtn             { }
+      component DataQualityReport       { }
+    }
+  }
+  */
+
+  // ─────────────────────────────────────────────
+  // FLOWS (User Journeys)
+  // ─────────────────────────────────────────────
+
+  flow PublicRegistrationFlow {
+    label = "Public User Registration & Event Sign-Up" ;
+
+    step BrowseEvents      { view = EventListView ; }
+    step ViewEventDetail   { view = EventDetailView ; }
+    step FillRegistration  { view = RegistrationFormView ; }
+    step CompleteTNA       { view = TNAFormView ; condition = "event.requires_tna == true" ; }
+    step ReceiveConfirmation { view = RSVPConfirmationView ; }
+    step AwaitEvent        { label = "Async: Email reminders sent 1 week prior, 1 day prior" ; }
+  }
+
+  flow AttendanceFlow {
+    label = "Event Day — Attendance Capture" ;
+
+    step SelectSession   { view = QRScannerView ; }
+    step ScanQRCode      { view = QRScannerView ; logic = QRScanLogic ; }
+    step CheckInConfirm  { view = QRScannerView ; component = CheckInSuccessToast ; }
+    step PostEvent       { label = "Async: CSF email sent 1 hour after event ends" ; }
+  }
+
+  flow CSF_SurveyFlow {
+    label = "CSF Survey Submission" ;
+
+    step ReceiveCSFEmail { label = "Participant receives email link (automated, 1 hour post-event)" ; }
+    step OpenSurveyLink  { view = SurveyResponseView ; }
+    step SubmitCSFForm   { view = SurveyResponseView ; logic = SurveyDispatchLogic ; }
+    step ViewCompletion  { label = "Confirmation screen. Certificate generation triggered." ; }
+  }
+
+  flow ImpactSurveyFlow {
+    label = "6-Month Impact Survey Flow" ;
+
+    step Trigger6MonthReminder { label = "Automated scheduler fires 6 months after event completion" ; }
+    step ReceiveImpactEmail    { label = "Participant receives email link" ; }
+    step OpenImpactSurvey      { view = SurveyResponseView ; }
+    step SubmitImpactData      { view = SurveyResponseView ; logic = SurveyDispatchLogic ; }
+    step DashboardUpdate       { label = "Async: Enterprise activity score and dashboard metrics updated" ; }
+  }
+
+  flow EnterpriseDiscoveryFlow {
+    label = "Startup Discovery — Registration to Directory" ;
+
+    step RegisterForEvent    { flow = PublicRegistrationFlow ; }
+    step LinkEnterprise      { view = RegistrationFormView ; component = EnterpriseLinkerStep ; }
+    step EnterpriseAppears   { view = DirectoryView ; label = "Enterprise visible in public directory (after verification)" ; }
+    step ImpactVerification  { flow = ImpactSurveyFlow ; label = "Dashboard updated with verified badge after 6-month survey" ; }
+  }
+
+  flow AdminUserManagementFlow {
+    label = "Admin User Lifecycle Management" ;
+
+    step ViewUsers         { view = UserManagementView ; }
+    step InviteOrFind      { view = UserManagementView ; component = InviteUserBtn ; }
+    step SetRole           { view = UserManagementView ; component = UserDataTable ; }
+    step SuspendOrActivate { view = UserManagementView ; component = UserStatusToggle ; }
+    step AuditChanges      { view = AuditLogView ; }
+  }
+
+  // ─────────────────────────────────────────────
+  // APPS
+  // ─────────────────────────────────────────────
+
+  // All "apps" below run as a SINGLE web-public React SPA (port 5173)
+  // with role-based routing. Modeled separately for conceptual clarity.
+
+  app EMS_PublicApp {
+    label = "DTI EMS — Public Portal (in web-public)" ;
+    channel use PublicPortalChannel ;
+    flow    use PublicRegistrationFlow ;
+    layout  use PublicShellLayout ;
+    theme   use DTI_Theme ;
+    feature use EventDiscovery ;
+    feature use RegistrationCapture ;
+    feature use DirectoryBrowsing ;
+    setting  env = "production" ;
+  }
+
+  app EMS_ParticipantApp {
+    label = "DTI EMS — Participant Portal (in web-public)" ;
+    channel use ParticipantChannel ;
+    layout  use AuthShellLayout ;
+    theme   use DTI_Theme ;
+    feature use ParticipantSelfService ;
+    feature use SurveyParticipation ;
+    feature use CertificateAccess ;
+    setting  env = "production" ;
+    setting  auth_required = true ;
+  }
+
+  app EMS_OrganizerApp {
+    label = "DTI EMS — Organizer Console (in web-public)" ;
+    channel use OrganizerChannel ;
+    layout  use AuthShellLayout ;
+    theme   use DTI_Theme ;
+    feature use EventLifecycleManagement ;
+    feature use AttendanceTracking ;
+    feature use CSFCollection ;
+    setting  env = "production" ;
+    setting  auth_required = true ;
+    setting  min_role = "event_organizer" ;
+  }
+
+  // Phase 3: EMS_AdminApp and IndustryDashboardApp
+  /*
+  app EMS_AdminApp {
+    label = "DTI EMS — Admin Console" ;
+    channel use AdminChannel ;
+    layout  use AuthShellLayout ;
+    theme   use DTI_Theme ;
+    feature use UserGovernance ;
+    feature use EnterpriseGovernance ;
+    feature use ReportingAndCompliance ;
+    feature use SystemConfiguration ;
+    setting  env = "production" ;
+    setting  auth_required = true ;
+    setting  min_role = "dti_staff" ;
+  }
+
+  app IndustryDashboardApp {
+    label = "DTI Region 7 — Industry Dashboard" ;
+    channel use IndustryDashboardChannel ;
+    layout  use AuthShellLayout ;
+    theme   use DTI_Theme ;
+    feature use PublicIndustryAnalytics ;
+    feature use InternalImpactTracking ;
+    feature use PolicyPlanningTools ;
+    setting  env = "production" ;
+  }
+  */
+
+  // ─────────────────────────────────────────────
+  // FEATURES
+  // ─────────────────────────────────────────────
+
+  feature EventDiscovery {
+    label = "Event Discovery & Listing" ;
+    use view EventListView ;
+    use view EventDetailView ;
+    use view PublicHomeView ;
+  }
+
+  feature RegistrationCapture {
+    label = "Participant Registration & TNA" ;
+    use view RegistrationFormView ;
+    use view TNAFormView ;
+    use view RSVPConfirmationView ;
+    use logic PreFillProfileLogic ;
+    use logic TNAScoringLogic ;
+  }
+
+  feature DirectoryBrowsing {
+    label = "Public Enterprise Directory" ;
+    use view DirectoryView ;
+    use logic GeoFilterLogic ;
+  }
+
+  feature ParticipantSelfService {
+    label = "Participant Profile & History" ;
+    use view ParticipantDashboardView ;
+    use view MyProfileView ;
+    use view MyEnterpriseView ;
+    use view MyEventsView ;
+  }
+
+  feature SurveyParticipation {
+    label = "CSF and Impact Survey Participation" ;
+    use view SurveyResponseView ;
+    use logic SurveyDispatchLogic ;
+  }
+
+  feature CertificateAccess {
+    label = "Certificate Download" ;
+    use view MyCertificatesView ;
+  }
+
+  feature EventLifecycleManagement {
+    label = "Event Creation and Workflow Management" ;
+    use view OrganizerDashboardView ;
+    use view EventManagementView ;
+    use view ParticipantListView ;
+  }
+
+  feature AttendanceTracking {
+    label = "QR Code Attendance Scanning" ;
+    use view QRScannerView ;
+    use logic QRScanLogic ;
+  }
+
+  feature CSFCollection {
+    label = "CSF Survey Results and Certificate Management" ;
+    use view CSFResultsView ;
+    use view CertificateManagementView ;
+    use logic CertificateGenerationLogic ;
+  }
+
+  feature UserGovernance {
+    label = "User Account Management and RBAC" ;
+    use view UserManagementView ;
+    use view AuditLogView ;
+  }
+
+  feature EnterpriseGovernance {
+    label = "Enterprise Profile Verification and Management" ;
+    use view EnterpriseManagementView ;
+  }
+
+  feature ReportingAndCompliance {
+    label = "Reporting, Export Approvals, and Audit" ;
+    use view ReportsView ;
+    use view AuditLogView ;
+    use logic ExportApprovalLogic ;
+  }
+
+  feature SystemConfiguration {
+    label = "System Settings and Integration Config" ;
+    use view SystemSettingsView ;
+  }
+
+  feature PublicIndustryAnalytics {
+    label = "Public Sector Overview and Directory" ;
+    use view IndustryPublicOverviewView ;
+    use view EcosystemMapView ;
+    use view DirectoryView ;
+  }
+
+  feature InternalImpactTracking {
+    label = "Internal Longitudinal Impact Analytics" ;
+    use view ImpactTrackingView ;
+    use view ETLStatusView ;
+  }
+
+  feature PolicyPlanningTools {
+    label = "Policy Planning and Sector Gap Analysis" ;
+    use view EcosystemMapView ;
+  }
+
+  // ─────────────────────────────────────────────
+  // UI STRINGS
+  // ─────────────────────────────────────────────
+
+  ui-string-set EnglishPH {
+    register_cta          = "Register for this Event" ;
+    rsvp_confirm_heading  = "You're In! See You There." ;
+    tna_intro             = "Help us customize this training for you. This assessment takes 5 minutes." ;
+    checkin_success       = "Attendance confirmed! Welcome." ;
+    survey_csf_subject    = "How was the training? Share your feedback." ;
+    survey_impact_subject = "6 Months Since the Program — How's Your Business?" ;
+    dpa_consent_label     = "I consent to DTI Region 7 collecting and processing my personal data in accordance with RA 10173 (Data Privacy Act of 2012)." ;
+    cert_download_label   = "Download Certificate of Participation" ;
+  }
+
+}
