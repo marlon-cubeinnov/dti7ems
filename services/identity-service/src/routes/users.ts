@@ -222,4 +222,80 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     return reply.send({ success: true, data: updated });
   });
+
+  // PATCH /users/:id — admin edit user profile
+  app.patch('/:id', async (request, reply) => {
+    if (!ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number])) {
+      throw new ForbiddenError('Only administrators can edit user profiles.');
+    }
+
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const body = updateProfileSchema.parse(request.body);
+
+    const existing = await app.prisma.userProfile.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('User not found');
+
+    const updated = await app.prisma.userProfile.update({
+      where: { id },
+      data: body,
+      select: {
+        id: true, email: true, role: true, status: true,
+        firstName: true, lastName: true, middleName: true, mobileNumber: true,
+        region: true, province: true, cityMunicipality: true, barangay: true,
+        jobTitle: true, industryClassification: true,
+        emailVerified: true, lastLoginAt: true,
+        createdAt: true, updatedAt: true,
+      },
+    });
+
+    await app.prisma.auditLog.create({
+      data: {
+        userId: request.user.sub,
+        action: 'PROFILE_EDIT',
+        entityType: 'UserProfile',
+        entityId: id,
+        oldData: { firstName: existing.firstName, lastName: existing.lastName, mobileNumber: existing.mobileNumber, region: existing.region },
+        newData: body,
+      },
+    });
+
+    return reply.send({ success: true, data: updated });
+  });
+
+  // DELETE /users/:id — admin only
+  app.delete('/:id', async (request, reply) => {
+    if (!ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number])) {
+      throw new ForbiddenError('Only administrators can delete users.');
+    }
+
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+
+    // Prevent self-deletion
+    if (id === request.user.sub) {
+      throw new ForbiddenError('You cannot delete your own account.');
+    }
+
+    const existing = await app.prisma.userProfile.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('User not found');
+
+    // Prevent deleting other admins
+    if (ADMIN_ROLES.includes(existing.role as typeof ADMIN_ROLES[number]) && existing.role === 'SUPER_ADMIN') {
+      throw new ForbiddenError('Cannot delete a Super Admin account.');
+    }
+
+    await app.prisma.userProfile.delete({ where: { id } });
+
+    await app.prisma.auditLog.create({
+      data: {
+        userId: request.user.sub,
+        action: 'USER_DELETED',
+        entityType: 'UserProfile',
+        entityId: id,
+        oldData: { email: existing.email, firstName: existing.firstName, lastName: existing.lastName, role: existing.role },
+        newData: {},
+      },
+    });
+
+    return reply.send({ success: true, message: 'User deleted successfully.' });
+  });
 };

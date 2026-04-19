@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, eventsApi, certificatesApi, surveyApi, ApiError, type EventStatus } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { ArrowLeft, Pencil, QrCode, Plus, Trash2, ClipboardList, BarChart3, Users, Award, FileText, FileCheck, TrendingUp, Mic, Briefcase, X, Send, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Pencil, QrCode, Plus, Trash2, ClipboardList, BarChart3, Users, Award, FileText, FileCheck, TrendingUp, Mic, Briefcase, X, Send, CheckCircle2, Table2, Printer } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:               'bg-gray-100 text-gray-600',
@@ -206,6 +206,8 @@ export function OrganizerEventDetailPage() {
 
   // Derived attendance stats from participants list
   const attended = participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).length;
+  const allCertsIssued = attended > 0 && participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).every(p => p.certificate);
+  const allCsfDistributed = csfDist && csfDist.attended > 0 && csfDist.distributed >= csfDist.attended;
 
   if (eventLoading) {
     return <div className="card text-center py-16 text-gray-400">Loading event…</div>;
@@ -264,6 +266,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Edit Event</span>
         </Link>
+        {['REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'].includes(event.status) && (
         <Link to={`/organizer/events/${id}/participants`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-green-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center group-hover:bg-green-100 transition-colors">
@@ -271,6 +274,8 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Participants</span>
         </Link>
+        )}
+        {['ONGOING'].includes(event.status) && (
         <Link to={`/organizer/events/${id}/scan`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-purple-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
@@ -278,6 +283,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">QR / Check-In</span>
         </Link>
+        )}
         <Link to={`/organizer/events/${id}/checklist`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-orange-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
@@ -292,7 +298,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Report</span>
         </Link>
-        <Link to={`/organizer/events/${id}/proposal`}
+        <Link to={`/organizer/proposals/${id}`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
             <Briefcase size={18} className="text-indigo-600" />
@@ -335,6 +341,22 @@ export function OrganizerEventDetailPage() {
             <span className="text-xs font-medium text-gray-700">Effectiveness</span>
           </Link>
         )}
+        {['REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'].includes(event.status) && (
+          <Link to={`/organizer/events/${id}/attendance-sheet`}
+            className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-cyan-300 hover:shadow-md transition-all text-center group">
+            <div className="w-10 h-10 rounded-full bg-cyan-50 flex items-center justify-center group-hover:bg-cyan-100 transition-colors">
+              <Table2 size={18} className="text-cyan-600" />
+            </div>
+            <span className="text-xs font-medium text-gray-700">Attendance Sheet</span>
+          </Link>
+        )}
+        <Link to={`/organizer/events/${id}/checklist-print`}
+          className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-lime-300 hover:shadow-md transition-all text-center group">
+          <div className="w-10 h-10 rounded-full bg-lime-50 flex items-center justify-center group-hover:bg-lime-100 transition-colors">
+            <Printer size={18} className="text-lime-600" />
+          </div>
+          <span className="text-xs font-medium text-gray-700">Print Checklist</span>
+        </Link>
       </div>
 
       {/* DTI Process Steps Banner */}
@@ -370,7 +392,7 @@ export function OrganizerEventDetailPage() {
 
       {/* Certificate & Status Actions */}
       <div className="flex flex-wrap items-center gap-3">
-        {attended > 0 && (
+        {attended > 0 && !allCertsIssued && (
           <button
             onClick={() => bulkCertMut.mutate()}
             disabled={bulkCertMut.isPending}
@@ -378,6 +400,11 @@ export function OrganizerEventDetailPage() {
           >
             <Award size={14} /> {bulkCertMut.isPending ? 'Issuing…' : 'Issue Certificates'}
           </button>
+        )}
+        {allCertsIssued && (
+          <span className="text-sm text-green-700 bg-green-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+            <CheckCircle2 size={14} /> All certificates issued
+          </span>
         )}
         {transitions.length > 0 && (
           <>
@@ -434,7 +461,7 @@ export function OrganizerEventDetailPage() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            {(user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+            {!allCsfDistributed && (user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && (
               <button
                 onClick={() => distributeCsfMut.mutate()}
                 disabled={distributeCsfMut.isPending}
@@ -442,6 +469,11 @@ export function OrganizerEventDetailPage() {
               >
                 <Send size={14} /> {distributeCsfMut.isPending ? 'Distributing…' : 'Distribute CSF Forms'}
               </button>
+            )}
+            {allCsfDistributed && (
+              <span className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-2 rounded-lg font-medium">
+                <CheckCircle2 size={14} /> CSF forms distributed
+              </span>
             )}
             {event.status === 'COMPLETED' && (
               <>

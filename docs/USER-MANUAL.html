@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DTI EMS User Manual — Department of Trade and Industry Region VII</title>
+<style>
+  :root {
+    --dti-blue: #003087;
+    --dti-blue-light: #0047BB;
+    --dti-orange: #E87722;
+    --dti-bg: #F5F7FA;
+    --text-primary: #1a202c;
+    --text-secondary: #4a5568;
+    --border: #e2e8f0;
+    --sidebar-w: 260px;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --teal: #14b8a6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text-primary); line-height: 1.7; background: var(--dti-bg); }
+
+  /* ── Print ── */
+  @media print {
+    body { background: white; font-size: 11pt; }
+    .sidebar, .mobile-nav, .back-to-top { display: none !important; }
+    .main { margin-left: 0 !important; padding: 20px !important; }
+    .cover { page-break-after: always; }
+    h2 { page-break-before: always; }
+    h3, h4 { page-break-after: avoid; }
+    table, figure, .step-box { page-break-inside: avoid; }
+  }
+
+  /* ── Layout ── */
+  .sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh;
+    background: var(--dti-blue); color: white; overflow-y: auto; z-index: 100;
+    padding: 0; border-right: 3px solid var(--dti-orange);
+  }
+  .sidebar-header {
+    padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.15);
+    text-align: center;
+  }
+  .sidebar-header h3 { font-size: 14px; font-weight: 600; letter-spacing: 0.5px; color: var(--dti-orange); }
+  .sidebar-header p { font-size: 11px; opacity: 0.7; margin-top: 4px; }
+  .sidebar nav { padding: 8px 0; }
+  .sidebar nav a {
+    display: block; padding: 7px 16px; color: rgba(255,255,255,0.85);
+    text-decoration: none; font-size: 13px; transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.1); color: white; border-left-color: var(--dti-orange); }
+  .sidebar nav .section-label {
+    display: block; padding: 12px 16px 4px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--dti-orange); font-weight: 700;
+  }
+
+  .main { margin-left: var(--sidebar-w); padding: 0; min-height: 100vh; }
+
+  /* ── Cover Page ── */
+  .cover {
+    background: linear-gradient(135deg, var(--dti-blue) 0%, #001a4d 100%);
+    color: white; text-align: center; padding: 80px 40px; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+  }
+  .cover .gov-text { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.8; }
+  .cover h1 { font-size: 42px; margin: 20px 0 8px; font-weight: 800; }
+  .cover .subtitle { font-size: 20px; color: var(--dti-orange); font-weight: 600; margin-bottom: 10px; }
+  .cover .region { font-size: 16px; opacity: 0.85; }
+  .cover .version {
+    margin-top: 40px; padding: 12px 32px; border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; font-size: 13px; opacity: 0.7;
+  }
+  .cover .seal { font-size: 64px; margin-bottom: 20px; }
+
+  /* ── Content ── */
+  .content { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
+  h2 {
+    font-size: 28px; color: var(--dti-blue); border-bottom: 3px solid var(--dti-orange);
+    padding-bottom: 8px; margin: 48px 0 20px;
+  }
+  h3 { font-size: 22px; color: var(--dti-blue-light); margin: 32px 0 12px; }
+  h4 { font-size: 17px; color: var(--text-primary); margin: 24px 0 8px; }
+  p, li { font-size: 15px; color: var(--text-secondary); }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--text-primary); }
+  code {
+    background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-size: 13px;
+    font-family: 'SF Mono', 'Consolas', monospace; color: #d53f8c;
+  }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th {
+    background: var(--dti-blue); color: white; padding: 10px 12px; text-align: left;
+    font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: #f7fafc; }
+
+  /* ── Step Boxes ── */
+  .step-box {
+    background: white; border: 1px solid var(--border); border-left: 4px solid var(--dti-blue);
+    border-radius: 8px; padding: 16px 20px; margin: 12px 0;
+  }
+  .step-box.action { border-left-color: var(--dti-orange); }
+  .step-box.success { border-left-color: var(--green); }
+  .step-box.warning { border-left-color: var(--yellow); }
+  .step-box .step-num {
+    display: inline-block; background: var(--dti-blue); color: white;
+    width: 28px; height: 28px; border-radius: 50%; text-align: center;
+    line-height: 28px; font-size: 13px; font-weight: 700; margin-right: 10px;
+  }
+  .step-box.action .step-num { background: var(--dti-orange); }
+  .step-box h5 { display: inline; font-size: 15px; color: var(--text-primary); }
+  .step-box p { margin: 8px 0 0; font-size: 14px; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600; color: white;
+  }
+  .badge-blue { background: var(--dti-blue-light); }
+  .badge-green { background: var(--green); }
+  .badge-orange { background: var(--dti-orange); }
+  .badge-red { background: var(--red); }
+  .badge-yellow { background: var(--yellow); color: #000; }
+  .badge-teal { background: var(--teal); }
+  .badge-gray { background: #a0aec0; }
+
+  /* ── Info/Tip/Warning Boxes ── */
+  .info-box {
+    background: #ebf8ff; border: 1px solid #90cdf4; border-radius: 8px;
+    padding: 14px 18px; margin: 14px 0; font-size: 14px; color: #2b6cb0;
+  }
+  .info-box::before { content: "ℹ️ "; }
+  .tip-box {
+    background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px;
+    padding: 14px 18px; margin: 14px 0; font-size: 14px; color: #276749;
+  }
+  .tip-box::before { content: "💡 "; }
+  .warning-box {
+    background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;
+    padding: 14px 18px; margin: 14px 0; font-size: 14px; color: #92400e;
+  }
+  .warning-box::before { content: "⚠️ "; }
+
+  /* ── Flow Diagram ── */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .flow-step {
+    background: white; border: 2px solid var(--dti-blue); border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--dti-blue);
+  }
+  .flow-step.active { background: var(--dti-blue); color: white; }
+  .flow-arrow { color: var(--dti-orange); font-size: 20px; font-weight: bold; }
+
+  /* ── Back to Top ── */
+  .back-to-top {
+    position: fixed; bottom: 24px; right: 24px; background: var(--dti-blue);
+    color: white; border: none; width: 44px; height: 44px; border-radius: 50%;
+    font-size: 20px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 99;
+  }
+  .back-to-top:hover { background: var(--dti-orange); }
+
+  /* ── Screenshot Placeholder ── */
+  .screenshot {
+    background: #edf2f7; border: 2px dashed #cbd5e0; border-radius: 8px;
+    padding: 30px; text-align: center; color: #a0aec0; font-size: 13px;
+    margin: 16px 0; font-style: italic;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .cover h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SIDEBAR TABLE OF CONTENTS
+     ══════════════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h3>DTI EMS User Manual</h3>
+    <p>Region VII — Central Visayas</p>
+  </div>
+  <nav>
+    <span class="section-label">Getting Started</span>
+    <a href="#overview">System Overview</a>
+    <a href="#roles">User Roles</a>
+    <a href="#login">Login &amp; Registration</a>
+
+    <span class="section-label">Participant Guide</span>
+    <a href="#part-dashboard">Dashboard</a>
+    <a href="#part-browse">Browsing Events</a>
+    <a href="#part-register">Event Registration</a>
+    <a href="#part-tna">Training Needs Assessment</a>
+    <a href="#part-qr">QR Code</a>
+    <a href="#part-csf">CSF Survey</a>
+    <a href="#part-impact">Impact Survey</a>
+    <a href="#part-certs">My Certificates</a>
+    <a href="#part-profile">Profile Management</a>
+
+    <span class="section-label">Staff Guide</span>
+    <a href="#staff-dashboard">Staff Dashboard</a>
+    <a href="#staff-proposal">Creating Proposals</a>
+    <a href="#staff-approval">Proposal Approval Flow</a>
+    <a href="#staff-activate">Activating Events</a>
+    <a href="#staff-manage">Managing Events</a>
+    <a href="#staff-attendance">QR &amp; Attendance</a>
+    <a href="#staff-checklist">Checklists (FM-CT-7)</a>
+    <a href="#staff-certs">Issuing Certificates</a>
+    <a href="#staff-csf">CSF Report (ARTA)</a>
+    <a href="#staff-par">Post-Activity Report</a>
+    <a href="#staff-tem">Effectiveness Report</a>
+    <a href="#staff-reports">Reports &amp; Analytics</a>
+
+    <span class="section-label">Admin Guide</span>
+    <a href="#admin-dashboard">Admin Dashboard</a>
+    <a href="#admin-users">User Management</a>
+    <a href="#admin-enterprises">Enterprise Management</a>
+    <a href="#admin-audit">Audit Logs</a>
+    <a href="#admin-settings">System Settings</a>
+
+    <span class="section-label">Reference</span>
+    <a href="#ref-lifecycle">Event Lifecycle</a>
+    <a href="#ref-statuses">Status Reference</a>
+    <a href="#ref-forms">DTI Forms Reference</a>
+    <a href="#ref-faq">FAQ</a>
+  </nav>
+</aside>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MAIN CONTENT
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+<!-- ── COVER PAGE ── -->
+<div class="cover" id="top">
+  <div class="seal">🇵🇭</div>
+  <p class="gov-text">Republic of the Philippines</p>
+  <p class="gov-text">Department of Trade and Industry</p>
+  <h1>Events Management System</h1>
+  <p class="subtitle">User Manual</p>
+  <p class="region">Region VII — Central Visayas<br>Cebu City, Philippines</p>
+  <div class="version">
+    Version 1.0 &nbsp;·&nbsp; April 2026<br>
+    Document Code: DTI-EMS-UM-001
+  </div>
+</div>
+
+<!-- ── CONTENT START ── -->
+<div class="content">
+
+<!-- ════════════════════════════════════════════════════════════════
+     1. SYSTEM OVERVIEW
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="overview">1. System Overview</h2>
+
+<p>The <strong>DTI Events Management System (DTI EMS)</strong> is a web-based platform developed for the Department of Trade and Industry, Region VII — Central Visayas. It provides end-to-end management of training events for Micro, Small and Medium Enterprises (MSMEs) — from proposal creation to post-training effectiveness evaluation.</p>
+
+<h4>Key Features</h4>
+<ul>
+  <li><strong>Event Proposal Workflow</strong> — Structured 7 QMS-step process for creating, reviewing, and approving training proposals</li>
+  <li><strong>Participant Registration</strong> — Online registration with RSVP confirmation and Training Needs Assessment (TNA)</li>
+  <li><strong>QR Code Attendance</strong> — Digital check-in via QR code scanning for real-time attendance tracking</li>
+  <li><strong>Client Satisfaction Feedback (CSF)</strong> — ARTA-prescribed survey format with SQD dimensions and official reporting</li>
+  <li><strong>Certificate Issuance</strong> — Digital certificates with unique verification codes</li>
+  <li><strong>Post-Activity Reporting</strong> — PAR (FM-CT-6) and Training Effectiveness Monitoring (FM-CT-5)</li>
+  <li><strong>Enterprise Directory</strong> — Searchable public directory of registered MSMEs</li>
+  <li><strong>Audit Trail</strong> — Comprehensive logging of all administrative actions</li>
+</ul>
+
+<h4>System Access</h4>
+<table>
+  <tr><th>Portal</th><th>URL</th><th>Description</th></tr>
+  <tr><td>Main Application</td><td><code>http://localhost:5173\</code\>\</td\>\<td\>Public site, participant portal, and staff portal</td></tr>
+  <tr><td>Admin Console</td><td><code>http://localhost:5174\</code\>\</td\>\<td\>Standalone administration panel</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════
+     2. USER ROLES
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="roles">2. User Roles &amp; Permissions</h2>
+
+<p>DTI EMS uses role-based access control. Each user is assigned a role that determines what features they can access.</p>
+
+<table>
+  <tr><th>Role</th><th>Label</th><th>Portal</th><th>Primary Responsibilities</th></tr>
+  <tr>
+    <td><span class="badge badge-blue">PARTICIPANT</span></td>
+    <td>Participant</td>
+    <td>Participant Portal</td>
+    <td>Browse and register for events, complete TNA, submit CSF/Impact surveys, view certificates</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-blue">ENTERPRISE_REP</span></td>
+    <td>Enterprise Representative</td>
+    <td>Participant Portal</td>
+    <td>Same as Participant + manage enterprise profile, invite employees</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-teal">EVENT_ORGANIZER</span></td>
+    <td>Facilitator</td>
+    <td>Staff Portal</td>
+    <td>Manage assigned events, QR attendance scanning, checklists</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-teal">PROGRAM_MANAGER</span></td>
+    <td>Technical Staff</td>
+    <td>Staff Portal</td>
+    <td>Create proposals/events, manage all events, assign facilitators, generate reports</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-orange">DIVISION_CHIEF</span></td>
+    <td>Technical Divisions Chief</td>
+    <td>Staff Portal</td>
+    <td>Review submitted proposals, review PAR/TEM reports</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-orange">REGIONAL_DIRECTOR</span></td>
+    <td>Regional Director</td>
+    <td>Staff Portal</td>
+    <td>Approve/reject proposals, approve PAR/TEM reports</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-orange">PROVINCIAL_DIRECTOR</span></td>
+    <td>Provincial Director</td>
+    <td>Staff Portal</td>
+    <td>Same as Regional Director</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-red">SYSTEM_ADMIN</span></td>
+    <td>System Admin</td>
+    <td>Staff + Admin</td>
+    <td>Full system access, user management, enterprise management, audit logs</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-red">SUPER_ADMIN</span></td>
+    <td>Super Admin</td>
+    <td>Staff + Admin</td>
+    <td>Highest privilege level, all system capabilities</td>
+  </tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════
+     3. LOGIN & REGISTRATION
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="login">3. Login &amp; Registration</h2>
+
+<h3>3.1 Logging In</h3>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the application</h5>
+  <p>Navigate to the DTI EMS URL in your web browser. Click <strong>"Log in"</strong> in the top-right corner of the header.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Enter your credentials</h5>
+  <p>Type your <strong>Email</strong> and <strong>Password</strong> in the login form. Click <strong>"Sign in"</strong>.</p>
+</div>
+
+<div class="step-box success">
+  <span class="step-num">✓</span>
+  <h5>Redirect</h5>
+  <p>Staff users are redirected to <code>/organizer/dashboard</code>. Participants are redirected to <code>/dashboard</code>.</p>
+</div>
+
+<div class="tip-box">
+  If you forgot your password, click <strong>"Forgot password?"</strong> below the login form. Enter your email address and click <strong>"Send Reset Link"</strong>. Check your email for the reset link.
+</div>
+
+<h3>3.2 Creating an Account (Participants)</h3>
+
+<p>Only participant accounts can be self-registered. Staff accounts are created by administrators.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Click "Register"</h5>
+  <p>From the homepage or login page, click <strong>"Register"</strong> or <strong>"Create Account"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Choose registration type</h5>
+  <p>Select the <strong>Individual</strong> tab for personal registration, or <strong>Business</strong> tab to register as an enterprise representative.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Fill in your details</h5>
+  <p><strong>Individual:</strong> First Name, Last Name, Email, Mobile Number, Region, Password (minimum 10 characters, must include uppercase and number).</p>
+  <p><strong>Business (additional):</strong> Business Name, Industry Sector, Trade Name, Registration Number, TIN, Stage (Pre-Startup/Startup/Growth/Expansion/Mature), Employee Count.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">4</span>
+  <h5>Accept the Data Privacy Agreement</h5>
+  <p>Check the DPA consent checkbox acknowledging RA 10173 (Data Privacy Act of 2012).</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">5</span>
+  <h5>Submit and verify email</h5>
+  <p>Click <strong>"Create Account"</strong>. A verification email will be sent to your email address. Click the verification link in the email to activate your account.</p>
+</div>
+
+<div class="info-box">
+  <strong>Business Registration:</strong> You can invite employees during registration by adding their Email, First Name, Last Name, and Job Title. They will receive an invitation email to set up their own accounts.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     PARTICIPANT GUIDE
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="part-dashboard">4. Participant Dashboard</h2>
+
+<p>After logging in, participants see their personal dashboard with a summary of their event activity.</p>
+
+<h4>Dashboard Elements</h4>
+<ul>
+  <li><strong>Greeting</strong> — "Good day, [First Name]! 👋"</li>
+  <li><strong>Statistics Cards</strong> — Three cards showing:
+    <ul>
+      <li>Events Registered (total count)</li>
+      <li>Completed (events you've attended)</li>
+      <li>Certificates (certificates received)</li>
+    </ul>
+  </li>
+  <li><strong>Recent Events</strong> — List of your most recent event participations with status badges</li>
+</ul>
+
+<h4>Sidebar Navigation</h4>
+<table>
+  <tr><th>Menu Item</th><th>Description</th></tr>
+  <tr><td>Dashboard</td><td>Overview of your activity (current page)</td></tr>
+  <tr><td>My Events</td><td>All events you've registered for with action buttons</td></tr>
+  <tr><td>My Certificates</td><td>Digital certificates you've earned</td></tr>
+  <tr><td>Profile</td><td>Update your personal information</td></tr>
+</table>
+
+<!-- ── BROWSING EVENTS ── -->
+<h2 id="part-browse">5. Browsing Events</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the Events page</h5>
+  <p>Click <strong>"Events"</strong> in the top navigation bar, or <strong>"Browse Events"</strong> on the homepage.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Filter events (optional)</h5>
+  <p>Use the search box to find events by keyword. Filter by <strong>Sector</strong> (Manufacturing, Food Processing, Tourism, ICT, etc.) or <strong>Mode</strong> (Face to Face, Online, Hybrid).</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>View event details</h5>
+  <p>Click on an event card to see its full details: description, sessions, speakers, schedule, and available slots.</p>
+</div>
+
+<!-- ── EVENT REGISTRATION ── -->
+<h2 id="part-register">6. Registering for an Event</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the event detail page</h5>
+  <p>Navigate to the event you want to attend (see Section 5).</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Check slot availability</h5>
+  <p>The sidebar shows the number of filled slots (e.g., "15/30 slots filled"). Ensure slots are available.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Accept the Data Privacy Agreement</h5>
+  <p>Check the DPA consent checkbox (RA 10173 — Data Privacy Act of 2012). This is required before registration.</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">4</span>
+  <h5>Click "Register for this Event"</h5>
+  <p>Your registration status will be set to <span class="badge badge-blue">REGISTERED</span>. If the event requires a Training Needs Assessment (TNA), you will be prompted to complete it.</p>
+</div>
+
+<div class="info-box">
+  If the event is full, you will be placed on a <span class="badge badge-yellow">WAITLISTED</span> queue. You will be notified if a spot opens up.
+</div>
+
+<!-- ── TNA ── -->
+<h2 id="part-tna">7. Training Needs Assessment (TNA)</h2>
+
+<p>Some events require participants to complete a Training Needs Assessment before confirming their RSVP. This helps organizers tailor the training content.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to the TNA form</h5>
+  <p>Go to <strong>My Events</strong> in the sidebar. Find the event and click <strong>"Complete TNA →"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Answer the questions</h5>
+  <p>Rate yourself on a scale of 1–10 for each question across three areas:</p>
+  <ul>
+    <li><strong>Knowledge</strong> (3 questions) — Business concepts, best practices, DTI programs</li>
+    <li><strong>Skills</strong> (3 questions) — Applying skills, using tools, managing operations</li>
+    <li><strong>Motivation</strong> (2 questions) — Drive to improve, willingness to adopt innovations</li>
+  </ul>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">3</span>
+  <h5>Click "Submit TNA &amp; Confirm RSVP"</h5>
+  <p>Your participation status changes to <span class="badge badge-green">RSVP_CONFIRMED</span> and your personal QR code becomes available.</p>
+</div>
+
+<div class="tip-box">
+  There are no right or wrong answers. Your responses are used for training design only.
+</div>
+
+<!-- ── QR CODE ── -->
+<h2 id="part-qr">8. Your QR Code</h2>
+
+<p>Once your RSVP is confirmed, you receive a unique QR code for attendance tracking.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access your QR code</h5>
+  <p>Go to <strong>My Events</strong> → find the event → click <strong>"📱 My QR Code"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Present at the event</h5>
+  <p>Show the QR code on your screen to the facilitator for scanning at the venue. The QR code is your permanent personal check-in code for that event.</p>
+</div>
+
+<div class="warning-box">
+  Your QR code is only available when your status is <span class="badge badge-green">RSVP_CONFIRMED</span> or <span class="badge badge-teal">ATTENDED</span>.
+</div>
+
+<!-- ── CSF SURVEY ── -->
+<h2 id="part-csf">9. Client Satisfaction Feedback (CSF) Survey</h2>
+
+<p>After an event is completed, participants are asked to fill out the CSF survey — the official ARTA-prescribed feedback form.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access the CSF survey</h5>
+  <p>Go to <strong>My Events</strong> → find the completed event → click <strong>"📋 Complete Feedback Survey →"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Section 1: Citizen's Charter (CC)</h5>
+  <p>Answer three questions about the Citizen's Charter:</p>
+  <ul>
+    <li><strong>CC1 — Awareness:</strong> Your awareness of the Citizen's Charter</li>
+    <li><strong>CC2 — Visibility:</strong> How easy it was to see the CC in the office/venue</li>
+    <li><strong>CC3 — Usefulness:</strong> How much the CC helped you</li>
+  </ul>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Section 2: Service Quality Dimensions (SQD)</h5>
+  <p>Rate each dimension on a 1–5 scale (1 = Strongly Disagree, 5 = Strongly Agree):</p>
+  <table>
+    <tr><th>Code</th><th>Dimension</th><th>Question Focus</th></tr>
+    <tr><td>SQD0</td><td>Overall Satisfaction</td><td>I am satisfied with the service I availed</td></tr>
+    <tr><td>SQD1</td><td>Responsiveness</td><td>Staff responded to my needs promptly</td></tr>
+    <tr><td>SQD2</td><td>Reliability</td><td>Service was delivered within expected timeframe</td></tr>
+    <tr><td>SQD3</td><td>Access &amp; Facilities</td><td>Offices/facilities were accessible and comfortable</td></tr>
+    <tr><td>SQD4</td><td>Communication</td><td>Information was clear and easy to understand</td></tr>
+    <tr><td>SQD5</td><td>Costs</td><td>Fees were reasonable (if applicable)</td></tr>
+    <tr><td>SQD6</td><td>Integrity</td><td>Staff performed duties professionally</td></tr>
+    <tr><td>SQD7</td><td>Assurance</td><td>Service instilled trust and confidence</td></tr>
+    <tr><td>SQD8</td><td>Outcome</td><td>Service/training met its intended purpose</td></tr>
+  </table>
+</div>
+
+<div class="step-box">
+  <span class="step-num">4</span>
+  <h5>Section 3: Speaker Ratings</h5>
+  <p>Rate each speaker on a 1–5 star scale based on their presentation effectiveness.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">5</span>
+  <h5>Section 4: Open-ended Feedback</h5>
+  <p>Provide written feedback in the text areas for: Highlights/What you liked, Suggestions for improvement, Comments/Suggestions, and Reasons for low ratings (if any).</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">6</span>
+  <h5>Submit the survey</h5>
+  <p>Click <strong>"Submit Survey"</strong>. Your status will show <strong>"Survey Submitted ✓"</strong> on the My Events page.</p>
+</div>
+
+<!-- ── IMPACT SURVEY ── -->
+<h2 id="part-impact">10. Impact Survey — FM-CT-5 (Training Monitoring and Evaluation Form)</h2>
+
+<p>The Impact Survey follows DTI's official <strong>FM-CT-5 Training Monitoring and Evaluation Form</strong> (Version 1, effective February 1, 2024). It is sent to participants <strong>6 months after the conduct of training</strong> to measure long-term effectiveness and impact on business operations.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Email Notification</h5>
+  <p>Six months after the training, you will receive an <strong>email notification</strong> informing you that the FM-CT-5 Impact Survey is ready to be completed. The email contains a link to your My Events page.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Access the Impact Survey</h5>
+  <p>Go to <strong>My Events</strong> → find the event → click <strong>"📊 Complete Impact Survey →"</strong> (shown beside the "Survey Submitted ✓" badge). The survey form opens with the official DTI header including Doc Code FM-CT-5.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Star Ratings (1–5)</h5>
+  <p>Rate these areas: Knowledge Application, Skill Improvement, Business Impact, Revenue Change, Employee Growth.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">4</span>
+  <h5>FM-CT-5 Training Effectiveness Evaluation</h5>
+  <p>This section mirrors the official DTI form. Complete the following:</p>
+  <ul>
+    <li><strong>Applied Learnings:</strong> Indicate Yes or No whether you applied the training learnings</li>
+    <li><strong>Benefit Indicators (a–p):</strong> Check all that apply — Increased sales (%), Increased profit (%), Cost reduction (%), Accessed new markets, Improved productivity, Improved manpower welfare, Standardized operations, Started/improved bookkeeping, Improved management systems, Set up new business, Expanded business, Enhanced capacity, Adopted technology, Innovation, No customer complaints, Others (specify)</li>
+    <li><strong>Additional Assistance Needed:</strong> Product development, Loan advisory, Others</li>
+    <li><strong>Future Training:</strong> Specify what training programs you'd like to attend</li>
+    <li><strong>Training Effectiveness:</strong> Yes/No with reason if "No"</li>
+    <li><strong>Respondent Info:</strong> Your designation/position and company/business name</li>
+  </ul>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">5</span>
+  <h5>Submit</h5>
+  <p>Click <strong>"Submit Impact Assessment"</strong>. Your response is recorded, and the "📊 Complete Impact Survey →" button changes to <strong>"Impact Survey Submitted ✓"</strong> in purple on your My Events page.</p>
+</div>
+
+<!-- ── CERTIFICATES ── -->
+<h2 id="part-certs">11. My Certificates</h2>
+
+<p>After attending an event and being issued a certificate by the organizer, you can view, print, and verify your certificates.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>View your certificates</h5>
+  <p>Click <strong>"My Certificates"</strong> in the sidebar. Each certificate shows the event title, date, venue, and a unique verification code.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Print or download</h5>
+  <p>Click <strong>"🖨️ Print / Preview"</strong> to open the print dialog, or <strong>"⬇️ Download PDF"</strong> to save as a PDF file.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Verify a certificate</h5>
+  <p>Use the <strong>"Verify Certificate"</strong> link or navigate to the public verification page at <code>/verify/[code]</code>. Enter the verification code to confirm authenticity.</p>
+</div>
+
+<!-- ── PROFILE ── -->
+<h2 id="part-profile">12. Profile Management</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open your profile</h5>
+  <p>Click <strong>"Profile"</strong> in the sidebar.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Update your information</h5>
+  <p>Edit the following sections:</p>
+  <ul>
+    <li><strong>Personal:</strong> Name, Suffix, Sex, Age Bracket, Client Type, Employment Category, Social Classification, Mobile</li>
+    <li><strong>Address:</strong> Region, Province, City/Municipality, Barangay</li>
+    <li><strong>Professional:</strong> Job Title, Industry Sector</li>
+  </ul>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">3</span>
+  <h5>Save changes</h5>
+  <p>Click <strong>"Save Changes"</strong> to update your profile. Use <strong>"Discard"</strong> to revert unsaved changes.</p>
+</div>
+
+<div class="tip-box">
+  Keep your profile complete and up-to-date. Your demographic information is used in CSF reports and training effectiveness evaluations.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     STAFF GUIDE
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="staff-dashboard">13. Staff Dashboard</h2>
+
+<p>Staff users (Technical Staff, Facilitators, Division Chiefs, Directors) are directed to the organizer portal upon login.</p>
+
+<h4>Dashboard Elements</h4>
+<ul>
+  <li><strong>Statistics Cards:</strong> Total Events, Drafts, Open for Registration, Completed</li>
+  <li><strong>New Proposal Button</strong> — Visible only to Technical Staff and Admin roles</li>
+  <li><strong>Upcoming Events List</strong> — Quick links to event management pages</li>
+</ul>
+
+<h4>Sidebar Navigation (varies by role)</h4>
+<table>
+  <tr><th>Role</th><th>Menu Items</th></tr>
+  <tr><td>Technical Staff</td><td>Dashboard, My Proposals, New Proposal, My Events, Reports</td></tr>
+  <tr><td>Facilitator</td><td>Dashboard, My Events, Reports</td></tr>
+  <tr><td>Division Chief</td><td>Dashboard, Proposals Queue</td></tr>
+  <tr><td>Regional/Provincial Director</td><td>Dashboard, For Approval</td></tr>
+  <tr><td>System Admin / Super Admin</td><td>All of the above + Admin section (Users, Enterprises, All Events, Audit Logs)</td></tr>
+</table>
+
+<!-- ── CREATING PROPOSALS ── -->
+<h2 id="staff-proposal">14. Creating Event Proposals</h2>
+
+<p>The proposal workflow follows the <strong>DTI QMS 5-Step Process</strong>. Only Technical Staff (Program Managers) and Admin roles can create proposals.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Click "New Proposal"</h5>
+  <p>From the sidebar, click <strong>"New Proposal"</strong> (or the <strong>"+ New Proposal"</strong> button on the dashboard).</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Fill in Training Information</h5>
+  <p>Enter the following fields:</p>
+  <ul>
+    <li><strong>Title</strong> — Name of the training event</li>
+    <li><strong>Description</strong> — Brief overview of the training</li>
+    <li><strong>Training Type</strong> — Business, Managerial, Organizational, Entrepreneurial, or Inter-Agency</li>
+    <li><strong>Partner Institution</strong> — Co-organizers (e.g., "DOST-7, TESDA")</li>
+  </ul>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Set Schedule &amp; Logistics</h5>
+  <ul>
+    <li><strong>Delivery Mode</strong> — Face to Face, Online, or Hybrid</li>
+    <li><strong>Venue</strong> — Physical location (for F2F/Hybrid)</li>
+    <li><strong>Online Link</strong> — Meeting URL (for Online/Hybrid)</li>
+    <li><strong>Start/End Date &amp; Time</strong></li>
+    <li><strong>Registration Deadline</strong></li>
+    <li><strong>Max Participants</strong></li>
+    <li><strong>Target Sector &amp; Region</strong></li>
+    <li><strong>Requires TNA</strong> — Check if a Training Needs Assessment is required</li>
+  </ul>
+</div>
+
+<div class="step-box">
+  <span class="step-num">4</span>
+  <h5>Write Proposal Details</h5>
+  <ul>
+    <li>Background/Rationale</li>
+    <li>Objectives</li>
+    <li>Expected Learning Outcomes</li>
+    <li>Methodology</li>
+    <li>Monitoring &amp; Evaluation Plan</li>
+  </ul>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">5</span>
+  <h5>Save the proposal</h5>
+  <p>Click <strong>"Save Proposal"</strong>. The proposal is saved as <span class="badge badge-gray">DRAFT</span>.</p>
+</div>
+
+<h4>Adding Supporting Details (Tabs)</h4>
+
+<p>After saving, navigate to the proposal detail page and use the tabs to add:</p>
+
+<table>
+  <tr><th>Tab</th><th>Content</th><th>Fields</th></tr>
+  <tr><td>Budget</td><td>Line items for event costs</td><td>Item, Unit Cost, Quantity, Estimated Amount, Source of Funds, Actual Spent</td></tr>
+  <tr><td>Risk Register</td><td>Risk assessment items</td><td>Risk Description, Action Plan, Responsible Person</td></tr>
+  <tr><td>Target Groups</td><td>Expected participants</td><td>EDT Level, Sector Group, Estimated Participants</td></tr>
+</table>
+
+<!-- ── PROPOSAL APPROVAL ── -->
+<h2 id="staff-approval">15. Proposal Approval Workflow</h2>
+
+<p>Proposals follow a structured approval chain mapped to the DTI QMS process.</p>
+
+<div class="flow">
+  <div class="flow-step">DRAFT</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">SUBMITTED</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">UNDER REVIEW</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">APPROVED</div>
+</div>
+
+<h4>Step-by-Step Approval Process</h4>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Technical Staff submits the proposal</h5>
+  <p>On the proposal detail page, click <strong>"Submit for Review"</strong>. The status changes from DRAFT to <span class="badge badge-blue">SUBMITTED</span>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Division Chief reviews</h5>
+  <p>The Division Chief sees the proposal in their <strong>"Proposals Queue"</strong>. After reviewing, click <strong>"Mark Under Review"</strong>. Status changes to <span class="badge badge-yellow">UNDER_REVIEW</span>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Regional/Provincial Director decides</h5>
+  <p>The Director sees the proposal in <strong>"For Approval"</strong>. Options:</p>
+  <ul>
+    <li><strong>"Approve"</strong> → Status: <span class="badge badge-green">APPROVED</span></li>
+    <li><strong>"Reject"</strong> → Status: <span class="badge badge-red">REJECTED</span> (requires a rejection note)</li>
+  </ul>
+</div>
+
+<div class="info-box">
+  If a proposal is rejected, the Technical Staff can edit the proposal based on the rejection note and resubmit it.
+</div>
+
+<!-- ── ACTIVATING EVENTS ── -->
+<h2 id="staff-activate">16. Activating Events</h2>
+
+<p>After a proposal is approved, the Technical Staff must activate the event to make it visible to the public.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Assign a Facilitator (optional but recommended)</h5>
+  <p>On the proposal page, use the <strong>staff search field</strong> to find and select a Facilitator (EVENT_ORGANIZER role). Click <strong>"Assign Facilitator"</strong>.</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">2</span>
+  <h5>Click "Activate Event &amp; Start Pre-Activity"</h5>
+  <p>A green panel shows Step 3 of the QMS process. Click the activation button to:</p>
+  <ul>
+    <li>Change the event status from DRAFT to <span class="badge badge-blue">PUBLISHED</span></li>
+    <li>Auto-generate the DTI Training Monitoring Checklist (FM-CT-7)</li>
+    <li>Make the event visible on the public events listing</li>
+  </ul>
+</div>
+
+<div class="warning-box">
+  Once an event is activated, the proposal becomes locked and can no longer be edited.
+</div>
+
+<!-- ── MANAGING EVENTS ── -->
+<h2 id="staff-manage">17. Managing Events</h2>
+
+<h3>17.1 Event Management Hub</h3>
+<p>Click on any event from <strong>My Events</strong> to access the management hub. This central page provides quick action cards:</p>
+
+<table>
+  <tr><th>Card</th><th>Action</th><th>When Visible</th></tr>
+  <tr><td>Edit Event</td><td>Modify event details</td><td>Before COMPLETED</td></tr>
+  <tr><td>Participants</td><td>View and manage participant list</td><td>Always</td></tr>
+  <tr><td>QR / Check-In</td><td>Open QR scanner for attendance</td><td>ONGOING only</td></tr>
+  <tr><td>Checklist</td><td>Manage preparation checklist</td><td>Always</td></tr>
+  <tr><td>Report</td><td>View event statistics</td><td>Always</td></tr>
+  <tr><td>Proposal</td><td>View the original proposal</td><td>Always</td></tr>
+  <tr><td>CSF Results</td><td>View survey results</td><td>COMPLETED only</td></tr>
+  <tr><td>CSF Report</td><td>Official ARTA CSF report</td><td>COMPLETED only</td></tr>
+  <tr><td>Post-Activity Report</td><td>PAR (FM-CT-6)</td><td>COMPLETED only</td></tr>
+  <tr><td>Effectiveness</td><td>TEM (FM-CT-5)</td><td>COMPLETED only</td></tr>
+</table>
+
+<h3>17.2 DTI QMS Progress Banner</h3>
+<p>A 5-step progress indicator shows the current stage of the event:</p>
+<div class="flow">
+  <div class="flow-step active">1. Prepare Proposal</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">2. Evaluate &amp; Approve</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">3. Pre-Activity</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">4. Conduct Activity</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">5. Post-Training</div>
+</div>
+
+<h3>17.3 Event Status Transitions</h3>
+<p>Use the status transition buttons to advance the event through its lifecycle:</p>
+
+<table>
+  <tr><th>Current Status</th><th>Allowed Transitions</th><th>Action</th></tr>
+  <tr><td><span class="badge badge-gray">DRAFT</span></td><td>PUBLISHED, CANCELLED</td><td>Activate via proposal page</td></tr>
+  <tr><td><span class="badge badge-blue">PUBLISHED</span></td><td>REGISTRATION_OPEN, CANCELLED</td><td>Open registration</td></tr>
+  <tr><td><span class="badge badge-green">REGISTRATION_OPEN</span></td><td>REGISTRATION_CLOSED, ONGOING, CANCELLED</td><td>Close registration or start event</td></tr>
+  <tr><td><span class="badge badge-yellow">REGISTRATION_CLOSED</span></td><td>ONGOING, CANCELLED</td><td>Start event</td></tr>
+  <tr><td><span class="badge badge-orange">ONGOING</span></td><td>COMPLETED, CANCELLED</td><td>Complete event</td></tr>
+  <tr><td><span class="badge badge-teal">COMPLETED</span></td><td>—</td><td>Final status</td></tr>
+</table>
+
+<h3>17.4 Session Management</h3>
+<p>Add training sessions from the event detail page:</p>
+<ul>
+  <li>Click <strong>"Add Session"</strong></li>
+  <li>Enter: Session Title, Start Time, End Time, Venue, Speaker</li>
+  <li>Sessions appear in the event detail and participant views</li>
+</ul>
+
+<h3>17.5 Speaker Management</h3>
+<p>Add speakers from the event detail page:</p>
+<ul>
+  <li>Click <strong>"Add Speaker"</strong></li>
+  <li>Enter: Name, Organization, Topic</li>
+  <li>Speakers appear in CSF surveys for individual rating</li>
+</ul>
+
+<!-- ── ATTENDANCE ── -->
+<h2 id="staff-attendance">18. QR Code Attendance Scanning</h2>
+
+<div class="warning-box">
+  The QR scanner is only available when the event status is <span class="badge badge-orange">ONGOING</span>.
+</div>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the QR Scanner</h5>
+  <p>From the event management hub, click <strong>"QR / Check-In"</strong>. Select the session from the dropdown.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Start the camera</h5>
+  <p>Click <strong>"Start Camera"</strong>. Point the camera at the participant's QR code on their device.</p>
+</div>
+
+<div class="step-box success">
+  <span class="step-num">✓</span>
+  <h5>Scan result</h5>
+  <p>A <strong>green</strong> confirmation appears for successful scans. The participant's status updates to <span class="badge badge-teal">ATTENDED</span>. A <strong>red</strong> error appears for invalid or duplicate scans.</p>
+</div>
+
+<h4>Manual Check-in (Fallback)</h4>
+<p>If QR scanning is not possible:</p>
+<ul>
+  <li>Scroll to the <strong>"Manual Check-in"</strong> section</li>
+  <li>Enter the participant's Participation ID</li>
+  <li>Click <strong>"Check In"</strong></li>
+</ul>
+
+<!-- ── CHECKLISTS ── -->
+<h2 id="staff-checklist">19. Checklists (FM-CT-7)</h2>
+
+<p>When an event is activated, the system auto-generates a DTI Training Monitoring Checklist (FM-CT-7) with standard checklist items.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access the checklist</h5>
+  <p>From the event management hub, click <strong>"Checklist"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Review the auto-generated items</h5>
+  <p>Items are organized by phase:</p>
+  <table>
+    <tr><th>Phase</th><th>Examples</th></tr>
+    <tr><td>PLANNING</td><td>Secure venue, prepare budget, coordinate speakers</td></tr>
+    <tr><td>PREPARATION</td><td>Print materials, set up equipment, prepare registration sheets</td></tr>
+    <tr><td>EXECUTION</td><td>Registration desk, QR attendance, document sessions</td></tr>
+    <tr><td>POST_EVENT</td><td>Collect CSF forms, process certificates, prepare PAR</td></tr>
+  </table>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Update item status</h5>
+  <p>For each item, set the status: <span class="badge badge-gray">NOT_STARTED</span>, <span class="badge badge-blue">IN_PROGRESS</span>, <span class="badge badge-green">COMPLETED</span>, <span class="badge badge-red">BLOCKED</span>, or <span class="badge badge-gray">CANCELLED</span>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">4</span>
+  <h5>Manage items</h5>
+  <p>Set <strong>Priority</strong> (Low/Medium/High/Critical), <strong>Assigned To</strong> (search staff by name), <strong>Due Date</strong>, and add <strong>Notes</strong>.</p>
+</div>
+
+<div class="tip-box">
+  You can create additional blank checklists or regenerate the standard template using the <strong>"Create from Template"</strong> or <strong>"Create Blank"</strong> buttons.
+</div>
+
+<!-- ── ISSUING CERTIFICATES ── -->
+<h2 id="staff-certs">20. Issuing Certificates</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to the event</h5>
+  <p>Open the event management hub for a <span class="badge badge-teal">COMPLETED</span> event.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Click "Issue Certificates"</h5>
+  <p>This button appears when there are participants with <span class="badge badge-teal">ATTENDED</span> status. Certificates are issued with unique verification codes.</p>
+</div>
+
+<div class="step-box success">
+  <span class="step-num">✓</span>
+  <h5>Certificates are generated</h5>
+  <p>Each certificate receives a unique verification code. Participants can view and download their certificates from their <strong>My Certificates</strong> page. Certificate authenticity can be verified via the public verification page.</p>
+</div>
+
+<!-- ── CSF REPORT ── -->
+<h2 id="staff-csf">21. CSF Report (ARTA Format)</h2>
+
+<p>The CSF Report generates the official ARTA-prescribed Client Satisfaction Feedback report (FM-CSF-ACT-RPT).</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access the CSF Report</h5>
+  <p>From the event management hub (COMPLETED events only), click <strong>"CSF Report"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Review the report</h5>
+  <p>The report contains 7 parts in official DTI format:</p>
+  <table>
+    <tr><th>Part</th><th>Content</th></tr>
+    <tr><td>Part I</td><td>Activity Information (title, date, venue, sector, region)</td></tr>
+    <tr><td>Part II</td><td>Survey Summary (total clients, responses, retrieval rate, overall satisfaction)</td></tr>
+    <tr><td>Part III</td><td>SQD Breakdown (9 dimensions with rating distributions, CSF %, adjectival rating)</td></tr>
+    <tr><td>Part IV</td><td>Citizen's Charter (CC1/CC2/CC3 distributions)</td></tr>
+    <tr><td>Part V</td><td>Speaker Satisfaction (per-speaker ratings)</td></tr>
+    <tr><td>Part VI</td><td>Respondent Profile (sex, age bracket, client type demographics)</td></tr>
+    <tr><td>Part VII</td><td>Open-ended Feedback (highlights, improvements, comments)</td></tr>
+  </table>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">3</span>
+  <h5>Print or export</h5>
+  <p>Click <strong>"Print / Export PDF"</strong> to generate a printable version. The report uses A4 format with the official DTI letterhead.</p>
+</div>
+
+<!-- ── PAR ── -->
+<h2 id="staff-par">22. Post-Activity Report (PAR) — FM-CT-6</h2>
+
+<p>The PAR documents what happened during the training event and follows a review/approval workflow.</p>
+
+<h4>Creating the PAR</h4>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the PAR form</h5>
+  <p>From the event management hub, click <strong>"Post-Activity Report"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Fill in demographics table</h5>
+  <p>Add rows for each participant group: Sector/Group, Male count, Female count, Senior count, PWD count, EDT Level, Actual Count. Click <strong>"+ Add Group"</strong> to add rows.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Write report narratives</h5>
+  <p>Fill in: Highlights/Key Outcomes, Fund Utilization Notes, CSF Assessment Observations, Improvement Opportunities.</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">4</span>
+  <h5>Save and submit</h5>
+  <p>Click <strong>"Create/Update Report"</strong> to save as draft. Click <strong>"Submit for Review (Div. Chief)"</strong> to send for approval.</p>
+</div>
+
+<h4>PAR Approval Workflow</h4>
+<table>
+  <tr><th>Step</th><th>Actor</th><th>Action</th><th>Status</th></tr>
+  <tr><td>1</td><td>Technical Staff / Facilitator</td><td>Create and submit PAR</td><td>DRAFT → UNDER_REVIEW</td></tr>
+  <tr><td>2</td><td>Division Chief</td><td>Mark as Reviewed</td><td>UNDER_REVIEW → APPROVED</td></tr>
+  <tr><td>3</td><td>Regional/Provincial Director</td><td>Approve &amp; Submit to FAD</td><td>UNDER_REVIEW → APPROVED</td></tr>
+</table>
+
+<!-- ── TEM ── -->
+<h2 id="staff-tem">23. Training Effectiveness Report (TEM) — FM-CT-5</h2>
+
+<p>The TEM monitors the long-term effectiveness of training programs, collected 6 months after the event.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access the TEM</h5>
+  <p>From the event management hub, click <strong>"Effectiveness"</strong>.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Review response data</h5>
+  <p>The system displays:</p>
+  <ul>
+    <li>Summary cards: Total Participants, Responses, Response Rate, Effectiveness Rate</li>
+    <li>Applied Learnings distribution (Yes/No)</li>
+    <li>Training Effective distribution (Yes/No)</li>
+    <li>Benefit Indicators table with rates</li>
+    <li>Individual evaluation details</li>
+  </ul>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Write the tabulation summary</h5>
+  <p>Enter your analysis in the <strong>"Tabulation Summary &amp; Analysis"</strong> textarea within the Step 7 TEM Report panel.</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">4</span>
+  <h5>Submit for review</h5>
+  <p>Click <strong>"Submit for Review (Div. Chief)"</strong> to begin the approval workflow.</p>
+</div>
+
+<h4>TEM Approval Workflow</h4>
+<table>
+  <tr><th>Step</th><th>Actor</th><th>Action</th><th>Status</th></tr>
+  <tr><td>1</td><td>Technical Staff</td><td>Write summary, submit for review</td><td>DRAFT → UNDER_REVIEW</td></tr>
+  <tr><td>2</td><td>Division Chief</td><td>Mark as Reviewed, forward to PD/RD</td><td>UNDER_REVIEW → APPROVED</td></tr>
+  <tr><td>3</td><td>Regional/Provincial Director</td><td>Approve</td><td>UNDER_REVIEW → APPROVED</td></tr>
+  <tr><td>4</td><td>Regional/Provincial Director</td><td>Submit to MAA (ManCom Agenda)</td><td>APPROVED → SUBMITTED_TO_MAA</td></tr>
+</table>
+
+<div class="info-box">
+  A minimum 5% response rate is required. The system displays a threshold indicator showing whether the response rate meets this requirement.
+</div>
+
+<!-- ── REPORTS ── -->
+<h2 id="staff-reports">24. Reports &amp; Analytics</h2>
+
+<p>Click <strong>"Reports"</strong> in the sidebar to access system-wide analytics.</p>
+
+<h4>Dashboard Metrics</h4>
+<ul>
+  <li>Total Events, Total Participants, Attendance Rate, Certificates Issued</li>
+  <li>Event Status Breakdown (pills with counts per status)</li>
+  <li>Average CSF Scores (Overall, Content, Facilitator, Logistics) with progress bars</li>
+  <li>Performance Summary with color-coded indicators (green ≥ 80%, yellow ≥ 50%, red &lt; 50%)</li>
+</ul>
+
+<h4>Recent Completed Events Table</h4>
+<table>
+  <tr><th>Column</th><th>Description</th></tr>
+  <tr><td>Event</td><td>Event title with link</td></tr>
+  <tr><td>Date</td><td>Training date</td></tr>
+  <tr><td>Participants</td><td>Total registered</td></tr>
+  <tr><td>Attended</td><td>Attended count</td></tr>
+  <tr><td>Rate</td><td>Attendance percentage</td></tr>
+  <tr><td>CSF</td><td>Overall CSF score</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════
+     ADMIN GUIDE
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="admin-dashboard">25. Admin Dashboard</h2>
+
+<p>Accessible to System Admin and Super Admin roles. Navigate to <strong>"Admin Dashboard"</strong> in the sidebar under the Admin section.</p>
+
+<h4>Statistics Cards</h4>
+<table>
+  <tr><th>Card</th><th>Description</th></tr>
+  <tr><td>Total Users</td><td>Count of all users (with active count)</td></tr>
+  <tr><td>Enterprises</td><td>Count of enterprises (with verified count)</td></tr>
+  <tr><td>Total Events</td><td>Count of events (with completed count)</td></tr>
+  <tr><td>Registrations</td><td>Registrations in the last 30 days</td></tr>
+  <tr><td>Certificates Issued</td><td>Total certificates generated</td></tr>
+  <tr><td>CSF Response Rate</td><td>System-wide CSF response percentage</td></tr>
+  <tr><td>Attendance Records</td><td>Total attendance entries</td></tr>
+  <tr><td>Pending Users</td><td>Suspended or unverified user count</td></tr>
+</table>
+
+<p>Additional sections show <strong>Users by Role</strong> and <strong>Events by Status</strong> breakdowns.</p>
+
+<!-- ── USER MANAGEMENT ── -->
+<h2 id="admin-users">26. User Management</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to Users</h5>
+  <p>Click <strong>"Users"</strong> in the Admin sidebar section.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Search and filter</h5>
+  <p>Use the search box (name or email), Status filter (Active/Pending/Suspended/Deactivated), and Role filter (all 9 roles).</p>
+</div>
+
+<h4>Available Actions</h4>
+<table>
+  <tr><th>Action</th><th>Description</th></tr>
+  <tr><td>Change Role</td><td>Open a modal to reassign the user's role</td></tr>
+  <tr><td>Verify Email</td><td>Manually verify a user's email address (for unverified accounts)</td></tr>
+  <tr><td>Suspend</td><td>Suspend a user account (requires a reason text)</td></tr>
+  <tr><td>Reactivate</td><td>Restore a suspended user account</td></tr>
+</table>
+
+<!-- ── ENTERPRISE MANAGEMENT ── -->
+<h2 id="admin-enterprises">27. Enterprise Management</h2>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to Enterprises</h5>
+  <p>Click <strong>"Enterprises"</strong> in the Admin sidebar section.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Search and filter</h5>
+  <p>Search by business name or TIN. Filter by Stage (Pre-Startup/Startup/Growth/Expansion/Mature) or verification status.</p>
+</div>
+
+<h4>Available Actions</h4>
+<table>
+  <tr><th>Action</th><th>Description</th></tr>
+  <tr><td>Verify</td><td>Mark an enterprise as verified (confirms business legitimacy)</td></tr>
+  <tr><td>List / Unlist</td><td>Toggle the enterprise's visibility on the public Enterprise Directory</td></tr>
+</table>
+
+<!-- ── AUDIT LOGS ── -->
+<h2 id="admin-audit">28. Audit Logs</h2>
+
+<p>The audit log provides a comprehensive trail of all administrative actions in the system.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to Audit Logs</h5>
+  <p>Click <strong>"Audit Logs"</strong> in the Admin sidebar section.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Filter logs</h5>
+  <p>Filter by <strong>Entity Type</strong> (UserProfile, EnterpriseProfile) or search by action text.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>View details</h5>
+  <p>Click <strong>"View details"</strong> on any log entry to see the full before/after JSON data of the change.</p>
+</div>
+
+<h4>Action Types</h4>
+<table>
+  <tr><th>Action</th><th>Color</th><th>Description</th></tr>
+  <tr><td>STATUS_CHANGE</td><td><span class="badge badge-yellow">Yellow</span></td><td>User status changed (active, suspended, etc.)</td></tr>
+  <tr><td>ROLE_CHANGE</td><td><span class="badge" style="background:#8b5cf6">Purple</span></td><td>User role reassigned</td></tr>
+  <tr><td>ENTERPRISE</td><td><span class="badge badge-teal">Teal</span></td><td>Enterprise verified, listed, or unlisted</td></tr>
+  <tr><td>LOGIN</td><td><span class="badge badge-blue">Blue</span></td><td>User login event</td></tr>
+</table>
+
+<!-- ── SYSTEM SETTINGS ── -->
+<h2 id="admin-settings">29. System Settings</h2>
+
+<p>The Settings page displays a read-only view of the system configuration and health status.</p>
+
+<table>
+  <tr><th>Section</th><th>Information Displayed</th></tr>
+  <tr><td>Microservices</td><td>Identity (port 3011), Event (port 3012), Notification (port 3013), Frontend (port 5173) status</td></tr>
+  <tr><td>Database</td><td>PostgreSQL and Redis connection status, record counts</td></tr>
+  <tr><td>Notification Providers</td><td>Email (Resend API) and SMS (Semaphore PH) configuration</td></tr>
+  <tr><td>Authentication</td><td>RS256 JWT, token TTLs, cookie settings</td></tr>
+  <tr><td>Scheduled Jobs</td><td>Impact Survey Dispatch, Survey Expiry Check, RSVP Reminders</td></tr>
+  <tr><td>System Health</td><td>Active/Pending/Suspended users with warning indicators</td></tr>
+  <tr><td>Survey Metrics</td><td>CSF and Impact response rates</td></tr>
+  <tr><td>Deployment</td><td>Environment, cloud provider, deployment phase</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════
+     REFERENCE SECTION
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="ref-lifecycle">30. Event Lifecycle Reference</h2>
+
+<h4>Complete Status Flow</h4>
+<div class="flow">
+  <div class="flow-step">DRAFT</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">PUBLISHED</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">REG. OPEN</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">REG. CLOSED</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">ONGOING</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">COMPLETED</div>
+</div>
+<p style="margin-top: 8px; font-size: 13px; color: #a0aec0;"><em>Any status (except COMPLETED) can transition to CANCELLED.</em></p>
+
+<h4>Participant Journey</h4>
+<div class="flow">
+  <div class="flow-step">Register</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">TNA (if required)</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">RSVP Confirmed</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">Get QR Code</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">Attend &amp; Scan</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">CSF Survey</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">Certificate</div>
+</div>
+
+<h4>DTI QMS 5-Step Mapping</h4>
+<table>
+  <tr><th>QMS Step</th><th>Name</th><th>System Actions</th><th>DTI Form</th></tr>
+  <tr><td>Step 1</td><td>Prepare Proposal</td><td>Create event + proposal with budget, risks, targets</td><td>—</td></tr>
+  <tr><td>Step 2</td><td>Evaluate &amp; Approve</td><td>Division Chief review → Director approval</td><td>—</td></tr>
+  <tr><td>Step 3</td><td>Pre-Activity Requirements</td><td>Activate event, auto-generate checklist</td><td>FM-CT-7</td></tr>
+  <tr><td>Step 4</td><td>Conduct Activity</td><td>Open registration, QR attendance, session management</td><td>—</td></tr>
+  <tr><td>Step 5</td><td>Post-Training Evaluation</td><td>CSF survey, certificates, PAR, effectiveness monitoring</td><td>FM-CSF-ACT, FM-CT-6</td></tr>
+  <tr><td>Step 6</td><td>Post-Activity Report</td><td>PAR creation, review, and approval</td><td>FM-CT-6</td></tr>
+  <tr><td>Step 7</td><td>Monitoring &amp; Evaluation</td><td>6-month impact survey, TEM report, MAA submission</td><td>FM-CT-5</td></tr>
+</table>
+
+<!-- ── STATUS REFERENCE ── -->
+<h2 id="ref-statuses">31. Status Reference</h2>
+
+<h4>Event Statuses</h4>
+<table>
+  <tr><th>Status</th><th>Badge</th><th>Description</th></tr>
+  <tr><td>DRAFT</td><td><span class="badge badge-gray">DRAFT</span></td><td>Event created but not yet published</td></tr>
+  <tr><td>PUBLISHED</td><td><span class="badge badge-blue">PUBLISHED</span></td><td>Event visible on public listing</td></tr>
+  <tr><td>REGISTRATION_OPEN</td><td><span class="badge badge-green">REG. OPEN</span></td><td>Accepting participant registrations</td></tr>
+  <tr><td>REGISTRATION_CLOSED</td><td><span class="badge badge-yellow">REG. CLOSED</span></td><td>No longer accepting registrations</td></tr>
+  <tr><td>ONGOING</td><td><span class="badge badge-orange">ONGOING</span></td><td>Event is currently in progress</td></tr>
+  <tr><td>COMPLETED</td><td><span class="badge badge-teal">COMPLETED</span></td><td>Event has concluded</td></tr>
+  <tr><td>CANCELLED</td><td><span class="badge badge-red">CANCELLED</span></td><td>Event was cancelled</td></tr>
+</table>
+
+<h4>Proposal Statuses</h4>
+<table>
+  <tr><th>Status</th><th>Badge</th><th>Description</th></tr>
+  <tr><td>DRAFT</td><td><span class="badge badge-gray">DRAFT</span></td><td>Proposal being prepared, editable</td></tr>
+  <tr><td>SUBMITTED</td><td><span class="badge badge-blue">SUBMITTED</span></td><td>Submitted for Division Chief review</td></tr>
+  <tr><td>UNDER_REVIEW</td><td><span class="badge badge-yellow">UNDER REVIEW</span></td><td>Being reviewed by Division Chief</td></tr>
+  <tr><td>APPROVED</td><td><span class="badge badge-green">APPROVED</span></td><td>Approved by Director, ready for activation</td></tr>
+  <tr><td>REJECTED</td><td><span class="badge badge-red">REJECTED</span></td><td>Rejected with notes, can be revised and resubmitted</td></tr>
+</table>
+
+<h4>Participation Statuses</h4>
+<table>
+  <tr><th>Status</th><th>Badge</th><th>Description</th></tr>
+  <tr><td>REGISTERED</td><td><span class="badge badge-blue">REGISTERED</span></td><td>Participant has registered</td></tr>
+  <tr><td>WAITLISTED</td><td><span class="badge badge-yellow">WAITLISTED</span></td><td>Event full, participant is on waitlist</td></tr>
+  <tr><td>RSVP_CONFIRMED</td><td><span class="badge badge-green">RSVP CONFIRMED</span></td><td>Participant confirmed attendance (TNA completed if required)</td></tr>
+  <tr><td>ATTENDED</td><td><span class="badge badge-teal">ATTENDED</span></td><td>Participant checked in at the event</td></tr>
+  <tr><td>NO_SHOW</td><td><span class="badge badge-red">NO SHOW</span></td><td>Participant did not attend</td></tr>
+  <tr><td>CANCELLED</td><td><span class="badge badge-gray">CANCELLED</span></td><td>Registration was cancelled</td></tr>
+</table>
+
+<!-- ── FORMS REFERENCE ── -->
+<h2 id="ref-forms">32. DTI Forms Reference</h2>
+
+<table>
+  <tr><th>Form Code</th><th>Title</th><th>Purpose</th><th>System Location</th></tr>
+  <tr><td>FM-CSF-ACT</td><td>Client Satisfaction Feedback — Activity</td><td>ARTA-prescribed post-training survey (SQD, CC, speakers)</td><td>Participant CSF Survey page</td></tr>
+  <tr><td>FM-CSF-ACT-RPT</td><td>CSF Activity Report</td><td>Official tabulated CSF results report</td><td>Staff CSF Report page</td></tr>
+  <tr><td>FM-CT-5</td><td>Training Effectiveness Monitoring</td><td>6-month post-training impact assessment</td><td>Participant Impact Survey + Staff Effectiveness page</td></tr>
+  <tr><td>FM-CT-6</td><td>Post-Activity Report</td><td>Event documentation with demographics and narratives</td><td>Staff PAR page</td></tr>
+  <tr><td>FM-CT-7</td><td>Training Monitoring Checklist</td><td>Standard preparation and execution checklist</td><td>Staff Checklist page (auto-generated on activation)</td></tr>
+</table>
+
+<!-- ── FAQ ── -->
+<h2 id="ref-faq">33. Frequently Asked Questions</h2>
+
+<h4>General</h4>
+
+<div class="step-box">
+  <h5>Q: Which web browsers are supported?</h5>
+  <p>DTI EMS works best on modern browsers: Google Chrome, Mozilla Firefox, Microsoft Edge, and Safari. Mobile browsers are also supported with responsive layout.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: I forgot my password. What do I do?</h5>
+  <p>Click <strong>"Forgot password?"</strong> on the login page. Enter your email address to receive a reset link. Follow the link to set a new password.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: I didn't receive the verification email.</h5>
+  <p>Check your spam/junk folder. If still not found, contact the System Administrator to manually verify your email address.</p>
+</div>
+
+<h4>Participants</h4>
+
+<div class="step-box">
+  <h5>Q: How do I get my certificate?</h5>
+  <p>After attending the event, the organizer will issue your certificate. Check <strong>My Certificates</strong> in the sidebar. You can print or download it as PDF.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: I can't see the "Register" button on an event.</h5>
+  <p>Possible reasons: (1) You're not logged in — click "Log in" first. (2) Registration is not yet open. (3) The event is full. (4) You've already registered for this event.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: What is TNA?</h5>
+  <p>Training Needs Assessment is a short questionnaire that helps organizers understand your current knowledge and skills. Some events require it before confirming your RSVP. There are no wrong answers.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: When should I complete the Impact Survey?</h5>
+  <p>The Impact Survey (FM-CT-5) is sent approximately 6 months after the training to measure long-term effectiveness. You will be notified when it becomes available.</p>
+</div>
+
+<h4>Staff</h4>
+
+<div class="step-box">
+  <h5>Q: Why can't I create a proposal?</h5>
+  <p>Only users with the <strong>Technical Staff</strong> (PROGRAM_MANAGER) role or admin roles can create proposals. Facilitators (EVENT_ORGANIZER) manage assigned events but cannot create proposals.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: The QR scanner isn't working. What can I do?</h5>
+  <p>Ensure the event status is <strong>ONGOING</strong>. Try switching to a different camera if available. Use the <strong>"Manual Check-in"</strong> fallback to enter the Participation ID directly.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: How do I assign a facilitator to an event?</h5>
+  <p>On the proposal page (after approval), use the staff search field to find and select the Facilitator. Click <strong>"Assign Facilitator"</strong>. This should be done before activating the event.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: What happens when I activate an event?</h5>
+  <p>Activation publishes the event (makes it visible to participants), auto-generates the FM-CT-7 checklist with standard DTI items, and locks the proposal from further editing.</p>
+</div>
+
+<!-- ── FOOTER ── -->
+<div style="margin-top: 60px; padding: 30px 0; border-top: 3px solid var(--dti-orange); text-align: center; color: var(--text-secondary); font-size: 13px;">
+  <p><strong>Department of Trade and Industry — Region VII</strong></p>
+  <p>3rd Floor, Cebu International Convention Center (CICC)<br>
+  North Reclamation Area, Cebu City 6000, Philippines</p>
+  <p style="margin-top: 12px;">DTI EMS User Manual v1.0 &nbsp;·&nbsp; Document Code: DTI-EMS-UM-001 &nbsp;·&nbsp; April 2026</p>
+  <p style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+    This document is for internal use by DTI Region VII staff and authorized training participants.
+    <br>Data privacy is governed by RA 10173 (Data Privacy Act of 2012).
+  </p>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main -->
+
+<!-- Back to Top Button -->
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to Top">↑</button>
+
+</body>
+</html>

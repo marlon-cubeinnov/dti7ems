@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminIdentityApi, ApiError } from '@/lib/api';
-import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, Eye, Pencil, Trash2, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -54,6 +54,30 @@ interface User {
   createdAt: string;
 }
 
+interface UserDetail {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  role: string;
+  status: string;
+  mobileNumber: string | null;
+  region: string | null;
+  province: string | null;
+  cityMunicipality: string | null;
+  barangay: string | null;
+  jobTitle: string | null;
+  industryClassification: string | null;
+  dpaConsentGiven: boolean;
+  dpaConsentAt: string | null;
+  emailVerified: boolean;
+  emailVerifiedAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -62,6 +86,10 @@ export function AdminUsersPage() {
   const [actionModal, setActionModal] = useState<{ type: 'status' | 'role'; user: User } | null>(null);
   const [actionValue, setActionValue] = useState('');
   const [reason, setReason] = useState('');
+  const [viewUser, setViewUser] = useState<UserDetail | null>(null);
+  const [editUser, setEditUser] = useState<UserDetail | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -101,6 +129,51 @@ export function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      adminIdentityApi.updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setEditUser(null);
+      setEditForm({});
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => adminIdentityApi.deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setDeleteConfirm(null);
+    },
+  });
+
+  async function handleViewUser(u: User) {
+    try {
+      const res = await adminIdentityApi.getUser(u.id);
+      setViewUser((res as any).data as UserDetail);
+    } catch { /* ignore */ }
+  }
+
+  async function handleEditUser(u: User) {
+    try {
+      const res = await adminIdentityApi.getUser(u.id);
+      const detail = (res as any).data as UserDetail;
+      setEditUser(detail);
+      setEditForm({
+        firstName: detail.firstName ?? '',
+        lastName: detail.lastName ?? '',
+        middleName: detail.middleName ?? '',
+        mobileNumber: detail.mobileNumber ?? '',
+        region: detail.region ?? '',
+        province: detail.province ?? '',
+        cityMunicipality: detail.cityMunicipality ?? '',
+        barangay: detail.barangay ?? '',
+        jobTitle: detail.jobTitle ?? '',
+        industryClassification: detail.industryClassification ?? '',
+      });
+    } catch { /* ignore */ }
+  }
 
   const users: User[] = Array.isArray((data as any)?.data) ? (data as any).data : [];
   const meta = (data as any)?.meta;
@@ -190,6 +263,20 @@ export function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 text-right space-x-1">
                       <button
+                        onClick={() => handleViewUser(u)}
+                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
+                        title="View details"
+                      >
+                        <Eye size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleEditUser(u)}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                        title="Edit user"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
                         onClick={() => { setActionModal({ type: 'role', user: u }); setActionValue(u.role); }}
                         className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
                         title="Change role"
@@ -223,6 +310,13 @@ export function AdminUsersPage() {
                           <ShieldCheck size={13} />
                         </button>
                       ) : null}
+                      <button
+                        onClick={() => setDeleteConfirm(u)}
+                        className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
+                        title="Delete user"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -315,6 +409,150 @@ export function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      {/* View User Details Modal */}
+      {viewUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white rounded-t-xl">
+              <h3 className="text-lg font-semibold text-gray-900">User Details</h3>
+              <button onClick={() => setViewUser(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3 text-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-10 h-10 rounded-full bg-dti-blue text-white flex items-center justify-center font-bold text-sm">
+                  {viewUser.firstName?.[0]}{viewUser.lastName?.[0]}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{viewUser.firstName} {viewUser.middleName ? viewUser.middleName + ' ' : ''}{viewUser.lastName}</p>
+                  <p className="text-xs text-gray-500">{viewUser.email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <DetailRow label="Role" value={ROLE_DISPLAY[viewUser.role] ?? viewUser.role} />
+                <DetailRow label="Status" value={viewUser.status.replace(/_/g, ' ')} />
+                <DetailRow label="Mobile" value={viewUser.mobileNumber} />
+                <DetailRow label="Email Verified" value={viewUser.emailVerified ? 'Yes' : 'No'} />
+                <DetailRow label="Region" value={viewUser.region} />
+                <DetailRow label="Province" value={viewUser.province} />
+                <DetailRow label="City/Municipality" value={viewUser.cityMunicipality} />
+                <DetailRow label="Barangay" value={viewUser.barangay} />
+                <DetailRow label="Job Title" value={viewUser.jobTitle} />
+                <DetailRow label="Industry" value={viewUser.industryClassification} />
+                <DetailRow label="DPA Consent" value={viewUser.dpaConsentGiven ? 'Given' : 'Not given'} />
+                <DetailRow label="DPA Consent Date" value={viewUser.dpaConsentAt ? format(new Date(viewUser.dpaConsentAt), 'MMM d, yyyy') : null} />
+                <DetailRow label="Last Login" value={viewUser.lastLoginAt ? format(new Date(viewUser.lastLoginAt), 'MMM d, yyyy h:mm a') : null} />
+                <DetailRow label="Joined" value={format(new Date(viewUser.createdAt), 'MMM d, yyyy')} />
+                <DetailRow label="Updated" value={format(new Date(viewUser.updatedAt), 'MMM d, yyyy')} />
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t flex justify-end">
+              <button onClick={() => setViewUser(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white rounded-t-xl">
+              <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
+              <button onClick={() => { setEditUser(null); setEditForm({}); }} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-sm text-gray-500 mb-2">{editUser.email}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <EditField label="First Name" value={editForm.firstName ?? ''} onChange={v => setEditForm(f => ({ ...f, firstName: v }))} />
+                <EditField label="Last Name" value={editForm.lastName ?? ''} onChange={v => setEditForm(f => ({ ...f, lastName: v }))} />
+                <EditField label="Middle Name" value={editForm.middleName ?? ''} onChange={v => setEditForm(f => ({ ...f, middleName: v }))} />
+                <EditField label="Mobile Number" value={editForm.mobileNumber ?? ''} onChange={v => setEditForm(f => ({ ...f, mobileNumber: v }))} />
+                <EditField label="Region" value={editForm.region ?? ''} onChange={v => setEditForm(f => ({ ...f, region: v }))} />
+                <EditField label="Province" value={editForm.province ?? ''} onChange={v => setEditForm(f => ({ ...f, province: v }))} />
+                <EditField label="City/Municipality" value={editForm.cityMunicipality ?? ''} onChange={v => setEditForm(f => ({ ...f, cityMunicipality: v }))} />
+                <EditField label="Barangay" value={editForm.barangay ?? ''} onChange={v => setEditForm(f => ({ ...f, barangay: v }))} />
+                <EditField label="Job Title" value={editForm.jobTitle ?? ''} onChange={v => setEditForm(f => ({ ...f, jobTitle: v }))} />
+                <EditField label="Industry" value={editForm.industryClassification ?? ''} onChange={v => setEditForm(f => ({ ...f, industryClassification: v }))} />
+              </div>
+
+              {updateUserMutation.error && (
+                <p className="text-sm text-red-600">{(updateUserMutation.error as ApiError)?.message ?? 'Update failed.'}</p>
+              )}
+            </div>
+            <div className="px-6 py-3 border-t flex justify-end gap-2">
+              <button onClick={() => { setEditUser(null); setEditForm({}); }} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+              <button
+                onClick={() => {
+                  const data: Record<string, unknown> = {};
+                  for (const [k, v] of Object.entries(editForm)) {
+                    const val = v.trim();
+                    data[k] = val || null;
+                  }
+                  if (data.firstName) updateUserMutation.mutate({ id: editUser.id, data });
+                }}
+                disabled={updateUserMutation.isPending || !editForm.firstName?.trim()}
+                className="px-4 py-2 bg-dti-blue text-white rounded-lg text-sm font-medium hover:bg-dti-blue-dark disabled:opacity-50"
+              >
+                {updateUserMutation.isPending ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete User</h3>
+            <p className="text-sm text-gray-600 mb-1">
+              Are you sure you want to delete <strong>{deleteConfirm.firstName} {deleteConfirm.lastName}</strong>?
+            </p>
+            <p className="text-xs text-gray-400 mb-4">{deleteConfirm.email}</p>
+            <p className="text-xs text-red-500 mb-4">This action cannot be undone. All user data will be permanently removed.</p>
+
+            {deleteUserMutation.error && (
+              <p className="text-sm text-red-600 mb-3">{(deleteUserMutation.error as ApiError)?.message ?? 'Delete failed.'}</p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+              <button
+                onClick={() => deleteUserMutation.mutate(deleteConfirm.id)}
+                disabled={deleteUserMutation.isPending}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteUserMutation.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-sm text-gray-900">{value || '—'}</p>
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="text-xs text-gray-500 block mb-0.5">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue"
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, eventsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
+import { Users } from 'lucide-react';
 
 type BeneficiaryGroup = {
   sectorGroup: string;
@@ -123,6 +124,31 @@ export function OrganizerPostActivityReportPage() {
     setGroups(groups.map((g, i) => i === idx ? { ...g, [field]: value } : g));
   };
 
+  const [generatingDemo, setGeneratingDemo] = useState(false);
+  const generateFromParticipants = async () => {
+    if (!id) return;
+    setGeneratingDemo(true);
+    try {
+      const res = await organizerApi.getParDemographics(id);
+      const data = (res as any)?.data;
+      if (data && data.length > 0) {
+        setGroups(data.map((g: any) => ({
+          sectorGroup: g.sectorGroup,
+          maleCount: g.maleCount,
+          femaleCount: g.femaleCount,
+          seniorCitizenCount: g.seniorCitizenCount,
+          pwdCount: g.pwdCount,
+          edtLevel: g.edtLevel ?? '',
+          actualCount: g.actualCount,
+        })));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setGeneratingDemo(false);
+    }
+  };
+
   const role = user?.role ?? '';
   const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
   const isChief = ['DIVISION_CHIEF', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
@@ -180,7 +206,17 @@ export function OrganizerPostActivityReportPage() {
       <div className="card space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Beneficiary Demographics</h2>
-          <button onClick={addGroup} className="text-sm text-dti-blue hover:underline">+ Add Group</button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={generateFromParticipants}
+              disabled={generatingDemo}
+              className="text-sm text-green-700 hover:underline inline-flex items-center gap-1"
+            >
+              <Users size={14} />
+              {generatingDemo ? 'Generating…' : 'Generate from Participants'}
+            </button>
+            <button onClick={addGroup} className="text-sm text-dti-blue hover:underline">+ Add Group</button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">

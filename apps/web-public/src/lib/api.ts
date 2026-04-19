@@ -37,8 +37,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResponse<
       if (refreshed) {
         return request<T>(url, init);
       }
-      // Refresh failed — clear auth
+      // Refresh failed — clear auth (store + localStorage)
       localStorage.removeItem('access_token');
+      localStorage.removeItem('dti-ems-auth');
       window.location.href = '/login';
     }
     throw new ApiError(data.error.code, data.error.message, res.status, data.error.details);
@@ -246,6 +247,14 @@ export interface EventBody {
   targetRegion?: string | null;
   requiresTNA?: boolean;
   programId?: string | null;
+  // Proposal fields
+  trainingType?: string | null;
+  partnerInstitution?: string | null;
+  background?: string | null;
+  objectives?: string | null;
+  learningOutcomes?: string | null;
+  methodology?: string | null;
+  monitoringPlan?: string | null;
 }
 
 export const organizerApi = {
@@ -275,6 +284,9 @@ export const organizerApi = {
 
   exportParticipants: (eventId: string) =>
     `${BASE_EVENTS}/events/${eventId}/participants/export`,
+
+  getAttendanceSheet: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/participants/attendance-sheet`),
 
   // Attendance
   scanQr: (token: string, sessionId: string) =>
@@ -320,6 +332,9 @@ export const organizerApi = {
   getPar: (eventId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/par`),
 
+  getParDemographics: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/par/demographics`),
+
   savePar: (eventId: string, body: Record<string, unknown>) =>
     request(`${BASE_EVENTS}/events/${eventId}/par`, { method: 'POST', body: JSON.stringify(body) }),
 
@@ -352,8 +367,8 @@ export const organizerApi = {
   approveProposal: (eventId: string, action: 'APPROVE' | 'REJECT', rejectionNote?: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/approve-proposal`, { method: 'PATCH', body: JSON.stringify({ action, rejectionNote }) }),
 
-  assignOrganizer: (eventId: string, organizerId: string) =>
-    request(`${BASE_EVENTS}/events/${eventId}/assign-organizer`, { method: 'POST', body: JSON.stringify({ organizerId }) }),
+  assignOrganizer: (eventId: string, organizerId: string, organizerName?: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/assign-organizer`, { method: 'POST', body: JSON.stringify({ organizerId, organizerName }) }),
 
   // Step 3: Activate event after proposal approval (DRAFT → PUBLISHED + seeds DTI checklist)
   activateEvent: (eventId: string) =>
@@ -594,6 +609,15 @@ export const adminIdentityApi = {
   verifyUserEmail: (id: string) =>
     request(`${BASE_IDENTITY}/admin/users/${id}/verify-email`, { method: 'PATCH' }),
 
+  getUser: (id: string) =>
+    request(`${BASE_IDENTITY}/users/${id}`),
+
+  updateUser: (id: string, data: Record<string, unknown>) =>
+    request(`${BASE_IDENTITY}/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteUser: (id: string) =>
+    request(`${BASE_IDENTITY}/users/${id}`, { method: 'DELETE' }),
+
   getAuditLogs: (params?: Record<string, string | number | undefined>) => {
     const qs = params
       ? '?' + new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))).toString()
@@ -614,7 +638,6 @@ export const adminIdentityApi = {
   updateEnterprise: (id: string, data: Record<string, unknown>) =>
     request(`${BASE_IDENTITY}/enterprises/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
 };

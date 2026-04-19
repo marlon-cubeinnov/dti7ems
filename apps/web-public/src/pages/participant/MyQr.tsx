@@ -85,7 +85,7 @@ export function MyQrPage() {
               className="w-64 h-64 object-contain rounded-lg border border-gray-200 shadow"
             />
             <p className="text-xs text-gray-500 text-center">
-              Show this to the event organizer for scanning.<br />
+              Show this to the facilitator for scanning.<br />
               This is your permanent personal QR code.
             </p>
           </>

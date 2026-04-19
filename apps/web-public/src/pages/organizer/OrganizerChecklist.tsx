@@ -172,8 +172,11 @@ function StaffAutocomplete({
   };
 
   const roleLabel = (r: string) => {
-    if (r === 'EVENT_ORGANIZER') return 'Organizer';
-    if (r === 'PROGRAM_MANAGER') return 'Program Mgr';
+    if (r === 'EVENT_ORGANIZER') return 'Facilitator';
+    if (r === 'PROGRAM_MANAGER') return 'Technical Staff';
+    if (r === 'DIVISION_CHIEF') return 'Div. Chief';
+    if (r === 'REGIONAL_DIRECTOR') return 'Regional Dir.';
+    if (r === 'PROVINCIAL_DIRECTOR') return 'Provincial Dir.';
     if (r === 'SYSTEM_ADMIN') return 'Sys Admin';
     if (r === 'SUPER_ADMIN') return 'Super Admin';
     return r;
@@ -406,6 +409,12 @@ export function OrganizerChecklistPage() {
             <p className="text-sm text-gray-500 mt-0.5">{event?.title ?? 'Loading…'}</p>
           </div>
         </div>
+        <Link
+          to={`/organizer/events/${eventId}/checklist-print`}
+          className="btn-secondary flex items-center gap-1.5 text-sm shrink-0"
+        >
+          <ExternalLink size={14} /> Print FM-CT-7
+        </Link>
       </div>
 
       {msg && (

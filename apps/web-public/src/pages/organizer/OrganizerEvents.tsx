@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, ApiError, type EventStatus } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { PlusCircle, Pencil, Users, ChevronRight, Eye } from 'lucide-react';
+import { Pencil, Users, Eye } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:               'bg-gray-100 text-gray-600',
@@ -46,25 +46,23 @@ interface Event {
   maxParticipants: number | null;
 }
 
-const PROPOSAL_STATUS_COLORS: Record<string, string> = {
-  DRAFT:        'bg-gray-100 text-gray-500',
-  SUBMITTED:    'bg-blue-100 text-blue-700',
-  UNDER_REVIEW: 'bg-yellow-100 text-yellow-700',
-  APPROVED:     'bg-green-100 text-green-700',
-  REJECTED:     'bg-red-100 text-red-600',
-};
-
 export function OrganizerEventsPage() {
   const qc = useQueryClient();
   const { user } = useAuthStore();
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  const isApprover = user?.role === 'DIVISION_CHIEF' || user?.role === 'REGIONAL_DIRECTOR';
+  const isFacilitator = user?.role === 'EVENT_ORGANIZER';
   const isTechnicalStaff = user?.role === 'PROGRAM_MANAGER';
 
+  // For Technical Staff: only show approved/active events (not proposals)
+  // For Facilitators: show assigned events that have been activated
+  // For Admins: show all
   const { data, isLoading } = useQuery({
     queryKey: ['organizer-events'],
-    queryFn: () => organizerApi.listMyEvents({ limit: 50 }),
+    queryFn: () => organizerApi.listMyEvents({
+      limit: 50,
+      ...((isTechnicalStaff || isFacilitator) ? { view: 'events' } : {}),
+    }),
   });
 
   const statusMutation = useMutation({
@@ -86,16 +84,8 @@ export function OrganizerEventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
-          {user?.role === 'DIVISION_CHIEF' ? 'Proposals for Review'
-            : user?.role === 'REGIONAL_DIRECTOR' ? 'Proposals for Approval'
-            : user?.role === 'EVENT_ORGANIZER' ? 'My Assigned Events'
-            : 'My Proposals'}
+          {isFacilitator ? 'My Assigned Events' : 'My Events'}
         </h1>
-        {isTechnicalStaff && (
-          <Link to="/organizer/events/new" className="btn-primary flex items-center gap-2">
-            <PlusCircle size={16} /> New Proposal
-          </Link>
-        )}
       </div>
 
       {statusError && (
@@ -108,13 +98,9 @@ export function OrganizerEventsPage() {
         <div className="card text-center py-12 text-gray-400 text-sm">Loading…</div>
       ) : events.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-500 mb-3">
-            {isApprover ? 'No proposals in your queue.' : 'No events or proposals yet.'}
-          </p>
+          <p className="text-gray-500 mb-3">No events yet.</p>
           {isTechnicalStaff && (
-            <Link to="/organizer/events/new" className="btn-primary inline-flex items-center gap-2">
-              <PlusCircle size={16} /> Create your first proposal
-            </Link>
+            <p className="text-sm text-gray-400">Events will appear here once your proposals are approved.</p>
           )}
         </div>
       ) : (
@@ -125,8 +111,7 @@ export function OrganizerEventsPage() {
                 <th className="px-4 py-3 font-semibold text-gray-600">Title</th>
                 <th className="px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Date</th>
                 <th className="px-4 py-3 font-semibold text-gray-600 hidden lg:table-cell">Mode</th>
-                {isApprover && <th className="px-4 py-3 font-semibold text-gray-600">Proposal</th>}
-                {!isApprover && <th className="px-4 py-3 font-semibold text-gray-600">Status</th>}
+                <th className="px-4 py-3 font-semibold text-gray-600">Status</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Actions</th>
               </tr>
             </thead>
@@ -146,20 +131,11 @@ export function OrganizerEventsPage() {
                     <td className="px-4 py-3 hidden lg:table-cell text-gray-500">
                       {event.deliveryMode.replace(/_/g, ' ')}
                     </td>
-                    {isApprover && (
-                      <td className="px-4 py-3">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${PROPOSAL_STATUS_COLORS[event.proposalStatus] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {(event.proposalStatus ?? 'DRAFT').replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                    )}
-                    {!isApprover && (
-                      <td className="px-4 py-3">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status] ?? ''}`}>
-                          {event.status.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                    )}
+                    <td className="px-4 py-3">
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status] ?? ''}`}>
+                        {event.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Link
@@ -169,31 +145,21 @@ export function OrganizerEventsPage() {
                         >
                           <Eye size={13} /> View
                         </Link>
-                        {isApprover && (
-                          <Link
-                            to={`/organizer/events/${event.id}/proposal`}
-                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                          >
-                            Review Proposal
-                          </Link>
-                        )}
-                        {!isApprover && (
-                          <>
-                            <Link
-                              to={`/organizer/events/${event.id}/edit`}
-                              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                              title="Edit Event"
-                            >
-                              <Pencil size={13} /> Edit
-                            </Link>
-                            <Link
-                              to={`/organizer/events/${event.id}/participants`}
-                              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                              title="Manage Participants"
-                            >
-                              <Users size={13} /> Participants
-                            </Link>
-                            {transitions.length > 0 && (
+                        <Link
+                          to={`/organizer/events/${event.id}/edit`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                          title="Edit Event"
+                        >
+                          <Pencil size={13} /> Edit
+                        </Link>
+                        <Link
+                          to={`/organizer/events/${event.id}/participants`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                          title="Manage Participants"
+                        >
+                          <Users size={13} /> Participants
+                        </Link>
+                        {transitions.length > 0 && (
                               <select
                                 className="text-xs font-medium border border-gray-300 rounded-lg px-2 py-1.5 text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors shadow-sm"
                                 value=""
@@ -211,8 +177,6 @@ export function OrganizerEventsPage() {
                                 ))}
                               </select>
                             )}
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>

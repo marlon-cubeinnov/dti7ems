@@ -107,6 +107,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
     const response = await app.prisma.csfSurveyResponse.findUnique({
       where: { participationId: participation.id },
+      include: { speakerRatings: { include: { speaker: { select: { id: true, name: true, topic: true } } } } },
     });
     return reply.send({ success: true, data: response ?? null });
   });
@@ -164,9 +165,11 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
         else if (csfRatingPct >= 60) adjectival = 'Fair';
         else adjectival = 'Unsatisfactory';
       }
+      const ratingCountsObj: Record<string, number> = {};
+      for (let r = 1; r <= 5; r++) ratingCountsObj[String(r)] = ratingCounts[r - 1];
       return {
-        field, label: SQD_LABELS[i], average: vals.length ? Math.round((sum / vals.length) * 100) / 100 : null,
-        ratingCounts, totalResponses: vals.length, csfRatingPct, adjectival,
+        key: field, label: SQD_LABELS[i], average: vals.length ? Math.round((sum / vals.length) * 100) / 100 : null,
+        ratingCounts: ratingCountsObj, totalResponses: vals.length, csfRating: csfRatingPct, adjectival,
       };
     });
 
@@ -198,7 +201,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
       : [];
     const speakerAverages = speakers.map(s => {
       const entry = speakerMap.get(s.id)!;
-      return { speakerId: s.id, name: s.name, topic: s.topic, average: Math.round((entry.total / entry.count) * 100) / 100, count: entry.count };
+      return { speakerId: s.id, speakerName: s.name, topic: s.topic, avgRating: Math.round((entry.total / entry.count) * 100) / 100, count: entry.count };
     });
 
     return reply.send({
@@ -207,11 +210,11 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
         count,
         averages: Object.fromEntries(SQD_FIELDS.map(f => [f, avg(f)])),
         sqdBreakdown,
-        ccDistribution: {
-          cc1Awareness: ccDist('cc1Awareness', 4),
-          cc2Visibility: ccDist('cc2Visibility', 4),
-          cc3Usefulness: ccDist('cc3Usefulness', 3),
-        },
+        ccDistribution: [
+          { key: 'cc1Awareness', distribution: ccDist('cc1Awareness', 4), total: count },
+          { key: 'cc2Visibility', distribution: ccDist('cc2Visibility', 4), total: count },
+          { key: 'cc3Usefulness', distribution: ccDist('cc3Usefulness', 3), total: count },
+        ],
         speakerAverages,
         responses: responses.map(r => ({
           id: r.id,
@@ -230,6 +233,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
           highlightsFeedback: r.highlightsFeedback,
           improvementsFeedback: r.improvementsFeedback,
           commentsSuggestions: r.commentsSuggestions,
+          reasonsForLowRating: (r as any).reasonsForLowRating ?? null,
+          speakerRatings: r.speakerRatings.map(sr => ({ speakerId: sr.speakerId, rating: sr.rating })),
           submittedAt: r.submittedAt,
         })),
       },

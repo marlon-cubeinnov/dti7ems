@@ -21,6 +21,7 @@ import { MyCertificatesPage } from '@/pages/participant/MyCertificates';
 import { MyQrPage } from '@/pages/participant/MyQr';
 import { CsfSurveyPage } from '@/pages/participant/CsfSurvey';
 import { ImpactSurveyPage } from '@/pages/participant/ImpactSurvey';
+import { MySurveyResponsesPage } from '@/pages/participant/MySurveyResponses';
 import { OrganizerDashboardPage } from '@/pages/organizer/OrganizerDashboard';
 import { OrganizerEventsPage } from '@/pages/organizer/OrganizerEvents';
 import { OrganizerEventFormPage } from '@/pages/organizer/OrganizerEventForm';
@@ -35,6 +36,9 @@ import { OrganizerPostActivityReportPage } from '@/pages/organizer/OrganizerPost
 import { OrganizerEffectivenessReportPage } from '@/pages/organizer/OrganizerEffectivenessReport';
 import { OrganizerCsfReportPage } from '@/pages/organizer/OrganizerCsfReport';
 import { OrganizerProposalPage } from '@/pages/organizer/OrganizerProposal';
+import { OrganizerProposalListPage } from '@/pages/organizer/OrganizerProposalList';
+import { OrganizerAttendanceSheetPage } from '@/pages/organizer/OrganizerAttendanceSheet';
+import { OrganizerChecklistPrintPage } from '@/pages/organizer/OrganizerChecklistPrint';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboard';
 import { AdminUsersPage } from '@/pages/admin/AdminUsers';
 import { AdminEventsPage } from '@/pages/admin/AdminEvents';
@@ -70,6 +74,10 @@ export default function App() {
       <Route element={<ProtectedRoute roles={[...ORGANIZER_ROLES]} />}>
         <Route element={<OrganizerLayout />}>
           <Route path="/organizer/dashboard"          element={<OrganizerDashboardPage />} />
+          <Route path="/organizer/proposals"             element={<OrganizerProposalListPage />} />
+          <Route path="/organizer/proposals/new"         element={<OrganizerEventFormPage />} />
+          <Route path="/organizer/proposals/:id"         element={<OrganizerProposalPage />} />
+          <Route path="/organizer/proposals/:id/edit"    element={<OrganizerEventFormPage />} />
           <Route path="/organizer/events"             element={<OrganizerEventsPage />} />
           <Route path="/organizer/events/new"         element={<OrganizerEventFormPage />} />
           <Route path="/organizer/events/:id"                    element={<OrganizerEventDetailPage />} />
@@ -82,6 +90,8 @@ export default function App() {
           <Route path="/organizer/events/:id/par"                element={<OrganizerPostActivityReportPage />} />
           <Route path="/organizer/events/:id/effectiveness"       element={<OrganizerEffectivenessReportPage />} />
           <Route path="/organizer/events/:id/csf-report"           element={<OrganizerCsfReportPage />} />
+          <Route path="/organizer/events/:id/attendance-sheet"     element={<OrganizerAttendanceSheetPage />} />
+          <Route path="/organizer/events/:id/checklist-print"      element={<OrganizerChecklistPrintPage />} />
           <Route path="/organizer/events/:id/proposal"             element={<OrganizerProposalPage />} />
           <Route path="/organizer/reports"                       element={<OrganizerReportsPage />} />
           <Route path="/organizer/profile"            element={<ProfilePage />} />
@@ -107,6 +117,7 @@ export default function App() {
           <Route path="/my-events/:participationId/qr"  element={<MyQrPage />} />
           <Route path="/my-events/:participationId/csf" element={<CsfSurveyPage />} />
           <Route path="/my-events/:participationId/impact" element={<ImpactSurveyPage />} />
+          <Route path="/my-events/:participationId/responses" element={<MySurveyResponsesPage />} />
           <Route path="/my-certificates"     element={<MyCertificatesPage />} />
           <Route path="/profile"             element={<ProfilePage />} />
         </Route>

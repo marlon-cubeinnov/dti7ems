@@ -93,9 +93,9 @@ export function MyEventsPage() {
                   </Link>
                 )}
                 {p.csfSurveyResponse?.status === 'SUBMITTED' && (
-                  <span className="text-xs text-blue-700 bg-blue-50 rounded-input px-3 py-1.5 font-medium">
+                  <Link to={`/my-events/${p.id}/responses`} className="text-xs text-blue-700 bg-blue-50 rounded-input px-3 py-1.5 font-medium hover:bg-blue-100 transition-colors">
                     Survey Submitted ✓
-                  </span>
+                  </Link>
                 )}
                 {/* Impact Survey CTA */}
                 {p.impactSurveyResponse?.status === 'PENDING' && (
@@ -104,9 +104,9 @@ export function MyEventsPage() {
                   </Link>
                 )}
                 {p.impactSurveyResponse?.status === 'SUBMITTED' && (
-                  <span className="text-xs text-purple-700 bg-purple-50 rounded-input px-3 py-1.5 font-medium">
+                  <Link to={`/my-events/${p.id}/responses`} className="text-xs text-purple-700 bg-purple-50 rounded-input px-3 py-1.5 font-medium hover:bg-purple-100 transition-colors">
                     Impact Survey Submitted ✓
-                  </span>
+                  </Link>
                 )}
                 {/* Certificate */}
                 {p.certificate?.status === 'ISSUED' && (

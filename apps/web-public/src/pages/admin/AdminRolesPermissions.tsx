@@ -219,7 +219,7 @@ export function AdminRolesPermissionsPage() {
           <h2 className="text-lg font-semibold text-gray-700 mb-2">No Roles Configured</h2>
           <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
             Initialize the default roles and permissions to get started. This will create the standard DTI EMS roles
-            (Participant, Facilitator, Technical Staff, System Admin, Super Admin) with appropriate permissions.
+            (Participant, Facilitator, Technical Staff, Division Chief, Regional Director, Provincial Director, System Admin, Super Admin) with appropriate permissions.
           </p>
           <button
             onClick={() => seedMut.mutate()}

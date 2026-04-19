@@ -184,7 +184,11 @@ export function OrganizerProposalPage() {
   });
 
   const assignMut = useMutation({
-    mutationFn: () => organizerApi.assignOrganizer(id!, selectedFacilitatorId),
+    mutationFn: () => {
+      const selected = facilitators.find((f: any) => f.id === selectedFacilitatorId);
+      const name = selected ? `${selected.firstName} ${selected.lastName}` : undefined;
+      return organizerApi.assignOrganizer(id!, selectedFacilitatorId, name);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['proposal', id] });
       qc.invalidateQueries({ queryKey: ['event', id] });
@@ -285,7 +289,7 @@ export function OrganizerProposalPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Link to={`/organizer/events/${id}`} className="text-gray-500 hover:text-gray-700 mt-1">
+          <Link to="/organizer/proposals" className="text-gray-500 hover:text-gray-700 mt-1">
             <ArrowLeft size={20} />
           </Link>
           <div>
@@ -426,8 +430,8 @@ export function OrganizerProposalPage() {
             </div>
           )}
 
-          {/* Assign Facilitator — shown when proposal is APPROVED and user is PM/Admin */}
-          {proposalStatus === 'APPROVED' && user?.role !== 'EVENT_ORGANIZER' && (
+          {/* Assign Facilitator — shown when proposal is APPROVED and user is Technical Staff or Admin */}
+          {proposalStatus === 'APPROVED' && ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '') && (
             <div className="border-t pt-5 space-y-3">
               <div className="flex items-center gap-2">
                 <UserCheck size={16} className="text-green-600" />
@@ -436,35 +440,45 @@ export function OrganizerProposalPage() {
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">Assigned</span>
                 )}
               </div>
-              <p className="text-xs text-gray-500">Select a Facilitator (Event Organizer) to hand over this event.</p>
-              <div className="flex gap-2">
-                <input
-                  className="input flex-1 text-sm"
-                  placeholder="Search facilitator by name…"
-                  value={staffSearch}
-                  onChange={e => setStaffSearch(e.target.value)}
-                />
-              </div>
-              <select
-                className="input text-sm"
-                value={selectedFacilitatorId}
-                onChange={e => setSelectedFacilitatorId(e.target.value)}
-              >
-                <option value="">— Select a Facilitator —</option>
-                {facilitators.map((f: any) => (
-                  <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
-                ))}
-                {facilitators.length === 0 && staffSearch && (
-                  <option disabled>No facilitators found</option>
-                )}
-              </select>
-              <button
-                onClick={() => assignMut.mutate()}
-                disabled={!selectedFacilitatorId || assignMut.isPending}
-                className="btn-primary flex items-center gap-2 text-sm"
-              >
-                <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign Facilitator'}
-              </button>
+              {proposal?.assignedOrganizerId ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <p className="text-sm text-green-800 font-medium">
+                    {proposal.assignedOrganizerName || 'Facilitator'} <span className="text-xs text-green-600">(assigned)</span>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500">Select a Facilitator to hand over this event.</p>
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Search facilitator by name…"
+                      value={staffSearch}
+                      onChange={e => setStaffSearch(e.target.value)}
+                    />
+                  </div>
+                  <select
+                    className="input text-sm"
+                    value={selectedFacilitatorId}
+                    onChange={e => setSelectedFacilitatorId(e.target.value)}
+                  >
+                    <option value="">— Select a Facilitator —</option>
+                    {facilitators.map((f: any) => (
+                      <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
+                    ))}
+                    {facilitators.length === 0 && staffSearch && (
+                      <option disabled>No facilitators found</option>
+                    )}
+                  </select>
+                  <button
+                    onClick={() => assignMut.mutate()}
+                    disabled={!selectedFacilitatorId || assignMut.isPending}
+                    className="btn-primary flex items-center gap-2 text-sm"
+                  >
+                    <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign Facilitator'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

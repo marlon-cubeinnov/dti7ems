@@ -41,6 +41,7 @@ export function ParticipantLayout() {
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/events" className={navLinkClass}>Events</NavLink>
             <NavLink to="/directory" className={navLinkClass}>Directory</NavLink>
+            <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className={navLinkClass({ isActive: false })}>User Manual</a>
 
             <div className="w-px h-6 bg-white/20 mx-2" />
 

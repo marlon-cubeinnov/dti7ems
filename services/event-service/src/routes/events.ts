@@ -22,6 +22,14 @@ const createEventSchema = z.object({
   requiresTNA:         z.boolean().default(true),
   latitude:            z.number().min(-90).max(90).optional().nullable(),
   longitude:           z.number().min(-180).max(180).optional().nullable(),
+  // Proposal fields (can be set during creation)
+  trainingType:        z.enum(['BUSINESS', 'MANAGERIAL', 'ORGANIZATIONAL', 'ENTREPRENEURIAL', 'INTER_AGENCY']).optional().nullable(),
+  partnerInstitution:  z.string().max(500).optional().nullable(),
+  background:          z.string().max(10000).optional().nullable(),
+  objectives:          z.string().max(10000).optional().nullable(),
+  learningOutcomes:    z.string().max(10000).optional().nullable(),
+  methodology:         z.string().max(10000).optional().nullable(),
+  monitoringPlan:      z.string().max(10000).optional().nullable(),
 });
 
 const listEventsSchema = z.object({
@@ -115,17 +123,31 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
 
     const q = z.object({
-      page:   z.coerce.number().min(1).default(1),
-      limit:  z.coerce.number().min(1).max(100).default(50),
-      status: z.string().optional(),
+      page:           z.coerce.number().min(1).default(1),
+      limit:          z.coerce.number().min(1).max(100).default(50),
+      status:         z.string().optional(),
+      proposalStatus: z.string().optional(),
+      view:           z.enum(['proposals', 'events']).optional(),
     }).parse(request.query);
 
     const where: Record<string, unknown> = {};
     if (q.status) where['status'] = q.status;
+    if (q.proposalStatus) where['proposalStatus'] = q.proposalStatus;
+
+    // View filter: "proposals" = all proposal items regardless of approval status, "events" = approved/active items
+    if (q.view === 'proposals') {
+      where['proposalStatus'] = { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'] };
+    } else if (q.view === 'events') {
+      where['proposalStatus'] = 'APPROVED';
+      // Only show events that have been activated (not still in DRAFT status)
+      where['status'] = { not: 'DRAFT' };
+    }
 
     // Scope by role
     if (userRole === 'EVENT_ORGANIZER') {
       where['assignedOrganizerId'] = request.user.sub;
+      // Facilitators only see events that have been activated (not DRAFT)
+      where['status'] = { not: 'DRAFT' };
     } else if (userRole === 'PROGRAM_MANAGER') {
       where['organizerId'] = request.user.sub;
     } else if (userRole === 'DIVISION_CHIEF') {
@@ -426,7 +448,8 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         orderBy: { registeredAt: 'asc' },
         include: {
           tnaResponse:  { select: { compositeScore: true, recommendedTrack: true } },
-          certificate:  { select: { status: true, issuedAt: true } },
+          certificate:  { select: { status: true, issuedAt: true, verificationCode: true } },
+          csfSurveyResponse: { select: { status: true, submittedAt: true } },
           _count:       { select: { attendanceRecords: true } },
         },
       }),
@@ -478,6 +501,77 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     reply.header('Content-Type', 'text/csv');
     reply.header('Content-Disposition', `attachment; filename="${filename}"`);
     return reply.send(csv);
+  });
+
+  // GET /events/:id/participants/attendance-sheet — participants with demographics for FM-CT-2A
+  app.get('/:id/participants/attendance-sheet', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    if (!isOrganizer) {
+      throw new ForbiddenError('Only organizers or admins can view attendance sheet.');
+    }
+
+    const participations = await app.prisma.eventParticipation.findMany({
+      where: { eventId: id },
+      orderBy: { registeredAt: 'asc' },
+      select: {
+        id: true,
+        userId: true,
+        participantName: true,
+        participantEmail: true,
+        status: true,
+        enterpriseName: true,
+      },
+    });
+
+    if (participations.length === 0) {
+      return reply.send({ success: true, data: [] });
+    }
+
+    // Cross-schema query for demographics
+    const userIds = participations.map(p => p.userId);
+    const placeholders = userIds.map((_: string, i: number) => `$${i + 1}`).join(',');
+
+    const profiles: Array<{
+      id: string;
+      sex: string | null;
+      age_bracket: string | null;
+      employment_category: string | null;
+      social_classification: string | null;
+      mobile_number: string | null;
+      region: string | null;
+      province: string | null;
+      city_municipality: string | null;
+      client_type: string | null;
+    }> = await app.prisma.$queryRawUnsafe(
+      `SELECT id, sex, age_bracket, employment_category, social_classification,
+              mobile_number, region, province, city_municipality, client_type
+       FROM identity_schema.user_profiles
+       WHERE id IN (${placeholders})`,
+      ...userIds,
+    );
+
+    const profileMap = new Map(profiles.map(p => [p.id, p]));
+
+    const enriched = participations.map(p => {
+      const profile = profileMap.get(p.userId);
+      return {
+        ...p,
+        participantSex: profile?.sex ?? null,
+        participantAgeBracket: profile?.age_bracket ?? null,
+        participantEmployment: profile?.employment_category ?? null,
+        participantSocial: profile?.social_classification ?? null,
+        participantMobile: profile?.mobile_number ?? null,
+        participantAddress: [profile?.city_municipality, profile?.province].filter(Boolean).join(', ') || null,
+        participantCompany: p.enterpriseName ?? null,
+        participantClientType: profile?.client_type ?? null,
+      };
+    });
+
+    return reply.send({ success: true, data: enriched });
   });
 
   // GET /events/:id/report — comprehensive event report (organizer)
@@ -615,8 +709,8 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           totalResponses: csfAggregates._count,
           averages: csfAggregates._avg,
           feedback: {
-            highlights: csfResponses.filter(r => r.highlightsFeedback).map(r => r.highlightsFeedback),
-            improvements: csfResponses.filter(r => r.improvementsFeedback).map(r => r.improvementsFeedback),
+            highlights: [...new Set(csfResponses.filter(r => r.highlightsFeedback).map(r => r.highlightsFeedback))],
+            improvements: [...new Set(csfResponses.filter(r => r.improvementsFeedback).map(r => r.improvementsFeedback))],
           },
         },
         checklist: {
@@ -886,6 +980,70 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     });
 
     return reply.code(201).send({ success: true, data: par });
+  });
+
+  // GET /events/:id/par/demographics — auto-generate beneficiary demographics from participant profiles
+  app.get('/:id/par/demographics', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can view demographics.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    // Get user IDs of participants (attended, completed, confirmed, registered)
+    const participations = await app.prisma.eventParticipation.findMany({
+      where: { eventId: id, status: { in: ['ATTENDED', 'COMPLETED', 'RSVP_CONFIRMED', 'REGISTERED'] } },
+      select: { userId: true },
+    });
+
+    if (participations.length === 0) {
+      return reply.send({ success: true, data: [] });
+    }
+
+    const userIds = participations.map(p => p.userId);
+    const placeholders = userIds.map((_: string, i: number) => `$${i + 1}`).join(',');
+
+    // Cross-schema query for demographics grouped by industry
+    const rows: Array<{
+      industry_classification: string | null;
+      sex: string | null;
+      social_classification: string | null;
+      age_bracket: string | null;
+    }> = await app.prisma.$queryRawUnsafe(
+      `SELECT industry_classification, sex, social_classification, age_bracket
+       FROM identity_schema.user_profiles
+       WHERE id IN (${placeholders})`,
+      ...userIds,
+    );
+
+    // Group by industry_classification
+    const industryMap = new Map<string, { male: number; female: number; senior: number; pwd: number; total: number }>();
+
+    for (const row of rows) {
+      const industry = row.industry_classification || 'Others';
+      if (!industryMap.has(industry)) {
+        industryMap.set(industry, { male: 0, female: 0, senior: 0, pwd: 0, total: 0 });
+      }
+      const g = industryMap.get(industry)!;
+      g.total++;
+      if (row.sex === 'MALE') g.male++;
+      if (row.sex === 'FEMALE') g.female++;
+      if (row.social_classification === 'SENIOR_CITIZEN' || row.age_bracket === 'AGE_65_OR_HIGHER') g.senior++;
+      if (row.social_classification === 'PWD') g.pwd++;
+    }
+
+    const groups = Array.from(industryMap.entries()).map(([sector, counts]) => ({
+      sectorGroup: sector,
+      maleCount: counts.male,
+      femaleCount: counts.female,
+      seniorCitizenCount: counts.senior,
+      pwdCount: counts.pwd,
+      edtLevel: '',
+      actualCount: counts.total,
+    }));
+
+    return reply.send({ success: true, data: groups });
   });
 
   // PATCH /events/:id/par/status — transition PAR status
@@ -1182,10 +1340,10 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const role = request.user.role;
     if (!['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only Program Managers or admins can assign a facilitator.');
+      throw new ForbiddenError('Only Technical Staff can assign a facilitator.');
     }
 
-    const { organizerId } = z.object({ organizerId: z.string().min(1) }).parse(request.body);
+    const { organizerId, organizerName } = z.object({ organizerId: z.string().min(1), organizerName: z.string().optional() }).parse(request.body);
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
@@ -1196,7 +1354,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const updated = await app.prisma.event.update({
       where: { id },
-      data: { assignedOrganizerId: organizerId },
+      data: { assignedOrganizerId: organizerId, assignedOrganizerName: organizerName ?? null },
     });
 
     return reply.send({ success: true, data: updated, message: 'Facilitator assigned.' });

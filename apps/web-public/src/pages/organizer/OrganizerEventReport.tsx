@@ -113,10 +113,10 @@ export function OrganizerEventReportPage() {
             <p className="text-sm text-gray-500 mb-4">{csf.totalResponses} response(s)</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
               {[
-                { label: 'Overall', value: csf.averages.overallRating },
-                { label: 'Content', value: csf.averages.contentRating },
-                { label: 'Facilitator', value: csf.averages.facilitatorRating },
-                { label: 'Logistics', value: csf.averages.logisticsRating },
+                { label: 'Overall', value: csf.averages.sqd0OverallRating },
+                { label: 'Content', value: csf.averages.sqd4Communication },
+                { label: 'Facilitator', value: csf.averages.sqd6Integrity },
+                { label: 'Logistics', value: csf.averages.sqd3AccessFacilities },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center p-3 rounded-lg bg-gray-50">
                   <p className="text-2xl font-bold text-gray-900">{value ? Number(value).toFixed(1) : '—'}</p>

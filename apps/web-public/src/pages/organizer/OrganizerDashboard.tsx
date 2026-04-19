@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { organizerApi } from '@/lib/api';
 import { CalendarDays, Users, CheckCircle, Clock, PlusCircle, TrendingUp } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth.store';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:               'bg-gray-100 text-gray-600',
@@ -25,6 +26,8 @@ interface Event {
 }
 
 export function OrganizerDashboardPage() {
+  const { user } = useAuthStore();
+  const canCreateProposal = ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '');
   const { data, isLoading } = useQuery({
     queryKey: ['organizer-events-all'],
     queryFn: () => organizerApi.listMyEvents({ limit: 50 }),
@@ -50,12 +53,14 @@ export function OrganizerDashboardPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Organizer Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Staff Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage and monitor your events</p>
         </div>
-        <Link to="/organizer/events/new" className="btn-primary flex items-center gap-2">
-          <PlusCircle size={16} /> Create Event
-        </Link>
+        {canCreateProposal && (
+          <Link to="/organizer/proposals/new" className="btn-primary flex items-center gap-2">
+            <PlusCircle size={16} /> New Proposal
+          </Link>
+        )}
       </div>
 
       {/* Stat cards */}
@@ -91,9 +96,11 @@ export function OrganizerDashboardPage() {
           <div className="text-center py-8">
             <CalendarDays size={40} className="mx-auto text-gray-300 mb-2" />
             <p className="text-sm text-gray-500">No upcoming events.</p>
-            <Link to="/organizer/events/new" className="text-sm text-dti-blue hover:underline mt-1 inline-block">
-              Create your first event →
-            </Link>
+            {canCreateProposal && (
+              <Link to="/organizer/proposals/new" className="text-sm text-dti-blue hover:underline mt-1 inline-block">
+                Create your first proposal →
+              </Link>
+            )}
           </div>
         ) : (
           <div className="divide-y">

@@ -47,6 +47,11 @@ export function PublicLayout() {
                 Directory
               </NavLink>
             )}
+            {isAuthenticated && (
+              <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-full text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white transition-all">
+                User Manual
+              </a>
+            )}
 
             <div className="w-px h-6 bg-white/20 mx-2" />
 

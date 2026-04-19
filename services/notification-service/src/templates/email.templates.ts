@@ -155,23 +155,24 @@ export interface ImpactSurveyInviteData {
 
 export function impactSurveyInvite(data: ImpactSurveyInviteData): { subject: string; html: string } {
   return {
-    subject: `6-Month Impact Survey: ${data.eventTitle}`,
+    subject: `FM-CT-5 Training Monitoring & Evaluation: ${data.eventTitle}`,
     html: baseLayout(`
-      <h2>How did the training impact you? 📊</h2>
+      <h2>Training Monitoring and Evaluation Form (FM-CT-5) 📊</h2>
       <p>Hello <strong>${data.participantName}</strong>,</p>
       <p>Six months ago, you attended <strong>${data.eventTitle}</strong> (${data.eventDate}).</p>
-      <p>We'd love to know how the training has impacted your work. This brief survey helps DTI Region 7 measure program effectiveness and improve future initiatives.</p>
+      <p>As part of DTI Region 7's training monitoring process, we need you to complete the <strong>FM-CT-5 Training Monitoring and Evaluation Form</strong>. This form measures how effectively the training was applied in your business operations.</p>
       <p style="text-align:center;margin:24px 0">
-        <a href="${FRONTEND_URL}/my-events/${data.participationId}/impact" class="btn">Complete Impact Survey →</a>
+        <a href="${FRONTEND_URL}/my-events/${data.participationId}/impact" class="btn">Complete FM-CT-5 Impact Survey →</a>
       </p>
-      <p>The survey covers:</p>
+      <p>The form covers:</p>
       <ul style="color:#555;font-size:13px">
-        <li>Knowledge application in your work</li>
-        <li>Skill improvement since the training</li>
-        <li>Business impact &amp; growth metrics</li>
-        <li>Your success story</li>
+        <li>Whether you applied the learnings from the training</li>
+        <li>Benefit indicators (sales, profit, cost reduction, productivity, etc.)</li>
+        <li>Additional assistance needs</li>
+        <li>Training effectiveness assessment</li>
+        <li>Knowledge application and business impact ratings</li>
       </ul>
-      <p style="color:#999;font-size:12px">This survey will expire in 30 days. Your responses are confidential.</p>
+      <p style="color:#999;font-size:12px">This survey will expire in 30 days. Your responses are confidential and help DTI improve future training programs.</p>
     `),
   };
 }

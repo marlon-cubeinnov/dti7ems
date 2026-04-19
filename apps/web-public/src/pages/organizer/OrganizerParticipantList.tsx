@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { organizerApi, eventsApi } from '@/lib/api';
-import { ArrowLeft, Download } from 'lucide-react';
+import { organizerApi, eventsApi, certificatesApi } from '@/lib/api';
+import { ArrowLeft, Download, ExternalLink, Eye, FileDown } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -16,6 +16,12 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUSES = ['', 'REGISTERED', 'WAITLISTED', 'RSVP_PENDING', 'RSVP_CONFIRMED', 'ATTENDED', 'NO_SHOW', 'CANCELLED'];
+
+const CSF_STATUS_COLORS: Record<string, string> = {
+  SUBMITTED: 'bg-green-50 text-green-700',
+  PENDING:   'bg-amber-50 text-amber-700',
+  EXPIRED:   'bg-gray-100 text-gray-500',
+};
 
 export function OrganizerParticipantListPage() {
   const { id } = useParams<{ id: string }>();
@@ -108,6 +114,12 @@ export function OrganizerParticipantListPage() {
         >
           <Download size={14} /> Export CSV
         </button>
+        <Link
+          to={`/organizer/events/${id}/attendance-sheet`}
+          className="btn-secondary flex items-center gap-1.5 text-sm shrink-0"
+        >
+          <ExternalLink size={14} /> Print Attendance Sheet
+        </Link>
       </div>
 
       {/* Table */}
@@ -131,7 +143,7 @@ export function OrganizerParticipantListPage() {
           <p className="text-center text-gray-400 text-sm py-10">No participants found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="text-left border-b bg-gray-50">
                   <th className="px-4 py-3 font-semibold text-gray-600">Name</th>
@@ -139,6 +151,7 @@ export function OrganizerParticipantListPage() {
                   <th className="px-4 py-3 font-semibold text-gray-600">Status</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 text-right">TNA Score</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 text-right">Sessions</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600">CSF Survey</th>
                   <th className="px-4 py-3 font-semibold text-gray-600">Certificate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600">Registered</th>
                 </tr>
@@ -164,10 +177,35 @@ export function OrganizerParticipantListPage() {
                       {p._count?.attendanceRecords ?? 0}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
+                      {p.csfSurveyResponse?.status ? (
+                        p.csfSurveyResponse.status === 'SUBMITTED' ? (
+                          <Link
+                            to={`/organizer/events/${id}/csf-results`}
+                            className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 hover:bg-green-100 transition-colors`}
+                          >
+                            SUBMITTED <Eye size={10} />
+                          </Link>
+                        ) : (
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${CSF_STATUS_COLORS[p.csfSurveyResponse.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {p.csfSurveyResponse.status}
+                          </span>
+                        )
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
                       {p.certificate?.status ? (
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${p.certificate.status === 'ISSUED' ? 'bg-teal-50 text-teal-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {p.certificate.status}
-                        </span>
+                        p.certificate.status === 'ISSUED' ? (
+                          <button
+                            onClick={() => certificatesApi.downloadCertificatePdf(p.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer"
+                          >
+                            ISSUED <FileDown size={10} />
+                          </button>
+                        ) : (
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600`}>
+                            {p.certificate.status}
+                          </span>
+                        )
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">

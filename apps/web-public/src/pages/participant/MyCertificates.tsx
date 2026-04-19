@@ -155,7 +155,7 @@ export function MyCertificatesPage() {
         <div className="card text-center py-16">
           <p className="text-gray-500">No certificates yet.</p>
           <p className="text-sm text-gray-400 mt-1">
-            Complete an event and your certificate will appear here once issued by the organizer.
+            Complete an event and your certificate will appear here once issued by the facilitator.
           </p>
         </div>
       ) : (

@@ -132,7 +132,8 @@ model Event {
   organizerId          String       @map("organizer_id")
   programManagerId     String?      @map("program_manager_id")
   // Facilitator assigned after proposal approval (EVENT_ORGANIZER role)
-  assignedOrganizerId  String?      @map("assigned_organizer_id")
+  assignedOrganizerId    String?      @map("assigned_organizer_id")
+  assignedOrganizerName  String?      @map("assigned_organizer_name")
 
   coverImageUrl        String?      @map("cover_image_url")
 

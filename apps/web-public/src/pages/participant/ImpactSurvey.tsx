@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi, surveyApi } from '@/lib/api';
+import dtiLogo from '@/assets/dti-logo.jpg';
 
 function StarRating({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   return (
@@ -167,15 +168,46 @@ export function ImpactSurveyPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 1.5cm; }
+          body * { visibility: hidden; }
+          .fm-ct5-print, .fm-ct5-print * { visibility: visible; }
+          .fm-ct5-print { position: absolute; left: 0; top: 0; width: 100%; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
+      <div className="no-print">
         <button onClick={() => navigate('/my-events')} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← My Events
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Impact Assessment Survey</h1>
-        <p className="text-gray-600 mt-1">{eventTitle}</p>
-        <p className="text-sm text-gray-500 mt-2">
-          This survey measures the impact of the training/event on your business operations, 6 months after the activity.
-        </p>
+      </div>
+
+      <div className="fm-ct5-print">
+      {/* FM-CT-5 Official Header */}
+      <div className="card border-2 border-gray-300 p-6 mb-6">
+        <div className="flex items-start justify-between gap-4">
+          <img src={dtiLogo} alt="DTI Logo" className="h-16 w-auto" />
+          <div className="text-center flex-1">
+            <p className="text-sm font-bold text-gray-900">DEPARTMENT OF TRADE AND INDUSTRY</p>
+            <p className="text-sm text-gray-700">[Region VII — Central Visayas]</p>
+            <p className="text-base font-bold text-gray-900 mt-2">TRAINING MONITORING AND<br />EVALUATION FORM</p>
+            <p className="text-xs text-gray-600 mt-1">(6 months after conduct of training)</p>
+          </div>
+          <div className="text-right text-[10px] text-gray-500 border border-gray-300 p-2 rounded shrink-0">
+            <p>Doc Code: <strong>FM-CT-5</strong></p>
+            <p>Version No.: <strong>1</strong></p>
+            <p>Effective Date:</p>
+            <p><strong>February 1, 2024</strong></p>
+          </div>
+        </div>
+        <div className="mt-4 border-t pt-3 text-sm text-gray-700 space-y-1">
+          <p><strong>Title of Training/Seminar/Fora Attended:</strong> {eventTitle ?? '________________'}</p>
+          <p><strong>Date and Place of Activity:</strong> {participation?.event?.endDate ? new Date(participation.event.endDate).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) : '________________'}</p>
+        </div>
+        <p className="text-xs text-gray-500 mt-3 italic">Instruction: Place a tick (/) to your corresponding answer and qualify on the Remarks, if needed.</p>
       </div>
 
       <div className="card space-y-6">
@@ -294,8 +326,8 @@ export function ImpactSurveyPage() {
       </div>
 
       {/* FM-CT-5 Training Effectiveness Evaluation */}
-      <div className="card space-y-5">
-        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Training Effectiveness Evaluation (FM-CT-5)</h3>
+      <div className="card space-y-5 border-2 border-gray-300">
+        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">FM-CT-5 · Training Effectiveness Evaluation</h3>
 
         {/* Applied Learnings */}
         <div className="space-y-2">
@@ -446,13 +478,14 @@ export function ImpactSurveyPage() {
       )}
 
       <button
-        className="btn-primary w-full"
+        className="btn-primary w-full no-print"
         disabled={!isValid || submit.isPending}
         onClick={() => submit.mutate()}
       >
         {submit.isPending ? 'Submitting…' : 'Submit Impact Assessment'}
       </button>
-      <p className="text-xs text-gray-500 text-center pb-4">All ratings are required. Quantitative data and feedback are optional but appreciated.</p>
+      <p className="text-xs text-gray-500 text-center pb-4 no-print">All ratings are required. Quantitative data and feedback are optional but appreciated.</p>
+      </div>{/* close fm-ct5-print */}
     </div>
   );
 }

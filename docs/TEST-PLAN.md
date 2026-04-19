@@ -1,6 +1,6 @@
 # DTI Region 7 — EMS Dashboard
 # Comprehensive System Test Plan
-## Version 1.0 | April 18, 2026
+## Version 2.0 | April 18, 2026
 
 ---
 
@@ -18,28 +18,30 @@
    - TC-06: Password Reset
    - TC-07: User Profile Management
    - TC-08: Enterprise Profile Management
-   - TC-09: Event Creation
-   - TC-10: Event Lifecycle (Status Transitions)
-   - TC-11: Event Checklist (Planning & Preparation)
-   - TC-12: Session Management
-   - TC-13: Participant Registration
-   - TC-14: TNA Assessment
-   - TC-15: RSVP Confirmation
-   - TC-16: QR Attendance Scanning
-   - TC-17: Manual Check-In
-   - TC-18: CSF Survey (Participant)
-   - TC-19: Certificate Issuance & PDF
-   - TC-20: Certificate Verification (Public)
-   - TC-21: Impact Survey (6-Month)
-   - TC-22: Organizer Dashboard
-   - TC-23: Organizer Event Report
-   - TC-24: Organizer Reports Dashboard
-   - TC-25: Admin Dashboard & User Management
-   - TC-26: Admin Reports
-   - TC-27: Public Enterprise Directory
-   - TC-28: Notification System (Email/SMS)
-   - TC-29: Cron Jobs (RSVP & Survey Reminders)
-   - TC-30: End-to-End Full Event Lifecycle
+   - TC-09: Training Proposal Creation (Technical Staff)
+   - TC-10: Proposal Approval Workflow (Division Chief → Regional Director)
+   - TC-11: Facilitator Assignment (Technical Staff)
+   - TC-12: Event Lifecycle (Status Transitions)
+   - TC-13: Event Checklist (Planning & Preparation)
+   - TC-14: Session Management
+   - TC-15: Participant Registration
+   - TC-16: TNA Assessment
+   - TC-17: RSVP Confirmation
+   - TC-18: QR Attendance Scanning
+   - TC-19: Manual Check-In
+   - TC-20: CSF Survey (Participant)
+   - TC-21: Certificate Issuance & PDF
+   - TC-22: Certificate Verification (Public)
+   - TC-23: Impact Survey (6-Month)
+   - TC-24: Staff Dashboard
+   - TC-25: Organizer Event Report
+   - TC-26: Organizer Reports Dashboard
+   - TC-27: Admin Dashboard & User Management
+   - TC-28: Admin Reports
+   - TC-29: Public Enterprise Directory
+   - TC-30: Notification System (Email/SMS)
+   - TC-31: Cron Jobs (RSVP & Survey Reminders)
+   - TC-32: End-to-End Full Event Lifecycle
 
 ---
 
@@ -84,13 +86,22 @@ Validate the full EMS platform from event planning through post-event reporting.
 
 ## 3. Test Accounts
 
-Create these accounts during testing. Use Mailpit to verify and activate.
+Pre-seeded accounts (all use password `Admin@123456`):
+
+| Role | Email | Display Title | Purpose |
+|---|---|---|---|
+| Super Admin | super.admin@dti7.gov.ph | Super Admin | Full system access |
+| System Admin | system.admin@dti7.gov.ph | System Admin | System administration |
+| Technical Staff | technical.staff@dti7.gov.ph | Technical Staff | Proposal creation, facilitator assignment, event oversight |
+| Facilitator | facilitator@dti7.gov.ph | Facilitator | Event execution, checklist, QR scan, reports |
+| Division Chief | division.chief@dti7.gov.ph | Division Chief | First-level proposal review |
+| Regional Director | regional.director@dti7.gov.ph | Regional Director | Final proposal approval |
+| Provincial Director | provincial.director@dti7.gov.ph | Provincial Director | Final proposal approval |
+
+Create these additional accounts during testing:
 
 | Role | Email | Purpose |
 |---|---|---|
-| Super Admin | admin@dti7ems.test | Full system access |
-| Program Manager | pm@dti7ems.test | Program oversight, all events |
-| Event Organizer | organizer@dti7ems.test | Event creation, management |
 | Participant (Individual) | participant1@test.com | Standard participant flow |
 | Participant (Individual) | participant2@test.com | Second participant (waitlist test) |
 | Business Owner | owner@biztest.com | Business registration |
@@ -223,43 +234,85 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-09: Event Creation
+### TC-09: Training Proposal Creation (Technical Staff)
 
-**Precondition:** Logged in as Event Organizer or Program Manager
-
-| # | Step | Expected Result | Status |
-|---|---|---|---|
-| 1 | Navigate to `/organizer/events/new` | Event creation form | ☐ |
-| 2 | Fill required fields: Title, Start Date, End Date | Form validated | ☐ |
-| 3 | Set End Date before Start Date | Validation error | ☐ |
-| 4 | Set optional: Venue, Max Participants, Target Sector, Delivery Mode | Fields accepted | ☐ |
-| 5 | Submit form | Event created with DRAFT status | ☐ |
-| 6 | Verify event appears in `/organizer/events` list | Event shown with DRAFT badge | ☐ |
-| 7 | Edit event details | Changes saved | ☐ |
-
----
-
-### TC-10: Event Lifecycle (Status Transitions)
-
-**Precondition:** TC-09 event exists in DRAFT status
+**Precondition:** Logged in as Technical Staff (technical.staff@dti7.gov.ph)
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 1 | View event detail | Status buttons show: "Publish", "Cancel" | ☐ |
-| 2 | Click "Publish" | Status → PUBLISHED | ☐ |
-| 3 | Click "Open Registration" | Status → REGISTRATION_OPEN, event visible to public | ☐ |
-| 4 | Register participants (TC-13) | Participants can register | ☐ |
-| 5 | Click "Close Registration" | Status → REGISTRATION_CLOSED | ☐ |
-| 6 | Click "Mark Ongoing" | Status → ONGOING | ☐ |
-| 7 | Conduct attendance (TC-16/TC-17) | Attendance recorded | ☐ |
-| 8 | Click "Mark Complete" | Status → COMPLETED, auto-creates CSF surveys | ☐ |
-| 9 | Verify CSF surveys auto-created | PENDING CSF records for all ATTENDED participants | ☐ |
-| 10 | Verify CSF email invites sent | Check Mailpit for survey invite emails | ☐ |
-| 11 | Attempt invalid transition (COMPLETED → DRAFT) | Error: transition not allowed | ☐ |
+| 1 | Navigate to `/organizer/dashboard` | Staff Dashboard with "New Proposal" button visible | ☐ |
+| 2 | Click "New Proposal" | Proposal form with 3 sections: Training Info, Schedule & Logistics, Proposal Details | ☐ |
+| 3 | Fill Training Info: Title, Program, Training Type, Description | Fields accept input | ☐ |
+| 4 | Fill Schedule: Start Date, End Date, Delivery Mode, Venue, Max Participants, Target Sector | Fields validated (end ≥ start) | ☐ |
+| 5 | Fill Proposal Details: Background, Objectives, Learning Outcomes, Methodology, Monitoring Plan | Textarea fields accept input | ☐ |
+| 6 | Submit proposal | Proposal created with DRAFT status, proposalStatus=PENDING | ☐ |
+| 7 | Verify proposal appears in "My Proposals" list | Proposal listed with PENDING badge | ☐ |
+| 8 | View proposal detail page | All fields displayed under tabs: Proposal Details, Budget, Risk Register, Target Groups | ☐ |
+| 9 | Edit proposal (while in DRAFT/PENDING) | Changes saved | ☐ |
+| 10 | Login as Facilitator → Dashboard | "New Proposal" button NOT visible | ☐ |
+| 11 | Login as Division Chief → Dashboard | "New Proposal" button NOT visible | ☐ |
+| 12 | Login as Regional Director → Dashboard | "New Proposal" button NOT visible | ☐ |
 
 ---
 
-### TC-11: Event Checklist (Planning & Preparation)
+### TC-10: Proposal Approval Workflow (Division Chief → Regional Director)
+
+**Precondition:** TC-09 proposal exists in PENDING status
+
+| # | Step | Expected Result | Status |
+|---|---|---|---|
+| 1 | Login as Division Chief | Sidebar shows "Proposals Queue" | ☐ |
+| 2 | View proposals list | Pending proposals visible | ☐ |
+| 3 | Open proposal detail | Proposal details displayed with approval controls | ☐ |
+| 4 | Division Chief approves (or returns for revision) | Proposal status updated, forwarded to Regional Director | ☐ |
+| 5 | Login as Regional Director | Sidebar shows "For Approval" | ☐ |
+| 6 | View proposals list | DC-approved proposals visible | ☐ |
+| 7 | Regional Director gives final approval | proposalStatus → APPROVED | ☐ |
+| 8 | Login as Provincial Director | Can also approve (same as RD) | ☐ |
+| 9 | Verify Facilitator cannot see approval controls | No approve/reject buttons | ☐ |
+
+---
+
+### TC-11: Facilitator Assignment (Technical Staff)
+
+**Precondition:** Proposal in APPROVED status
+
+| # | Step | Expected Result | Status |
+|---|---|---|---|
+| 1 | Login as Technical Staff | Navigate to approved proposal detail | ☐ |
+| 2 | "Assign Facilitator" section visible | Search input and dropdown shown | ☐ |
+| 3 | Search for facilitator by name | Matching facilitators appear in dropdown | ☐ |
+| 4 | Select facilitator and click "Assign Facilitator" | Assignment saved, "Assigned" badge appears | ☐ |
+| 5 | Login as Division Chief, view approved proposal | "Assign Facilitator" section NOT visible | ☐ |
+| 6 | Login as Regional Director, view approved proposal | "Assign Facilitator" section NOT visible | ☐ |
+| 7 | Login as Provincial Director, view approved proposal | "Assign Facilitator" section NOT visible | ☐ |
+| 8 | Login as Facilitator, view approved proposal | "Assign Facilitator" section NOT visible | ☐ |
+| 9 | Non-Technical Staff tries to assign via API | 403: "Only Technical Staff can assign a facilitator." | ☐ |
+
+---
+
+### TC-12: Event Lifecycle (Status Transitions)
+
+**Precondition:** Approved proposal with assigned facilitator
+
+| # | Step | Expected Result | Status |
+|---|---|---|---|
+| 1 | Login as assigned Facilitator | Event appears in "My Events" | ☐ |
+| 2 | View event detail | Status buttons show: "Publish", "Cancel" | ☐ |
+| 3 | Click "Publish" | Status → PUBLISHED | ☐ |
+| 4 | Click "Open Registration" | Status → REGISTRATION_OPEN, event visible to public | ☐ |
+| 5 | Register participants (TC-15) | Participants can register | ☐ |
+| 6 | Click "Close Registration" | Status → REGISTRATION_CLOSED | ☐ |
+| 7 | Click "Mark Ongoing" | Status → ONGOING | ☐ |
+| 8 | Conduct attendance (TC-18/TC-19) | Attendance recorded | ☐ |
+| 9 | Click "Mark Complete" | Status → COMPLETED, auto-creates CSF surveys | ☐ |
+| 10 | Verify CSF surveys auto-created | PENDING CSF records for all ATTENDED participants | ☐ |
+| 11 | Verify CSF email invites sent | Check Mailpit for survey invite emails | ☐ |
+| 12 | Attempt invalid transition (COMPLETED → DRAFT) | Error: transition not allowed | ☐ |
+
+---
+
+### TC-13: Event Checklist (Planning & Preparation)
 
 **Precondition:** Event created (any status)
 
@@ -287,9 +340,9 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-12: Session Management
+### TC-14: Session Management
 
-**Precondition:** Event exists, logged in as organizer
+**Precondition:** Event exists, logged in as Facilitator or Technical Staff
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
@@ -302,7 +355,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-13: Participant Registration
+### TC-15: Participant Registration
 
 **Precondition:** Event in REGISTRATION_OPEN status
 
@@ -320,7 +373,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-14: TNA Assessment
+### TC-16: TNA Assessment
 
 **Precondition:** Participant registered for event with requiresTNA=true
 
@@ -333,7 +386,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-15: RSVP Confirmation
+### TC-17: RSVP Confirmation
 
 **Precondition:** TNA completed
 
@@ -345,7 +398,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-16: QR Attendance Scanning
+### TC-18: QR Attendance Scanning
 
 **Precondition:** Event ONGOING, participant RSVP_CONFIRMED, sessions created
 
@@ -362,7 +415,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-17: Manual Check-In
+### TC-19: Manual Check-In
 
 **Precondition:** Event ONGOING, session selected
 
@@ -375,7 +428,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-18: CSF Survey (Participant)
+### TC-20: CSF Survey (Participant)
 
 **Precondition:** Event COMPLETED, participant ATTENDED, CSF record PENDING
 
@@ -390,7 +443,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-19: Certificate Issuance & PDF
+### TC-21: Certificate Issuance & PDF
 
 **Precondition:** Event COMPLETED, participant ATTENDED
 
@@ -405,7 +458,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-20: Certificate Verification (Public)
+### TC-22: Certificate Verification (Public)
 
 **Precondition:** Certificate ISSUED with verification code
 
@@ -418,7 +471,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-21: Impact Survey (6-Month)
+### TC-23: Impact Survey (6-Month)
 
 **Precondition:** Event completed 180+ days ago (or manually tested)
 
@@ -432,21 +485,23 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-22: Organizer Dashboard
+### TC-24: Staff Dashboard
 
-**Precondition:** Logged in as EVENT_ORGANIZER or PROGRAM_MANAGER
+**Precondition:** Logged in as Facilitator or Technical Staff
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
 | 1 | Navigate to `/organizer/dashboard` | Dashboard with 4 stat cards | ☐ |
 | 2 | Stats show: Total Events, Drafts, Open for Reg, Completed | Counts match actual data | ☐ |
 | 3 | Upcoming Events list | Shows events sorted by date, max 5 | ☐ |
-| 4 | "Create Event" button works | Navigates to event form | ☐ |
-| 5 | "View all" link works | Navigates to events list | ☐ |
+| 4 | As Technical Staff: "New Proposal" button visible | Navigates to proposal form | ☐ |
+| 5 | As Facilitator: "New Proposal" button NOT visible | Only event management | ☐ |
+| 6 | As Division Chief: "New Proposal" button NOT visible | Approver role only | ☐ |
+| 7 | "View all" link works | Navigates to events list | ☐ |
 
 ---
 
-### TC-23: Organizer Event Report
+### TC-25: Organizer Event Report
 
 **Precondition:** Event exists (ideally COMPLETED for full data)
 
@@ -462,7 +517,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-24: Organizer Reports Dashboard
+### TC-26: Organizer Reports Dashboard
 
 **Precondition:** Multiple events exist in various statuses
 
@@ -475,12 +530,12 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 | 5 | Performance Summary | Attended count, attendance %, certificates, CSF response rate | ☐ |
 | 6 | Recent Completed Events table | Events with participants, attended, rate, CSF count | ☐ |
 | 7 | "View Report →" link per event | Navigates to individual event report | ☐ |
-| 8 | Program Manager sees ALL events | Not filtered by organizerId | ☐ |
-| 9 | Event Organizer sees only OWN events | Filtered by organizerId | ☐ |
+| 8 | Technical Staff sees ALL events | Not filtered by organizerId | ☐ |
+| 9 | Facilitator sees only OWN events | Filtered by organizerId | ☐ |
 
 ---
 
-### TC-25: Admin Dashboard & User Management
+### TC-27: Admin Dashboard & User Management
 
 **Precondition:** Logged in as SYSTEM_ADMIN
 
@@ -498,7 +553,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-26: Admin Reports
+### TC-28: Admin Reports
 
 **Precondition:** Completed events with CSF responses, certificates issued
 
@@ -513,7 +568,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-27: Public Enterprise Directory
+### TC-29: Public Enterprise Directory
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
@@ -526,7 +581,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-28: Notification System (Email/SMS)
+### TC-30: Notification System (Email/SMS)
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
@@ -539,7 +594,7 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-29: Cron Jobs (RSVP & Survey Reminders)
+### TC-31: Cron Jobs (RSVP & Survey Reminders)
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
@@ -551,84 +606,97 @@ Create these accounts during testing. Use Mailpit to verify and activate.
 
 ---
 
-### TC-30: End-to-End Full Event Lifecycle
+### TC-32: End-to-End Full Event Lifecycle
 
 This is the master test case that exercises the complete platform from start to finish.
 
 **Duration:** ~30-45 minutes
 
-#### Phase 1: Planning
+#### Phase 1: Proposal & Approval
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 1 | Login as Event Organizer | Organizer dashboard | ☐ |
-| 2 | Create new event: "Kapatid Training on Digital Marketing" | Event in DRAFT | ☐ |
+| 1 | Login as Technical Staff | Staff Dashboard, "New Proposal" button visible | ☐ |
+| 2 | Create proposal: "Kapatid Training on Digital Marketing" | Proposal in DRAFT, proposalStatus=PENDING | ☐ |
 | 3 | Set details: Venue: "DTI 7 Conference Room", Start: [future date], Sector: "IT-BPM", Max: 20 | Saved | ☐ |
-| 4 | Go to Checklist → Create with template | 27 items across 4 phases | ☐ |
-| 5 | Mark Planning tasks as you prepare: objectives ✓, target ✓, date ✓, mode ✓ | Progress bar updates | ☐ |
-| 6 | Assign checklist items to team members | Names shown on items | ☐ |
+| 4 | Fill proposal details: Background, Objectives, Learning Outcomes, Methodology | Saved | ☐ |
+| 5 | Login as Division Chief | Proposal appears in "Proposals Queue" | ☐ |
+| 6 | Review and approve proposal | Forwarded to Regional Director | ☐ |
+| 7 | Login as Regional Director | Proposal appears in "For Approval" | ☐ |
+| 8 | Final approval | proposalStatus → APPROVED | ☐ |
 
-#### Phase 2: Preparation
-
-| # | Step | Expected Result | Status |
-|---|---|---|---|
-| 7 | Add 3 sessions to the event (AM Lecture, PM Workshop, Closing) | 3 sessions listed | ☐ |
-| 8 | Publish event (DRAFT → PUBLISHED) | Status = PUBLISHED | ☐ |
-| 9 | Open Registration (PUBLISHED → REGISTRATION_OPEN) | Event visible on public page | ☐ |
-| 10 | Mark Preparation checklist items as complete | Preparation phase progress updates | ☐ |
-
-#### Phase 3: Participant Registration
+#### Phase 2: Facilitator Assignment & Planning
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 11 | Logout. Register new participant1 (Individual) | Account created, verification email sent | ☐ |
-| 12 | Verify email via Mailpit link | Email verified | ☐ |
-| 13 | Login as participant1, register for event | Status = REGISTERED | ☐ |
-| 14 | Complete TNA (K:80, S:70, M:85) | Composite score calculated, TNA saved | ☐ |
-| 15 | Confirm RSVP | Status = RSVP_CONFIRMED | ☐ |
-| 16 | Register Business (owner+1 employee) | Business registered, employee invited | ☐ |
-| 17 | Accept employee invite via Mailpit | Employee account activated | ☐ |
-| 18 | Employee registers for same event | 2nd participant registered | ☐ |
+| 9 | Login as Technical Staff | View approved proposal | ☐ |
+| 10 | Assign Facilitator (facilitator@dti7.gov.ph) | Facilitator assigned, "Assigned" badge shown | ☐ |
+| 11 | Login as Facilitator | Event appears in "My Events" | ☐ |
+| 12 | Go to Checklist → Create with template | 27 items across 4 phases | ☐ |
+| 13 | Mark Planning tasks: objectives ✓, target ✓, date ✓, mode ✓ | Progress bar updates | ☐ |
 
-#### Phase 4: Event Day (Execution)
+#### Phase 3: Preparation
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 19 | Login as Organizer, close registration | Status = REGISTRATION_CLOSED | ☐ |
-| 20 | Mark event ONGOING | Status = ONGOING | ☐ |
-| 21 | Mark Execution checklist items: setup ✓, check-in started | Progress updates | ☐ |
-| 22 | Go to QR Scanner, select "AM Lecture" session | Scanner ready | ☐ |
-| 23 | Scan participant1's QR code | "Check-in successful: [name]" | ☐ |
-| 24 | Scan employee's QR code | "Check-in successful: [name]" | ☐ |
-| 25 | Switch to "PM Workshop" session, scan both | Both checked in | ☐ |
-| 26 | Switch to "Closing" session, scan both | All sessions attended | ☐ |
-| 27 | Verify both participants now have ATTENDED status | Statuses updated | ☐ |
+| 14 | Add 3 sessions to the event (AM Lecture, PM Workshop, Closing) | 3 sessions listed | ☐ |
+| 15 | Publish event (DRAFT → PUBLISHED) | Status = PUBLISHED | ☐ |
+| 16 | Open Registration (PUBLISHED → REGISTRATION_OPEN) | Event visible on public page | ☐ |
+| 17 | Mark Preparation checklist items as complete | Preparation phase progress updates | ☐ |
 
-#### Phase 5: Post-Event
+#### Phase 4: Participant Registration
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 28 | Mark event COMPLETED | Status = COMPLETED | ☐ |
-| 29 | Verify CSF surveys auto-created for both participants | 2 PENDING CSF records | ☐ |
-| 30 | Check Mailpit for CSF invite emails | Emails received | ☐ |
-| 31 | Login as participant1, complete CSF survey (ratings + feedback) | Survey submitted | ☐ |
-| 32 | Login as employee, complete CSF survey | Survey submitted | ☐ |
-| 33 | Login as organizer, issue certificates (bulk) | 2 certificates ISSUED | ☐ |
-| 34 | Check Mailpit for certificate emails | Emails received | ☐ |
-| 35 | Login as participant1, download certificate PDF | PDF opens with correct data | ☐ |
-| 36 | Copy verification code from PDF, visit `/verify/<code>` | Public verification shows "VALID" | ☐ |
+| 18 | Logout. Register new participant1 (Individual) | Account created, verification email sent | ☐ |
+| 19 | Verify email via Mailpit link | Email verified | ☐ |
+| 20 | Login as participant1, register for event | Status = REGISTERED | ☐ |
+| 21 | Complete TNA (K:80, S:70, M:85) | Composite score calculated, TNA saved | ☐ |
+| 22 | Confirm RSVP | Status = RSVP_CONFIRMED | ☐ |
+| 23 | Register Business (owner+1 employee) | Business registered, employee invited | ☐ |
+| 24 | Accept employee invite via Mailpit | Employee account activated | ☐ |
+| 25 | Employee registers for same event | 2nd participant registered | ☐ |
 
-#### Phase 6: Reporting
+#### Phase 5: Event Day (Execution)
 
 | # | Step | Expected Result | Status |
 |---|---|---|---|
-| 37 | Login as Organizer, view Event Report | Full report: 2 registered, 2 attended, 100% rate | ☐ |
-| 38 | CSF section shows averaged scores from both surveys | Averages displayed with stars | ☐ |
-| 39 | Checklist section shows completion progress | All phases visible | ☐ |
-| 40 | Go to Reports dashboard (sidebar) | Aggregate metrics across all events | ☐ |
-| 41 | Verify attendance rate, CSF response rate | Correct percentages | ☐ |
-| 42 | Login as Admin, check Admin Reports | All tabs populated with data | ☐ |
-| 43 | Mark all Post-Event checklist items done | Checklist 100% complete | ☐ |
+| 26 | Login as Facilitator, close registration | Status = REGISTRATION_CLOSED | ☐ |
+| 27 | Mark event ONGOING | Status = ONGOING | ☐ |
+| 28 | Mark Execution checklist items: setup ✓, check-in started | Progress updates | ☐ |
+| 29 | Go to QR Scanner, select "AM Lecture" session | Scanner ready | ☐ |
+| 30 | Scan participant1's QR code | "Check-in successful: [name]" | ☐ |
+| 31 | Scan employee's QR code | "Check-in successful: [name]" | ☐ |
+| 32 | Switch to "PM Workshop" session, scan both | Both checked in | ☐ |
+| 33 | Switch to "Closing" session, scan both | All sessions attended | ☐ |
+| 34 | Verify both participants now have ATTENDED status | Statuses updated | ☐ |
+
+#### Phase 6: Post-Event
+
+| # | Step | Expected Result | Status |
+|---|---|---|---|
+| 35 | Mark event COMPLETED | Status = COMPLETED | ☐ |
+| 36 | Verify CSF surveys auto-created for both participants | 2 PENDING CSF records | ☐ |
+| 37 | Check Mailpit for CSF invite emails | Emails received | ☐ |
+| 38 | Login as participant1, complete CSF survey (ratings + feedback) | Survey submitted | ☐ |
+| 39 | Login as employee, complete CSF survey | Survey submitted | ☐ |
+| 40 | Login as Facilitator, issue certificates (bulk) | 2 certificates ISSUED | ☐ |
+| 41 | Check Mailpit for certificate emails | Emails received | ☐ |
+| 42 | Login as participant1, download certificate PDF | PDF opens with correct data | ☐ |
+| 43 | Copy verification code from PDF, visit `/verify/<code>` | Public verification shows "VALID" | ☐ |
+
+#### Phase 7: Reporting
+
+| # | Step | Expected Result | Status |
+|---|---|---|---|
+| 44 | Login as Facilitator, view Event Report | Full report: 2 registered, 2 attended, 100% rate | ☐ |
+| 45 | CSF section shows averaged scores from both surveys | Averages displayed with stars | ☐ |
+| 46 | Checklist section shows completion progress | All phases visible | ☐ |
+| 47 | Go to Reports dashboard (sidebar) | Aggregate metrics across own events | ☐ |
+| 48 | Verify attendance rate, CSF response rate | Correct percentages | ☐ |
+| 49 | Login as Technical Staff, check Reports | All events visible (not filtered) | ☐ |
+| 50 | Login as Admin, check Admin Reports | All tabs populated with data | ☐ |
+| 51 | Mark all Post-Event checklist items done | Checklist 100% complete | ☐ |
 
 ---
 
@@ -636,22 +704,25 @@ This is the master test case that exercises the complete platform from start to 
 
 Verify each role can ONLY access their permitted routes:
 
-| Feature | Participant | Ent. Rep. | Event Organizer | Program Manager | System Admin | Super Admin |
-|---|---|---|---|---|---|---|
-| Public events list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Register for event | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| TNA / RSVP / QR | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| CSF / Impact Survey | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| My Certificates | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Create Event | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Event Checklist | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| QR Scanner | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Issue Certificates | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Organizer Reports | ❌ | ❌ | ✅ (own) | ✅ (all) | ✅ (all) | ✅ (all) |
-| Admin Dashboard | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Admin User Mgmt | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Admin Reports | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Enterprise Directory | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Feature | Participant | Ent. Rep. | Facilitator | Technical Staff | Division Chief | Regional Dir. | Provincial Dir. | System Admin | Super Admin |
+|---|---|---|---|---|---|---|---|---|---|
+| Public events list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Register for event | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| TNA / RSVP / QR | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| CSF / Impact Survey | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| My Certificates | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Create Proposal | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Review Proposals | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Assign Facilitator | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Run Events (Manage) | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Event Checklist | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| QR Scanner | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Issue Certificates | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Organizer Reports | ❌ | ❌ | ✅ (own) | ✅ (all) | ❌ | ❌ | ❌ | ✅ (all) | ✅ (all) |
+| Admin Dashboard | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Admin User Mgmt | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Admin Reports | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Enterprise Directory | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -693,4 +764,4 @@ Verify each role can ONLY access their permitted routes:
 
 ---
 
-*Generated by DTI Region 7 EMS Dashboard — Test Plan v1.0*
+*Generated by DTI Region 7 EMS Dashboard — Test Plan v2.0*

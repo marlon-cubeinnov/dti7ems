@@ -16,10 +16,11 @@ const ROLE_LABELS: Record<string, string> = {
 
 // Nav for Program Managers (Technical Staff): can create proposals/events
 const PM_NAV = [
-  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
-  { to: '/organizer/events',    label: 'My Proposals',   icon: FileText        },
-  { to: '/organizer/events/new',label: 'New Proposal',   icon: PlusCircle      },
-  { to: '/organizer/reports',   label: 'Reports',        icon: BarChart3       },
+  { to: '/organizer/dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/organizer/proposals',     label: 'My Proposals',   icon: FileText        },
+  { to: '/organizer/proposals/new', label: 'New Proposal',   icon: PlusCircle      },
+  { to: '/organizer/events',        label: 'My Events',      icon: CalendarDays    },
+  { to: '/organizer/reports',       label: 'Reports',        icon: BarChart3       },
 ];
 
 // Nav for Event Organizers (Facilitators): see only assigned events, cannot create
@@ -31,14 +32,14 @@ const EO_NAV = [
 
 // Nav for Division Chief: sees proposals submitted for review
 const DC_NAV = [
-  { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
-  { to: '/organizer/events',    label: 'Proposals Queue', icon: FileText       },
+  { to: '/organizer/dashboard', label: 'Dashboard',       icon: LayoutDashboard },
+  { to: '/organizer/proposals', label: 'Proposals Queue',  icon: FileText        },
 ];
 
 // Nav for Regional Director: sees proposals under review for final decision
 const RD_NAV = [
   { to: '/organizer/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
-  { to: '/organizer/events',    label: 'For Approval',   icon: FileText        },
+  { to: '/organizer/proposals', label: 'For Approval',   icon: FileText        },
 ];
 
 // Admin/System users see PM_NAV
@@ -76,7 +77,7 @@ export function OrganizerLayout() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <header className="bg-dti-blue shadow-md sticky top-0 z-40">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
           <Link to="/organizer/dashboard" className="flex items-center gap-2">
             <img src={dtiLogo} alt="DTI Central Visayas Region" className="h-9 w-auto" />
             <span className="text-white font-bold text-sm hidden sm:block">DTI Region 7 EMS</span>
@@ -86,6 +87,7 @@ export function OrganizerLayout() {
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/events" className={navLinkClass}>Events</NavLink>
             <NavLink to="/directory" className={navLinkClass}>Directory</NavLink>
+            <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className={navLinkClass({ isActive: false })}>User Manual</a>
 
             <div className="w-px h-6 bg-white/20 mx-2" />
 
@@ -105,7 +107,7 @@ export function OrganizerLayout() {
         </div>
       </header>
 
-      <div className="flex flex-1 max-w-screen-xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 gap-6">
+      <div className="flex flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 gap-6">
         {/* Sidebar */}
         <aside className="w-52 shrink-0 hidden md:block">
           <nav className="space-y-1">
