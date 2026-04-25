@@ -39,17 +39,28 @@ export function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { icon: <Calendar className="w-5 h-5 text-dti-blue" />, label: 'Events Registered', value: data?.meta?.total ?? 0 },
-          { icon: <ClipboardList className="w-5 h-5 text-green-600" />, label: 'Completed', value: stats.completed },
-          { icon: <Award className="w-5 h-5 text-dti-orange" />, label: 'Certificates', value: stats.certificates },
+          { icon: <Calendar className="w-5 h-5 text-dti-blue" />, label: 'Events Registered', value: data?.meta?.total ?? 0, to: '/my-events' },
+          { icon: <ClipboardList className="w-5 h-5 text-green-600" />, label: 'Completed', value: stats.completed, to: '/my-events' },
+          { icon: <Award className="w-5 h-5 text-dti-orange" />, label: 'Certificates', value: stats.certificates, to: '/my-certificates' },
         ].map((s) => (
-          <div key={s.label} className="card text-center p-4">
+          <Link key={s.label} to={s.to} className="card text-center p-4 hover:shadow-md transition-shadow hover:border-dti-blue/20 border border-transparent">
             <div className="flex justify-center mb-2">{s.icon}</div>
             <p className="text-2xl font-bold text-gray-900">{s.value}</p>
             <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-          </div>
+          </Link>
         ))}
       </div>
+
+      {/* Certificates quick-access banner */}
+      {stats.certificates > 0 && (
+        <div className="flex items-center justify-between bg-dti-orange/5 border border-dti-orange/20 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Award className="w-4 h-4 text-dti-orange" />
+            <span>You have <strong>{stats.certificates}</strong> certificate{stats.certificates !== 1 ? 's' : ''} ready to download.</span>
+          </div>
+          <Link to="/my-certificates" className="text-xs font-semibold text-dti-orange hover:underline shrink-0">View Certificates →</Link>
+        </div>
+      )}
 
       {/* Recent activity */}
       <div className="card">

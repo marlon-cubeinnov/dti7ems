@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { authApi, ApiError } from '@/lib/api';
-import { AlertCircle, CheckCircle2, Plus, Trash2, Building2, User } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Plus, Trash2, Building2, User, Landmark, Users } from 'lucide-react';
 
 const PH_REGIONS = [
   'Region VII — Central Visayas',
@@ -36,11 +36,13 @@ const INDUSTRY_SECTORS = [
   'Education & Training',
   'Healthcare',
   'Transportation & Logistics',
-  'Handicrafts & Creative Industries',
+  'Handicrafts',
+  'Creative Industries',
+  'Startup / Innovation Ecosystem',
   'Other',
 ];
 
-type RegType = 'individual' | 'business';
+type RegType = 'individual' | 'government' | 'ngo' | 'business';
 
 interface EmployeeRow {
   email: string;
@@ -91,8 +93,8 @@ export function RegisterPage() {
     if (form.password !== form.confirmPassword) e['confirmPassword'] = 'Passwords do not match';
     if (!form.dpaConsentGiven) e['dpa'] = 'You must agree to the data privacy policy to register';
 
-    if (regType === 'business') {
-      if (!bizForm.businessName.trim()) e['businessName'] = 'Business name is required';
+    if (regType === 'business' || regType === 'ngo') {
+      if (!bizForm.businessName.trim()) e['businessName'] = regType === 'ngo' ? 'Organization name is required' : 'Business name is required';
       if (!bizForm.industrySector) e['industrySector'] = 'Industry sector is required';
 
       employees.forEach((emp, i) => {
@@ -113,10 +115,42 @@ export function RegisterPage() {
         password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
+        mobileNumber: form.mobileNumber || null,
         dpaConsentGiven: true,
+        clientType: regType === 'government' ? 'GOVERNMENT' : 'CITIZEN',
       }),
     onSuccess: () => {
       setSuccessEmail(form.email);
+      setSuccess(true);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) setErrors({ api: err.message });
+      else setErrors({ api: 'Registration failed. Please try again.' });
+    },
+  });
+
+  const ngoMutation = useMutation({
+    mutationFn: () =>
+      authApi.registerBusiness({
+        email: form.email,
+        password: form.password,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        mobileNumber: form.mobileNumber || null,
+        dpaConsentGiven: true,
+        enterprise: {
+          businessName: bizForm.businessName,
+          industrySector: bizForm.industrySector,
+          tradeName: bizForm.tradeName || null,
+          registrationNo: bizForm.registrationNo || null,
+          stage: 'STARTUP',
+          region: form.region || null,
+        },
+        employees: employees.filter((emp) => emp.email.trim()),
+      }),
+    onSuccess: (res) => {
+      setSuccessEmail(form.email);
+      setEmployeesInvited((res as any)?.data?.employeesInvited ?? employees.length);
       setSuccess(true);
     },
     onError: (err) => {
@@ -160,11 +194,12 @@ export function RegisterPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    if (regType === 'individual') individualMutation.mutate();
+    if (regType === 'individual' || regType === 'government') individualMutation.mutate();
+    else if (regType === 'ngo') ngoMutation.mutate();
     else businessMutation.mutate();
   };
 
-  const isPending = individualMutation.isPending || businessMutation.isPending;
+  const isPending = individualMutation.isPending || businessMutation.isPending || ngoMutation.isPending;
 
   const addEmployee = () => setEmployees([...employees, { email: '', firstName: '', lastName: '', jobTitle: '' }]);
   const removeEmployee = (i: number) => setEmployees(employees.filter((_, idx) => idx !== i));
@@ -224,35 +259,33 @@ export function RegisterPage() {
         <p className="text-sm text-gray-500 mb-6">Register once — pre-filled for all DTI Region 7 events.</p>
 
         {/* Registration type tabs */}
-        <div className="flex rounded-lg border border-gray-200 mb-6 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setRegType('individual')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
-              regType === 'individual'
-                ? 'bg-dti-blue text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <User className="w-4 h-4" /> Individual
-          </button>
-          <button
-            type="button"
-            onClick={() => setRegType('business')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
-              regType === 'business'
-                ? 'bg-dti-blue text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Building2 className="w-4 h-4" /> Business / Organization
-          </button>
+        <div className="grid grid-cols-2 gap-2 mb-6">
+          {([
+            { type: 'individual', icon: <User className="w-4 h-4" />, label: 'Individual / Citizen', desc: 'General public, student, or professional' },
+            { type: 'government', icon: <Landmark className="w-4 h-4" />, label: 'Government Employee', desc: 'LGU, agency, or gov\'t staff' },
+            { type: 'ngo', icon: <Users className="w-4 h-4" />, label: 'NGO / Organization', desc: 'Non-profit, cooperative, or association' },
+            { type: 'business', icon: <Building2 className="w-4 h-4" />, label: 'Business / MSME', desc: 'DTI-registered enterprise or startup' },
+          ] as const).map(({ type, icon, label, desc }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setRegType(type)}
+              className={`flex flex-col items-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-colors ${
+                regType === type
+                  ? 'border-dti-blue bg-dti-blue/5 text-dti-blue'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">{icon}{label}</span>
+              <span className={`text-[11px] font-normal ${regType === type ? 'text-dti-blue/70' : 'text-gray-400'}`}>{desc}</span>
+            </button>
+          ))}
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* ── Personal information ── */}
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-            {regType === 'business' ? 'Owner / Representative Information' : 'Personal Information'}
+            {regType === 'business' ? 'Owner / Representative Information' : regType === 'ngo' ? 'Representative Information' : regType === 'government' ? 'Personal Information' : 'Personal Information'}
           </h3>
 
           <div className="grid grid-cols-2 gap-4">
@@ -286,15 +319,17 @@ export function RegisterPage() {
             </select>
           </div>
 
-          {/* ── Business information (only for business registration) ── */}
-          {regType === 'business' && (
+          {/* ── Business / Organization information ── */}
+          {(regType === 'business' || regType === 'ngo') && (
             <>
               <hr className="my-2" />
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Business Information</h3>
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                {regType === 'ngo' ? 'Organization Information' : 'Business Information'}
+              </h3>
 
               <div>
-                <label className="label">Business Name *</label>
-                <input type="text" {...bizField('businessName')} placeholder="e.g., Juan's Coffee Shop" />
+                <label className="label">{regType === 'ngo' ? 'Organization Name *' : 'Business Name *'}</label>
+                <input type="text" {...bizField('businessName')} placeholder={regType === 'ngo' ? 'e.g., Cebu Youth Alliance' : "e.g., Juan's Coffee Shop"} />
                 {errors['businessName'] && <p className="text-red-500 text-xs mt-1">{errors['businessName']}</p>}
               </div>
 
@@ -307,45 +342,51 @@ export function RegisterPage() {
                   </select>
                   {errors['industrySector'] && <p className="text-red-500 text-xs mt-1">{errors['industrySector']}</p>}
                 </div>
-                <div>
-                  <label className="label">Business Stage</label>
-                  <select {...bizField('stage')} className="input">
-                    <option value="PRE_STARTUP">Pre-Startup</option>
-                    <option value="STARTUP">Startup</option>
-                    <option value="GROWTH">Growth</option>
-                    <option value="EXPANSION">Expansion</option>
-                    <option value="MATURE">Mature</option>
-                  </select>
-                </div>
+                {regType === 'business' && (
+                  <div>
+                    <label className="label">Business Stage</label>
+                    <select {...bizField('stage')} className="input">
+                      <option value="PRE_STARTUP">Pre-Startup</option>
+                      <option value="STARTUP">Startup</option>
+                      <option value="GROWTH">Growth</option>
+                      <option value="EXPANSION">Expansion</option>
+                      <option value="MATURE">Mature</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Trade Name</label>
-                  <input type="text" {...bizField('tradeName')} placeholder="Optional" />
+              {regType === 'business' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Trade Name</label>
+                    <input type="text" {...bizField('tradeName')} placeholder="Optional" />
+                  </div>
+                  <div>
+                    <label className="label">Number of Employees</label>
+                    <input type="number" {...bizField('employeeCount')} placeholder="e.g., 10" min="1" />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Number of Employees</label>
-                  <input type="number" {...bizField('employeeCount')} placeholder="e.g., 10" min="1" />
-                </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">DTI/SEC Registration No.</label>
-                  <input type="text" {...bizField('registrationNo')} placeholder="Optional" />
+              {regType === 'business' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">DTI/SEC Registration No.</label>
+                    <input type="text" {...bizField('registrationNo')} placeholder="Optional" />
+                  </div>
+                  <div>
+                    <label className="label">TIN Number</label>
+                    <input type="text" {...bizField('tinNumber')} placeholder="Optional" />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">TIN Number</label>
-                  <input type="text" {...bizField('tinNumber')} placeholder="Optional" />
-                </div>
-              </div>
+              )}
 
-              {/* ── Employees Section ── */}
+              {/* ── Members/Employees Section ── */}
               <hr className="my-2" />
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                  Employees <span className="text-xs font-normal text-gray-400">(optional)</span>
+                  {regType === 'ngo' ? 'Members' : 'Employees'} <span className="text-xs font-normal text-gray-400">(optional)</span>
                 </h3>
                 <button type="button" onClick={addEmployee} className="text-dti-blue text-sm font-medium flex items-center gap-1 hover:underline">
                   <Plus className="w-4 h-4" /> Add Employee
@@ -462,7 +503,11 @@ export function RegisterPage() {
               ? 'Creating account…'
               : regType === 'business'
                 ? 'Register Business Account'
-                : 'Create Account'}
+                : regType === 'ngo'
+                  ? 'Register Organization Account'
+                  : regType === 'government'
+                    ? 'Register Government Account'
+                    : 'Create Account'}
           </button>
         </form>
 

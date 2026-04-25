@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Users, Wifi, Clock, ChevronLeft, AlertCircle } from 'lucide-react';
-import { eventsApi, ApiError } from '@/lib/api';
+import { MapPin, Calendar, Users, Wifi, Clock, ChevronLeft, AlertCircle, RefreshCw } from 'lucide-react';
+import { eventsApi, enterpriseApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Event, EventSession } from '@dti-ems/shared-types';
 
@@ -19,6 +19,16 @@ export function EventDetailPage() {
   const qc = useQueryClient();
   const [dpaConsented, setDpaConsented] = useState(false);
   const [error, setError] = useState('');
+  const [stageDismissed, setStageDismissed] = useState(false);
+  const [updatingStage, setUpdatingStage] = useState(false);
+  const [newStage, setNewStage] = useState('');
+
+  const { data: membershipData } = useQuery({
+    queryKey: ['my-membership'],
+    queryFn: () => enterpriseApi.getMyMembership(),
+    enabled: isAuthenticated,
+  });
+  const membership = (membershipData as { data?: { enterprise: { id: string; stage: string } } | null })?.data;
 
   const { data, isLoading } = useQuery({
     queryKey: ['event', id],
@@ -172,10 +182,51 @@ export function EventDetailPage() {
               )}
             </div>
 
+            {/* Business stage update prompt */}
+            {canRegister && membership && !stageDismissed && (
+              <div className="bg-amber-50 border border-amber-200 rounded-input p-3 text-xs text-amber-800 space-y-2">
+                <div className="flex items-start gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+                  <span><strong>Is your business stage still accurate?</strong> You are registered as <strong>{membership.enterprise.stage.replace(/_/g, ' ')}</strong>. Keeping it updated helps DTI tailor training programs for you.</span>
+                </div>
+                <div className="flex items-center gap-2 ml-5">
+                  <select
+                    value={newStage || membership.enterprise.stage}
+                    onChange={e => setNewStage(e.target.value)}
+                    className="border border-amber-300 rounded px-2 py-1 text-xs bg-white text-gray-700"
+                  >
+                    {['PRE_STARTUP','STARTUP','GROWTH','EXPANSION','MATURE'].map(s => (
+                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={updatingStage}
+                    onClick={async () => {
+                      if (!newStage || newStage === membership.enterprise.stage) { setStageDismissed(true); return; }
+                      setUpdatingStage(true);
+                      try {
+                        await enterpriseApi.updateStage(membership.enterprise.id, newStage);
+                        qc.invalidateQueries({ queryKey: ['my-membership'] });
+                      } catch { /* best effort */ } finally {
+                        setUpdatingStage(false);
+                        setStageDismissed(true);
+                      }
+                    }}
+                    className="text-xs font-medium text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+                  >
+                    {updatingStage ? 'Saving…' : 'Update & continue'}
+                  </button>
+                  <button type="button" onClick={() => setStageDismissed(true)} className="text-xs text-amber-500 hover:text-amber-700 ml-1">Skip</button>
+                </div>
+              </div>
+            )}
+
             {/* TNA notice */}
             {event.requiresTNA && (
-              <div className="bg-blue-50 rounded-input p-3 text-xs text-blue-700">
-                This event requires a Training Needs Assessment (TNA). You'll complete it after registering.
+              <div className="bg-blue-50 rounded-input p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">Training Needs Assessment (TNA) required</p>
+                <p>The TNA captures your current knowledge and skills <em>before</em> the training. This baseline helps organizers measure your learning progress. You'll complete it right after registering — before your slot is confirmed.</p>
               </div>
             )}
 

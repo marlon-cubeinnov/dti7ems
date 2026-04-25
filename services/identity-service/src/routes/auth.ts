@@ -14,6 +14,7 @@ const registerSchema = z.object({
   lastName:        z.string().min(1).max(100),
   mobileNumber:    z.string().regex(/^(\+63|0)9\d{9}$/, 'Invalid PH mobile number').optional().nullable(),
   dpaConsentGiven: z.literal(true, { errorMap: () => ({ message: 'DPA consent is required' }) }),
+  clientType:      z.enum(['CITIZEN', 'GOVERNMENT', 'BUSINESS']).optional().nullable(),
 });
 
 const loginSchema = z.object({

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { organizerApi, eventsApi, certificatesApi } from '@/lib/api';
-import { ArrowLeft, Download, ExternalLink, Eye, FileDown } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Eye, FileDown, QrCode, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
+import QRCode from 'qrcode';
 
 const STATUS_COLORS: Record<string, string> = {
   REGISTERED:    'bg-blue-50 text-blue-700',
@@ -43,6 +44,14 @@ export function OrganizerParticipantListPage() {
     enabled: Boolean(id),
     placeholderData: (prev) => prev,
   });
+
+  const [qrModal, setQrModal] = useState<{ dataUrl: string; name: string; surveyUrl: string } | null>(null);
+
+  async function openCsfQr(participationId: string, participantName: string) {
+    const surveyUrl = `${window.location.origin}/my-events/${participationId}/csf`;
+    const dataUrl = await QRCode.toDataURL(surveyUrl, { width: 280, margin: 2, color: { dark: '#003087' } });
+    setQrModal({ dataUrl, name: participantName || 'Participant', surveyUrl });
+  }
 
   const event = eventData?.data as any;
   const rawList: any[] = (participantsData?.data as any) ?? [];
@@ -180,15 +189,24 @@ export function OrganizerParticipantListPage() {
                       {p.csfSurveyResponse?.status ? (
                         p.csfSurveyResponse.status === 'SUBMITTED' ? (
                           <Link
-                            to={`/organizer/events/${id}/csf-results`}
+                            to={`/organizer/events/${id}/csf-results?responseId=${p.csfSurveyResponse.id}`}
                             className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 hover:bg-green-100 transition-colors`}
                           >
                             SUBMITTED <Eye size={10} />
                           </Link>
                         ) : (
-                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${CSF_STATUS_COLORS[p.csfSurveyResponse.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {p.csfSurveyResponse.status}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${CSF_STATUS_COLORS[p.csfSurveyResponse.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                              {p.csfSurveyResponse.status}
+                            </span>
+                            <button
+                              onClick={() => openCsfQr(p.id, p.participantName ?? '')}
+                              title="Show QR code for CSF survey"
+                              className="text-gray-400 hover:text-dti-blue transition-colors"
+                            >
+                              <QrCode size={13} />
+                            </button>
+                          </div>
                         )
                       ) : '—'}
                     </td>
@@ -218,6 +236,33 @@ export function OrganizerParticipantListPage() {
           </div>
         )}
       </div>
+
+      {/* ── CSF QR Code Modal ── */}
+      {qrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setQrModal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900 text-sm">CSF Survey QR Code</h2>
+              <button onClick={() => setQrModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Show this QR to <span className="font-semibold text-gray-700">{qrModal.name}</span> to scan and complete their CSF survey.</p>
+            <div className="flex justify-center mb-3">
+              <img src={qrModal.dataUrl} alt="CSF QR Code" className="w-64 h-64 rounded-lg border border-gray-100" />
+            </div>
+            <p className="text-[11px] text-gray-400 text-center break-all">{qrModal.surveyUrl}</p>
+            <div className="flex gap-2 mt-4">
+              <a
+                href={qrModal.dataUrl}
+                download={`csf-qr-${qrModal.name.replace(/\s+/g, '-').toLowerCase()}.png`}
+                className="btn-secondary flex-1 text-xs text-center"
+              >
+                Download PNG
+              </a>
+              <button onClick={() => setQrModal(null)} className="btn-ghost flex-1 text-xs">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

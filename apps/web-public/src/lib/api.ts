@@ -86,7 +86,9 @@ export const authApi = {
     password: string;
     firstName: string;
     lastName: string;
+    mobileNumber?: string | null;
     dpaConsentGiven: true;
+    clientType?: 'CITIZEN' | 'GOVERNMENT' | 'BUSINESS' | null;
   }) =>
     request(`${BASE_IDENTITY}/auth/register`, { method: 'POST', body: JSON.stringify(body) }),
 
@@ -173,6 +175,29 @@ export const enterpriseApi = {
 
   removeMember: (enterpriseId: string, userId: string) =>
     request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/members/${userId}`, { method: 'DELETE' }),
+
+  joinRequest: (enterpriseId: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/join-request`, { method: 'POST' }),
+
+  getJoinRequests: (enterpriseId: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/join-requests`),
+
+  respondToJoinRequest: (enterpriseId: string, membershipId: string, action: 'APPROVE' | 'REJECT') =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/join-requests/${membershipId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
+    }),
+
+  searchPublic: (search: string) => {
+    const qs = new URLSearchParams({ search, limit: '10' }).toString();
+    return request(`${BASE_IDENTITY}/directory/enterprises?${qs}`);
+  },
+
+  updateStage: (enterpriseId: string, stage: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ stage }),
+    }),
 };
 
 // ── Events API ────────────────────────────────────────────────────────────────
@@ -639,6 +664,27 @@ export const adminIdentityApi = {
     request(`${BASE_IDENTITY}/enterprises/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+
+  deleteEnterprise: (id: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${id}`, { method: 'DELETE' }),
+
+  getEmailSettings: () =>
+    request(`${BASE_IDENTITY}/admin/settings/email`),
+
+  updateEmailSettings: (data: {
+    host: string; port: number; secure: boolean;
+    user: string; pass: string; from: string;
+  }) =>
+    request(`${BASE_IDENTITY}/admin/settings/email`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  sendTestEmail: (to: string) =>
+    request(`${BASE_IDENTITY}/admin/settings/email/test`, {
+      method: 'POST',
+      body: JSON.stringify({ to }),
     }),
 };
 

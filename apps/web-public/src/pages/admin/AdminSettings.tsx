@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminEventsApi, adminIdentityApi } from '@/lib/api';
 import {
   Settings,
@@ -9,6 +10,13 @@ import {
   Clock,
   Shield,
   Activity,
+  Save,
+  Send,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 
 function SettingsSection({ title, icon: Icon, children }: {
@@ -44,6 +52,286 @@ function SettingRow({ label, value, status }: {
             {status.toUpperCase()}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Provider presets ──────────────────────────────────────────────────────────
+
+const PRESETS = {
+  mailpit: {
+    label: 'Local — Mailpit (development)',
+    host: 'localhost', port: 1025, secure: false,
+    user: '', pass: '',
+    from: 'DTI Region 7 EMS <noreply@dti7-ems.local>',
+  },
+  gmail: {
+    label: 'Gmail / Google Workspace (App Password)',
+    host: 'smtp.gmail.com', port: 587, secure: false,
+    user: '', pass: '',
+    from: '',
+  },
+  gmail_ssl: {
+    label: 'Gmail / Google Workspace (SSL port 465)',
+    host: 'smtp.gmail.com', port: 465, secure: true,
+    user: '', pass: '',
+    from: '',
+  },
+  custom: {
+    label: 'Custom SMTP',
+    host: '', port: 587, secure: false,
+    user: '', pass: '',
+    from: '',
+  },
+} as const;
+
+type PresetKey = keyof typeof PRESETS;
+
+interface EmailForm {
+  host: string; port: string; secure: boolean;
+  user: string; pass: string; from: string;
+}
+
+function EmailSettingsSection() {
+  const queryClient = useQueryClient();
+  const [preset, setPreset] = useState<PresetKey>('mailpit');
+  const [form, setForm] = useState<EmailForm>({
+    host: 'localhost', port: '1025', secure: false,
+    user: '', pass: '', from: 'DTI Region 7 EMS <noreply@dti7-ems.local>',
+  });
+  const [showPass, setShowPass] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [toast, setToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-email-settings'],
+    queryFn: () => adminIdentityApi.getEmailSettings(),
+  });
+
+  // Populate form once we have server data
+  useEffect(() => {
+    const d = (data as any)?.data;
+    if (!d) return;
+    setForm({
+      host:   d.host   ?? '',
+      port:   String(d.port ?? 587),
+      secure: d.secure ?? false,
+      user:   d.user   ?? '',
+      pass:   d.pass   ?? '',
+      from:   d.from   ?? '',
+    });
+    // Detect preset from loaded host
+    if (d.host === 'localhost' || d.host === '127.0.0.1') setPreset('mailpit');
+    else if (d.host === 'smtp.gmail.com' && !d.secure)    setPreset('gmail');
+    else if (d.host === 'smtp.gmail.com' && d.secure)     setPreset('gmail_ssl');
+    else setPreset('custom');
+  }, [data]);
+
+  const showToast = (type: 'ok' | 'error', msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      adminIdentityApi.updateEmailSettings({
+        host:   form.host,
+        port:   Number(form.port),
+        secure: form.secure,
+        user:   form.user,
+        pass:   form.pass,
+        from:   form.from,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-email-settings'] });
+      showToast('ok', 'Email settings saved and mailer reconnected.');
+    },
+    onError: (err: any) => {
+      const msg = err?.data?.error?.message ?? err?.message ?? 'Failed to save settings.';
+      showToast('error', msg);
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: () => adminIdentityApi.sendTestEmail(testEmail),
+    onSuccess: (res: any) => showToast('ok', res?.message ?? `Test email sent to ${testEmail}.`),
+    onError: (err: any) => {
+      const msg = err?.data?.error?.message ?? err?.message ?? 'Test email failed.';
+      showToast('error', msg);
+    },
+  });
+
+  function applyPreset(key: PresetKey) {
+    setPreset(key);
+    const p = PRESETS[key];
+    setForm((prev) => ({
+      ...prev,
+      host:   p.host   || prev.host,
+      port:   String(p.port),
+      secure: p.secure,
+      // Don't clear user/pass/from when switching — only clear if preset fills them
+      user:   p.user  !== '' ? p.user  : prev.user,
+      pass:   p.pass  !== '' ? p.pass  : prev.pass,
+      from:   p.from  !== '' ? p.from  : prev.from,
+    }));
+  }
+
+  function field(k: keyof EmailForm, value: string | boolean) {
+    setForm((prev) => ({ ...prev, [k]: value }));
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Toast */}
+      {toast && (
+        <div className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm ${toast.type === 'ok' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+          {toast.type === 'ok'
+            ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-600" />
+            : <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-600" />}
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
+      {/* Provider preset selector */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Email Provider Preset</label>
+        <div className="relative">
+          <select
+            value={preset}
+            onChange={(e) => applyPreset(e.target.value as PresetKey)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-dti-blue pr-8"
+          >
+            {(Object.keys(PRESETS) as PresetKey[]).map((k) => (
+              <option key={k} value={k}>{PRESETS[k].label}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        </div>
+        {preset === 'gmail' || preset === 'gmail_ssl' ? (
+          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 space-y-1">
+            <p className="font-semibold">Google Gmail / Workspace — Setup Instructions</p>
+            <ol className="list-decimal pl-4 space-y-0.5">
+              <li>In your Google Account, go to <strong>Security → 2-Step Verification</strong> and enable it.</li>
+              <li>Then go to <strong>Security → App Passwords</strong> and create a new App Password for <em>"Mail"</em>.</li>
+              <li>Enter your full Gmail address in <strong>Username</strong> below and the 16-character App Password in <strong>Password</strong>.</li>
+              <li>Set <strong>From</strong> to the same Gmail address (or your Google Workspace display name).</li>
+            </ol>
+            <p className="text-blue-600 pt-0.5">Use port <strong>587 (STARTTLS)</strong> for most accounts. Use port <strong>465 (SSL)</strong> only if required by your org.</p>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Form fields */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">SMTP Host *</label>
+          <input
+            value={form.host}
+            onChange={(e) => field('host', e.target.value)}
+            placeholder="smtp.gmail.com"
+            disabled={isLoading}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-dti-blue disabled:bg-gray-50"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Port *</label>
+          <input
+            type="number"
+            value={form.port}
+            onChange={(e) => field('port', e.target.value)}
+            placeholder="587"
+            disabled={isLoading}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-dti-blue disabled:bg-gray-50"
+          />
+        </div>
+        <div className="flex items-end pb-1">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={form.secure}
+              onChange={(e) => field('secure', e.target.checked)}
+              className="w-4 h-4 accent-dti-blue"
+            />
+            SSL (port 465) — uncheck for STARTTLS
+          </label>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Username / Email Login</label>
+          <input
+            value={form.user}
+            onChange={(e) => field('user', e.target.value)}
+            placeholder="you@gmail.com"
+            disabled={isLoading}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue disabled:bg-gray-50"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">App Password</label>
+          <div className="relative">
+            <input
+              type={showPass ? 'text' : 'password'}
+              value={form.pass}
+              onChange={(e) => field('pass', e.target.value)}
+              placeholder="16-character App Password"
+              disabled={isLoading}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-9 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-dti-blue disabled:bg-gray-50"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass((p) => !p)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            >
+              {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-gray-400">Leave blank to keep the existing password unchanged.</p>
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">From Address *</label>
+          <input
+            value={form.from}
+            onChange={(e) => field('from', e.target.value)}
+            placeholder='DTI Region 7 EMS <noreply@yourdomain.com>'
+            disabled={isLoading}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue disabled:bg-gray-50"
+          />
+        </div>
+      </div>
+
+      {/* Save button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || !form.host || !form.from}
+          className="flex items-center gap-2 px-4 py-2 bg-dti-blue text-white rounded-lg text-sm font-medium hover:bg-dti-blue-dark disabled:opacity-50"
+        >
+          <Save size={14} />
+          {saveMutation.isPending ? 'Saving…' : 'Save & Reconnect'}
+        </button>
+      </div>
+
+      {/* Test email */}
+      <div className="border-t pt-5">
+        <p className="text-xs font-medium text-gray-600 mb-2">Send a Test Email</p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="recipient@example.com"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue"
+          />
+          <button
+            onClick={() => testMutation.mutate()}
+            disabled={testMutation.isPending || !testEmail}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50"
+          >
+            <Send size={13} />
+            {testMutation.isPending ? 'Sending…' : 'Send Test'}
+          </button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-gray-400">Uses the currently <strong>active</strong> configuration. Save settings first if you made changes.</p>
       </div>
     </div>
   );
@@ -119,16 +407,6 @@ export function AdminSettingsPage() {
           </div>
         </SettingsSection>
 
-        {/* Notifications */}
-        <SettingsSection title="Notification Providers" icon={Mail}>
-          <div className="space-y-0">
-            <SettingRow label="Email Provider" value="Resend API" status="ok" />
-            <SettingRow label="SMS Provider" value="Semaphore PH" status="ok" />
-            <SettingRow label="Email Queue" value="notification-email" />
-            <SettingRow label="SMS Queue" value="notification-sms" />
-          </div>
-        </SettingsSection>
-
         {/* Authentication */}
         <SettingsSection title="Authentication" icon={Shield}>
           <div className="space-y-0">
@@ -179,6 +457,11 @@ export function AdminSettingsPage() {
           </div>
         </SettingsSection>
       </div>
+
+      {/* Email Settings — full-width */}
+      <SettingsSection title="Email / Notification Settings" icon={Mail}>
+        <EmailSettingsSection />
+      </SettingsSection>
     </div>
   );
 }

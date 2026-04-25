@@ -24,8 +24,9 @@ export class AuthService {
     lastName: string;
     mobileNumber?: string | null;
     dpaConsentGiven: boolean;
+    clientType?: string | null;
   }) {
-    const { email, password, firstName, lastName, mobileNumber, dpaConsentGiven } = data;
+    const { email, password, firstName, lastName, mobileNumber, dpaConsentGiven, clientType } = data;
 
     if (!dpaConsentGiven) {
       throw new BadRequestError(
@@ -50,6 +51,7 @@ export class AuthService {
         firstName,
         lastName,
         mobileNumber: mobileNumber ?? null,
+        clientType: clientType ?? null,
         dpaConsentGiven: true,
         dpaConsentAt: new Date(),
         verifyToken,

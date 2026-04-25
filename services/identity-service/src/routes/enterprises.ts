@@ -41,6 +41,24 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
   app.post('/', async (request, reply) => {
     const body = createEnterpriseSchema.parse(request.body);
 
+    // Dedup check: warn if a similar business name exists (case-insensitive)
+    const normalizedName = body.businessName.trim().toLowerCase();
+    const existing = await app.prisma.enterpriseProfile.findFirst({
+      where: {
+        businessName: { equals: normalizedName, mode: 'insensitive' },
+      },
+      select: { id: true, businessName: true },
+    });
+    if (existing) {
+      return reply.code(409).send({
+        success: false,
+        error: {
+          code: 'ENTERPRISE_DUPLICATE',
+          message: `A company named "${existing.businessName}" already exists in the system. If this is your company, contact the System Administrator to link your account instead of creating a duplicate.`,
+        },
+      });
+    }
+
     const enterprise = await app.prisma.$transaction(async (tx) => {
       const ent = await tx.enterpriseProfile.create({
         data: {
@@ -139,10 +157,13 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
 
   // ── Membership routes ────────────────────────────────────────────────────
 
-  // GET /enterprises/my-membership — get current user's active enterprise membership
+  // GET /enterprises/my-membership — get current user's active or pending enterprise membership
   app.get('/my-membership', async (request, reply) => {
     const membership = await app.prisma.enterpriseMembership.findFirst({
-      where: { userId: request.user.sub, isActive: true },
+      where: {
+        userId: request.user.sub,
+        status: { in: ['ACTIVE', 'PENDING'] },
+      },
       include: {
         enterprise: {
           select: { id: true, businessName: true, industrySector: true, stage: true, isVerified: true },
@@ -218,7 +239,7 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       // Reactivate
       const reactivated = await app.prisma.enterpriseMembership.update({
         where: { id: existing.id },
-        data: { isActive: true, role },
+        data: { isActive: true, status: 'ACTIVE', role },
         include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
       });
       return reply.send({ success: true, data: reactivated });
@@ -229,6 +250,7 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
         enterpriseId: id,
         userId: targetUser.id,
         role,
+        status: 'ACTIVE',
       },
       include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
     });
@@ -295,9 +317,142 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
 
     await app.prisma.enterpriseMembership.update({
       where: { id: membership.id },
-      data: { isActive: false },
+      data: { isActive: false, status: 'INACTIVE' },
     });
 
     return reply.send({ success: true, message: 'Member removed.' });
+  });
+
+  // POST /enterprises/:id/join-request — any authenticated user can request to join
+  app.post('/:id/join-request', async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+
+    const enterprise = await app.prisma.enterpriseProfile.findUnique({ where: { id } });
+    if (!enterprise) throw new NotFoundError('Enterprise not found');
+
+    // Check for existing membership / request
+    const existing = await app.prisma.enterpriseMembership.findUnique({
+      where: { enterpriseId_userId: { enterpriseId: id, userId: request.user.sub } },
+    });
+
+    if (existing) {
+      if (existing.status === 'ACTIVE') throw new ConflictError('You are already a member of this enterprise.');
+      if (existing.status === 'PENDING') throw new ConflictError('You already have a pending join request for this enterprise.');
+      // Rejected or inactive — allow re-requesting
+      const updated = await app.prisma.enterpriseMembership.update({
+        where: { id: existing.id },
+        data: { status: 'PENDING', isActive: false, role: 'MEMBER' },
+      });
+      return reply.send({ success: true, data: updated, message: 'Join request submitted.' });
+    }
+
+    const membership = await app.prisma.enterpriseMembership.create({
+      data: {
+        enterpriseId: id,
+        userId: request.user.sub,
+        role: 'MEMBER',
+        status: 'PENDING',
+        isActive: false,
+      },
+    });
+
+    return reply.code(201).send({ success: true, data: membership, message: 'Join request submitted. Await approval from the company owner.' });
+  });
+
+  // GET /enterprises/:id/join-requests — list pending join requests (owner/admin only)
+  app.get('/:id/join-requests', async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+
+    const enterprise = await app.prisma.enterpriseProfile.findUnique({ where: { id } });
+    if (!enterprise) throw new NotFoundError('Enterprise not found');
+
+    const isSystemAdmin = ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number]);
+    const callerMembership = await app.prisma.enterpriseMembership.findUnique({
+      where: { enterpriseId_userId: { enterpriseId: id, userId: request.user.sub } },
+    });
+    const isOwnerOrAdmin = callerMembership && ['OWNER', 'ADMIN'].includes(callerMembership.role);
+
+    if (!isSystemAdmin && !isOwnerOrAdmin) {
+      throw new ForbiddenError('Only enterprise owners or admins can view join requests.');
+    }
+
+    const requests = await app.prisma.enterpriseMembership.findMany({
+      where: { enterpriseId: id, status: 'PENDING' },
+      include: {
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true, jobTitle: true },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    return reply.send({ success: true, data: requests });
+  });
+
+  // PATCH /enterprises/:id/join-requests/:membershipId — approve or reject
+  app.patch('/:id/join-requests/:membershipId', async (request, reply) => {
+    const { id, membershipId } = z.object({
+      id:           z.string(),
+      membershipId: z.string(),
+    }).parse(request.params);
+    const { action } = z.object({
+      action: z.enum(['APPROVE', 'REJECT']),
+    }).parse(request.body);
+
+    const enterprise = await app.prisma.enterpriseProfile.findUnique({ where: { id } });
+    if (!enterprise) throw new NotFoundError('Enterprise not found');
+
+    const isSystemAdmin = ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number]);
+    const callerMembership = await app.prisma.enterpriseMembership.findUnique({
+      where: { enterpriseId_userId: { enterpriseId: id, userId: request.user.sub } },
+    });
+    const isOwnerOrAdmin = callerMembership && ['OWNER', 'ADMIN'].includes(callerMembership.role);
+
+    if (!isSystemAdmin && !isOwnerOrAdmin) {
+      throw new ForbiddenError('Only enterprise owners or admins can respond to join requests.');
+    }
+
+    const pending = await app.prisma.enterpriseMembership.findUnique({ where: { id: membershipId } });
+    if (!pending || pending.enterpriseId !== id || pending.status !== 'PENDING') {
+      throw new NotFoundError('Pending join request not found.');
+    }
+
+    const updated = await app.prisma.enterpriseMembership.update({
+      where: { id: membershipId },
+      data: {
+        status:   action === 'APPROVE' ? 'ACTIVE'    : 'REJECTED',
+        isActive: action === 'APPROVE',
+      },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+    });
+
+    return reply.send({ success: true, data: updated });
+  });
+
+  // DELETE /enterprises/:id — admin only
+  app.delete('/:id', async (request, reply) => {
+    const isAdmin = ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number]);
+    if (!isAdmin) {
+      throw new ForbiddenError('Only administrators can delete enterprise profiles.');
+    }
+
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const enterprise = await app.prisma.enterpriseProfile.findUnique({ where: { id } });
+    if (!enterprise) throw new NotFoundError('Enterprise not found');
+
+    await app.prisma.enterpriseProfile.delete({ where: { id } });
+
+    await app.prisma.auditLog.create({
+      data: {
+        userId: request.user.sub,
+        action: 'ENTERPRISE_DELETED',
+        entityType: 'EnterpriseProfile',
+        entityId: id,
+      },
+    });
+
+    return reply.send({ success: true });
   });
 };

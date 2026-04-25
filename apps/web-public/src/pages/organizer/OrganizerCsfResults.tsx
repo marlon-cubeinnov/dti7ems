@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { surveyApi } from '@/lib/api';
 import { format } from 'date-fns';
+import { AlertTriangle } from 'lucide-react';
 
 /* ── Exact questions from official DTI FM-CSF-ACT form ── */
 
@@ -87,6 +88,8 @@ type IndividualResponse = {
   reasonsForLowRating: string | null;
   speakerRatings: Array<{ speakerId: string; rating: number }>;
   submittedAt: string;
+  participantName: string | null;
+  participantEmail: string | null;
 };
 
 type CsfResultData = {
@@ -100,7 +103,9 @@ type CsfResultData = {
 export function OrganizerCsfResultsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'summary' | 'individual'>('summary');
+  const [searchParams] = useSearchParams();
+  const targetResponseId = searchParams.get('responseId');
+  const [viewMode, setViewMode] = useState<'summary' | 'individual'>(() => targetResponseId ? 'individual' : 'summary');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const { data, isLoading, isError } = useQuery({
@@ -110,6 +115,16 @@ export function OrganizerCsfResultsPage() {
   });
 
   const results = data?.data as CsfResultData | null | undefined;
+
+  // When a specific responseId is requested, auto-select it in individual view
+  useEffect(() => {
+    if (!targetResponseId || !results?.responses?.length) return;
+    const idx = results.responses.findIndex(r => r.id === targetResponseId);
+    if (idx !== -1) {
+      setViewMode('individual');
+      setSelectedIdx(idx);
+    }
+  }, [targetResponseId, results]);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-10">
@@ -132,6 +147,28 @@ export function OrganizerCsfResultsPage() {
         </div>
       ) : (
         <>
+          {/* ── Low-rating alert banner ── */}
+          {(() => {
+            const SQD_KEYS = ['sqd0OverallRating','sqd1Responsiveness','sqd2Reliability','sqd3AccessFacilities','sqd4Communication','sqd6Integrity','sqd7Assurance','sqd8Outcome'] as const;
+            const lowRatingResponses = results.responses.filter(r =>
+              SQD_KEYS.some(k => {
+                const v = (r as any)[k];
+                return v !== null && v !== undefined && v <= 2;
+              })
+            );
+            if (lowRatingResponses.length === 0) return null;
+            return (
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Low-rating alert: </span>
+                  {lowRatingResponses.length} response{lowRatingResponses.length !== 1 ? 's' : ''} contain{lowRatingResponses.length === 1 ? 's' : ''} one or more Disagree / Strongly Disagree ratings.
+                  {' '}<button className="underline font-medium" onClick={() => setViewMode('individual')}>View individual responses</button> to review.
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── DTI Form Header ── */}
           <div className="bg-white border border-gray-300 rounded-t-lg">
             <div className="flex justify-between items-start px-4 pt-3">
@@ -310,7 +347,7 @@ export function OrganizerCsfResultsPage() {
                 >
                   {results.responses.map((r, i) => (
                     <option key={r.id} value={i}>
-                      Response #{i + 1} — {format(new Date(r.submittedAt), 'MMM d, yyyy h:mm a')}
+                      {r.participantName ?? `Response #${i + 1}`} — {format(new Date(r.submittedAt), 'MMM d, yyyy h:mm a')}
                     </option>
                   ))}
                 </select>
@@ -338,6 +375,24 @@ export function OrganizerCsfResultsPage() {
 
                 return (
                   <>
+                    {/* Participant name banner */}
+                    {(() => {
+                      const SQD_KEYS = ['sqd0OverallRating','sqd1Responsiveness','sqd2Reliability','sqd3AccessFacilities','sqd4Communication','sqd6Integrity','sqd7Assurance','sqd8Outcome'] as const;
+                      const hasLowRating = SQD_KEYS.some(k => { const v = (r as any)[k]; return v !== null && v !== undefined && v <= 2; });
+                      return (
+                        <div className={`border-x border-b border-gray-300 px-5 py-2.5 flex items-center gap-2 flex-wrap ${hasLowRating ? 'bg-red-50' : 'bg-blue-50'}`}>
+                          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Respondent:</span>
+                          <span className={`text-sm font-semibold ${hasLowRating ? 'text-red-800' : 'text-[#003087]'}`}>{r.participantName ?? `Response #${selectedIdx + 1}`}</span>
+                          {r.participantEmail && <span className="text-xs text-gray-500">({r.participantEmail})</span>}
+                          {hasLowRating && (
+                            <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                              <AlertTriangle className="w-3 h-3" /> Low rating
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* PART I: CC */}
                     <div className="bg-white border-x border-b border-gray-300">
                       <div className="bg-gray-50 px-5 py-2 border-b border-gray-200">
@@ -385,10 +440,11 @@ export function OrganizerCsfResultsPage() {
                           <tbody>
                             {SQD_ITEMS.map(item => {
                               const val = (r as any)[item.key] as number | null;
+                              const isLow = !item.isNA && val !== null && val !== undefined && val <= 2;
                               return (
-                                <tr key={item.key} className="border-b border-gray-100">
+                                <tr key={item.key} className={`border-b border-gray-100 ${isLow ? 'bg-red-50' : ''}`}>
                                   <td className="px-4 py-3">
-                                    <div className="font-bold text-xs text-[#003087] mb-0.5">{item.num}. {item.title}</div>
+                                    <div className={`font-bold text-xs mb-0.5 ${isLow ? 'text-red-700' : 'text-[#003087]'}`}>{item.num}. {item.title}{isLow && <span className="ml-1.5 text-[10px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5">Low</span>}</div>
                                     {!item.isNA && <div className="text-xs text-gray-600 leading-relaxed">{item.text}</div>}
                                     {item.isNA && <div className="text-xs text-gray-400 italic">N/A</div>}
                                   </td>

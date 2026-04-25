@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
+import { loadSmtpConfig } from '../plugins/mailer.js';
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 
@@ -256,5 +257,118 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         topSectors: sectorCounts.map(s => ({ sector: s.industrySector, count: s._count })),
       },
     });
+  });
+
+  // ── Email / SMTP settings ─────────────────────────────────────────────────
+
+  app.get('/settings/email', async (request, reply) => {
+    requireAdmin(request.user.role);
+
+    const cfg = await loadSmtpConfig(app.prisma);
+
+    return reply.send({
+      success: true,
+      data: {
+        host:   cfg.host,
+        port:   cfg.port,
+        secure: cfg.secure,
+        user:   cfg.user ?? '',
+        // Never return the real password — return a mask if one is set
+        pass:   cfg.pass ? '••••••••' : '',
+        from:   cfg.from,
+      },
+    });
+  });
+
+  app.put('/settings/email', async (request, reply) => {
+    requireAdmin(request.user.role);
+
+    const body = z.object({
+      host:   z.string().min(1).max(300),
+      port:   z.coerce.number().int().min(1).max(65535),
+      secure: z.boolean(),
+      user:   z.string().max(300).default(''),
+      pass:   z.string().max(500).default(''),
+      from:   z.string().max(500).min(1),
+    }).parse(request.body);
+
+    const KEYS = ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_from'] as const;
+    const kvPairs: { key: string; value: string }[] = [
+      { key: 'smtp_host',   value: body.host },
+      { key: 'smtp_port',   value: String(body.port) },
+      { key: 'smtp_secure', value: String(body.secure) },
+      { key: 'smtp_user',   value: body.user },
+      { key: 'smtp_from',   value: body.from },
+    ];
+
+    // Only overwrite password when a new (non-mask) value is provided
+    const isMaskOnly = body.pass.replace(/•/g, '') === '';
+    if (!isMaskOnly && body.pass.trim() !== '') {
+      kvPairs.push({ key: 'smtp_pass', value: body.pass });
+    }
+
+    await Promise.all(
+      kvPairs.map(({ key, value }) =>
+        app.prisma.systemSetting.upsert({
+          where:  { key },
+          update: { value, updatedBy: request.user.sub },
+          create: { key, value, updatedBy: request.user.sub },
+        }),
+      ),
+    );
+
+    await app.prisma.auditLog.create({
+      data: {
+        userId: request.user.sub,
+        action: 'EMAIL_SETTINGS_UPDATED',
+        entityType: 'SystemSetting',
+        entityId: 'smtp',
+        newData: { host: body.host, port: body.port, secure: body.secure, user: body.user, from: body.from },
+      },
+    });
+
+    // Reload the live mailer transporter with new settings
+    try {
+      await app.reloadMailer();
+    } catch (err) {
+      return reply.code(422).send({
+        success: false,
+        error: {
+          code: 'SMTP_CONNECTION_FAILED',
+          message: `Settings saved but SMTP connection failed: ${(err as Error).message}. Check host/port/credentials.`,
+        },
+      });
+    }
+
+    return reply.send({ success: true, message: 'Email settings saved and mailer reconnected.' });
+  });
+
+  app.post('/settings/email/test', async (request, reply) => {
+    requireAdmin(request.user.role);
+
+    const { to } = z.object({ to: z.string().email() }).parse(request.body);
+
+    const cfg = await loadSmtpConfig(app.prisma);
+
+    try {
+      await app.mailer.sendMail({
+        from:    cfg.from,
+        to,
+        subject: 'DTI EMS — Test Email',
+        html: `<p>This is a test email from the <strong>DTI Region 7 EMS</strong>.</p>
+               <p>If you received this, your email configuration is working correctly.</p>
+               <p style="color:#6b7280;font-size:12px">Sent at ${new Date().toISOString()}</p>`,
+      });
+    } catch (err) {
+      return reply.code(422).send({
+        success: false,
+        error: {
+          code: 'TEST_MAIL_FAILED',
+          message: `Failed to send test email: ${(err as Error).message}`,
+        },
+      });
+    }
+
+    return reply.send({ success: true, message: `Test email sent to ${to}.` });
   });
 };

@@ -155,6 +155,7 @@ model EnterpriseMembership {
   enterpriseId String         @map("enterprise_id")
   userId       String         @map("user_id")
   role         MembershipRole @default(MEMBER)
+  status       String         @default("ACTIVE") @map("status") // PENDING | ACTIVE | INACTIVE | REJECTED
   isActive     Boolean        @default(true) @map("is_active")
   joinedAt     DateTime       @default(now()) @map("joined_at")
 
@@ -231,4 +232,15 @@ model RolePermission {
   @@index([roleId])
   @@index([permissionId])
   @@map("role_permissions")
+}
+
+// ── System Settings ──────────────────────────────────────────────────────────
+
+model SystemSetting {
+  key       String   @id
+  value     String?  @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("system_settings")
 }

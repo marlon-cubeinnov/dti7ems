@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EMS Workflow Guide — DTI Region 7</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #1a2332;
+      background: #f5f7fa;
+    }
+    a { color: #0057a3; }
+
+    /* ── Cover ────────────────────────────────────────────────── */
+    .cover {
+      background: linear-gradient(135deg, #003f7f 0%, #0057a3 60%, #0080d4 100%);
+      color: #fff;
+      padding: 60px 48px 48px;
+    }
+    .cover .logo-line {
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      opacity: .75;
+      margin-bottom: 12px;
+    }
+    .cover h1 { font-size: 32px; font-weight: 700; line-height: 1.25; }
+    .cover .subtitle { margin-top: 8px; font-size: 16px; opacity: .85; }
+    .cover .meta { margin-top: 32px; font-size: 12px; opacity: .65; }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .page { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ── Section headings ─────────────────────────────────────── */
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #003f7f;
+      padding-bottom: 8px;
+      border-bottom: 3px solid #0057a3;
+      margin: 40px 0 20px;
+    }
+    .subsection-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a2332;
+      margin: 24px 0 10px;
+    }
+
+    /* ── Role badge ───────────────────────────────────────────── */
+    .role-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .r-participant { background: #dbeafe; color: #1e40af; }
+    .r-organizer  { background: #dcfce7; color: #166534; }
+    .r-admin      { background: #fef3c7; color: #92400e; }
+    .r-all        { background: #f3f4f6; color: #374151; }
+
+    /* ── Workflow steps ───────────────────────────────────────── */
+    .workflow {
+      counter-reset: step;
+      list-style: none;
+      position: relative;
+      padding-left: 0;
+    }
+    .workflow::before {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 24px;
+      bottom: 24px;
+      width: 2px;
+      background: #cbd5e1;
+    }
+    .workflow li {
+      position: relative;
+      padding: 0 0 24px 52px;
+    }
+    .workflow li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #0057a3;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .workflow li .step-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #1a2332;
+      padding-top: 8px;
+    }
+    .workflow li p, .workflow li ul {
+      color: #475569;
+      font-size: 13px;
+    }
+    .workflow li ul { padding-left: 18px; margin-top: 4px; }
+    .workflow li ul li { padding: 0; }
+    .workflow li ul li::before { display: none; }
+
+    /* ── Info boxes ───────────────────────────────────────────── */
+    .info-box {
+      border-left: 4px solid #0057a3;
+      background: #eff6ff;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+      color: #1e3a5f;
+    }
+    .warn-box {
+      border-left: 4px solid #f59e0b;
+      background: #fffbeb;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+      color: #78350f;
+    }
+    .tip-box {
+      border-left: 4px solid #10b981;
+      background: #ecfdf5;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+      color: #065f46;
+    }
+
+    /* ── Table of Contents ────────────────────────────────────── */
+    .toc { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .toc h2 { font-size: 14px; font-weight: 700; color: #003f7f; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; }
+    .toc li { margin: 4px 0; }
+    .toc a { text-decoration: none; color: #0057a3; font-size: 13px; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Role cards ───────────────────────────────────────────── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .role-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .role-card .title { font-weight: 700; font-size: 13px; margin-bottom: 6px; color: #1a2332; }
+    .role-card ul { padding-left: 14px; font-size: 12px; color: #475569; }
+    .role-card ul li { margin: 3px 0; }
+
+    /* ── Flowchart-style diagram (pure CSS) ───────────────────── */
+    .flow-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+      align-items: center;
+      margin: 16px 0;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .flow-node {
+      background: #0057a3;
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .flow-arrow {
+      color: #94a3b8;
+      font-size: 18px;
+      padding: 0 6px;
+      flex-shrink: 0;
+    }
+    .flow-node.optional { background: #64748b; }
+    .flow-node.done { background: #059669; }
+
+    /* ── Quick-ref table ──────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    th { background: #003f7f; color: #fff; text-align: left; padding: 8px 12px; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    /* ── Print ────────────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .flow-node { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ Cover ═════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <p class="logo-line">Department of Trade and Industry · Region 7</p>
+  <h1>EMS Workflow &amp; Process Guide</h1>
+  <p class="subtitle">Enterprise &amp; MSME Event Management System — Step-by-Step Operations Manual</p>
+  <p class="meta">Version 1.0 &nbsp;·&nbsp; April 2026 &nbsp;·&nbsp; For internal and partner-organization use</p>
+</div>
+
+<!-- ══ Body ══════════════════════════════════════════════════════════ -->
+<div class="page">
+
+  <!-- ToC -->
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#roles">1. User Roles &amp; Access</a></li>
+      <li><a href="#reg">2. Registration &amp; Account Setup</a></li>
+      <li><a href="#event-lifecycle">3. Event Lifecycle (end-to-end)</a></li>
+      <li><a href="#participant-flow">4. Participant Workflow</a></li>
+      <li><a href="#organizer-flow">5. Organizer / Program Manager Workflow</a></li>
+      <li><a href="#admin-flow">6. Admin Workflow</a></li>
+      <li><a href="#enterprise-mgmt">7. Enterprise Management (Admin)</a></li>
+      <li><a href="#surveys">8. Surveys &amp; Evaluation</a></li>
+      <li><a href="#certificates">9. Certificates</a></li>
+      <li><a href="#quick-ref">10. Quick Reference</a></li>
+    </ol>
+  </div>
+
+  <!-- ══ 1. Roles ═══════════════════════════════════════════════════ -->
+  <h2 class="section-title" id="roles">1. User Roles &amp; Access</h2>
+  <p>The EMS assigns each account a <strong>role</strong> that determines what pages and actions are available.</p>
+  <div class="role-grid">
+    <div class="role-card">
+      <div class="title">🧑 Participant</div>
+      <ul>
+        <li>Register for events</li>
+        <li>Submit TNA &amp; CSF surveys</li>
+        <li>Download certificates</li>
+        <li>Manage enterprise profile</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="title">📋 Event Organizer</div>
+      <ul>
+        <li>Create event proposals</li>
+        <li>Manage participant list</li>
+        <li>Record attendance (QR scan)</li>
+        <li>View CSF results</li>
+        <li>Submit post-activity report</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="title">📊 Program Manager</div>
+      <ul>
+        <li>Review &amp; approve proposals</li>
+        <li>Monitor all events</li>
+        <li>View effectiveness reports</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="title">🛡️ System Admin</div>
+      <ul>
+        <li>Manage all users</li>
+        <li>Manage enterprises</li>
+        <li>Approve / reject proposals</li>
+        <li>View audit logs</li>
+        <li>Configure roles &amp; permissions</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="title">🏛️ Division Chief / Regional Director</div>
+      <ul>
+        <li>View aggregate reports</li>
+        <li>Approve high-level proposals</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══ 2. Registration ════════════════════════════════════════════ -->
+  <h2 class="section-title" id="reg">2. Registration &amp; Account Setup</h2>
+
+  <h3 class="subsection-title">2.1 Who should register?</h3>
+  <p>Anyone who will attend, organize, or manage DTI Region 7 training and enterprise development events. Choose the category that best describes you during sign-up:</p>
+  <table>
+    <tr><th>Category</th><th>Who registers here</th><th>Notes</th></tr>
+    <tr><td>Individual / Citizen</td><td>General public, solo entrepreneurs, freelancers</td><td>Basic profile, no enterprise affiliation required</td></tr>
+    <tr><td>Government Employee</td><td>LGU staff, national government personnel</td><td>Sets <code>clientType = GOVERNMENT</code></td></tr>
+    <tr><td>NGO / Organization</td><td>Civil society, cooperatives, associations</td><td>Creates an organization profile automatically</td></tr>
+    <tr><td>Business / MSME</td><td>Registered businesses, MSMEs</td><td>Creates an enterprise profile; DTI verifies</td></tr>
+  </table>
+
+  <h3 class="subsection-title">2.2 Step-by-step registration</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Go to the EMS portal and click <em>Register</em></div>
+      <p>Navigate to the public portal URL and click the <strong>Register</strong> button on the top navigation bar.</p>
+    </li>
+    <li>
+      <div class="step-title">Choose your registration category</div>
+      <p>Select the tab that matches your type: <em>Individual/Citizen</em>, <em>Government Employee</em>, <em>NGO/Organization</em>, or <em>Business/MSME</em>.</p>
+    </li>
+    <li>
+      <div class="step-title">Fill in your personal details</div>
+      <p>Provide your first name, last name, email address, mobile number, and password. MSME/NGO registrants also enter business information (name, sector, stage).</p>
+      <div class="info-box">📧 A verification email is sent to the address you provide. You must verify it before you can fully access your account.</div>
+    </li>
+    <li>
+      <div class="step-title">Submit and verify your email</div>
+      <p>Click the link in the verification email to activate your account.</p>
+    </li>
+    <li>
+      <div class="step-title">Complete your participant profile</div>
+      <p>Log in and go to <strong>My Profile</strong>. Fill in optional demographic details (sex, age bracket, employment category) — these are used in ARTA/CSC reports.</p>
+    </li>
+  </ol>
+
+  <div class="warn-box">
+    <strong>⚠ Duplicate company check:</strong> If your company name is already in the system, the registration form will show a <em>409 Conflict</em> notice. Contact the System Administrator to link your existing account instead of creating a duplicate.
+  </div>
+
+  <!-- ══ 3. Event Lifecycle ═════════════════════════════════════════ -->
+  <h2 class="section-title" id="event-lifecycle">3. Event Lifecycle (End-to-End)</h2>
+  <p>Every training event follows this pipeline from proposal to post-activity report:</p>
+
+  <div class="flow-diagram">
+    <div class="flow-node">1. Proposal</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">2. Review &amp; Approval</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">3. Published</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">4. Registration Open</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">5. TNA Survey</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">6. Event Day / Attendance</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">7. CSF Survey</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node done">8. Post-Activity Report</div>
+  </div>
+
+  <table>
+    <tr><th>Stage</th><th>Who acts</th><th>Key output</th></tr>
+    <tr><td>1. Proposal</td><td>Organizer / Program Manager</td><td>Draft event with objectives, target audience, budget</td></tr>
+    <tr><td>2. Review &amp; Approval</td><td>Division Chief, Regional Director, Admin</td><td>Approved / Revision requested / Rejected</td></tr>
+    <tr><td>3. Published</td><td>Admin</td><td>Event visible on public portal</td></tr>
+    <tr><td>4. Registration</td><td>Participants</td><td>Confirmed participant list</td></tr>
+    <tr><td>5. TNA Survey</td><td>Participants (pre-training)</td><td>Training Needs Assessment baseline data</td></tr>
+    <tr><td>6. Attendance</td><td>Organizer (QR scanner)</td><td>Attendance records per session</td></tr>
+    <tr><td>7. CSF Survey</td><td>Participants (post-training)</td><td>Client Satisfaction Form ratings</td></tr>
+    <tr><td>8. Post-Activity Report</td><td>Organizer</td><td>Summary narrative + certificate trigger</td></tr>
+  </table>
+
+  <!-- ══ 4. Participant Workflow ════════════════════════════════════ -->
+  <h2 class="section-title" id="participant-flow">4. Participant Workflow</h2>
+  <span class="role-badge r-participant">Participant</span>
+
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Browse upcoming events</div>
+      <p>From the <strong>Dashboard</strong> or <strong>Events</strong> page, find events relevant to your business or interest. Use the search filters (sector, location, date) to narrow results.</p>
+    </li>
+    <li>
+      <div class="step-title">Register for an event</div>
+      <p>Click the event card, review the details, and click <strong>Register for this Event</strong>. If you are a Business/MSME user, you may be prompted to confirm your <em>business stage</em> before proceeding.</p>
+      <div class="info-box">Business stage (Pre-Startup → Startup → Growth → Expansion → Mature) determines the programs you are eligible for. Update it if your stage has changed.</div>
+    </li>
+    <li>
+      <div class="step-title">Complete the TNA Survey (pre-training)</div>
+      <p>After registering, complete the <strong>Training Needs Assessment</strong> survey. This captures your current knowledge level <em>before</em> the training — it is used to measure learning progress after the event.</p>
+      <div class="warn-box">The TNA should be completed <strong>before</strong> the event date. Submit it as early as possible so organizers can tailor the session to participants' needs.</div>
+    </li>
+    <li>
+      <div class="step-title">Attend the event and get your QR code scanned</div>
+      <p>On event day, present your QR attendance code (found in <em>My Events → Event Details</em>) at the registration desk. Your attendance is recorded per session.</p>
+    </li>
+    <li>
+      <div class="step-title">Complete the CSF Survey (post-training)</div>
+      <p>After the event, submit the <strong>Client Satisfaction Form</strong>. This evaluates the trainer, venue, materials, and overall experience. You can access it from <em>My Events</em> — look for the <strong>Pending</strong> badge.</p>
+      <div class="tip-box">💡 Your organizer can share a QR code that takes you directly to your CSF form if you cannot find it.</div>
+    </li>
+    <li>
+      <div class="step-title">Download your certificate</div>
+      <p>Once the organizer submits the post-activity report, your certificate of participation becomes available. Go to <strong>My Certificates</strong> or click the certificate banner on your Dashboard to download.</p>
+    </li>
+  </ol>
+
+  <!-- ══ 5. Organizer Workflow ══════════════════════════════════════ -->
+  <h2 class="section-title" id="organizer-flow">5. Organizer / Program Manager Workflow</h2>
+  <span class="role-badge r-organizer">Organizer</span>
+
+  <h3 class="subsection-title">5.1 Creating a New Event Proposal</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Go to <em>New Proposal</em></div>
+      <p>From the sidebar, click <strong>New Proposal</strong> and fill in the event details: title, description, type, target sector, dates, venue, and capacity.</p>
+    </li>
+    <li>
+      <div class="step-title">Attach the checklist</div>
+      <p>Add your pre-event checklist items (logistics, materials, speakers). These will be tracked on the event dashboard.</p>
+    </li>
+    <li>
+      <div class="step-title">Submit for approval</div>
+      <p>Click <strong>Submit for Review</strong>. The proposal moves to the Program Manager / Division Chief for endorsement.</p>
+    </li>
+    <li>
+      <div class="step-title">Address revision requests (if any)</div>
+      <p>If feedback is received, update the proposal and re-submit. Track comments in the proposal timeline.</p>
+    </li>
+  </ol>
+
+  <h3 class="subsection-title">5.2 Managing an Approved Event</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Open the event in <em>My Events</em></div>
+      <p>Once approved, your event appears under <strong>My Events</strong>. Click it to open the event dashboard.</p>
+    </li>
+    <li>
+      <div class="step-title">Monitor registrations</div>
+      <p>View the <strong>Participant List</strong> tab. You can see registration status, TNA completion, and CSF status for each participant.</p>
+    </li>
+    <li>
+      <div class="step-title">Send CSF QR codes for pending surveys</div>
+      <p>In the Participant List, participants with a <em>Pending</em> CSF status show a <strong>QR icon</strong>. Click it to generate and download/share a QR code that links directly to that participant's CSF form.</p>
+    </li>
+    <li>
+      <div class="step-title">Record attendance on event day</div>
+      <p>Use the <strong>QR Attendance</strong> scanner in the event dashboard to scan participants' codes and record their attendance per session/day.</p>
+    </li>
+    <li>
+      <div class="step-title">Review CSF results</div>
+      <p>After the event, go to <strong>CSF Results</strong> to see all responses. Low-rated submissions (any SQD score ≤ 2) are highlighted in red with an alert banner at the top. Use this to identify areas for improvement.</p>
+    </li>
+    <li>
+      <div class="step-title">Submit the Post-Activity Report</div>
+      <p>Complete the <strong>Post-Activity Report</strong> (narrative + actual expenses). Once submitted, the system generates certificates for all qualified participants.</p>
+    </li>
+  </ol>
+
+  <!-- ══ 6. Admin Workflow ══════════════════════════════════════════ -->
+  <h2 class="section-title" id="admin-flow">6. Admin Workflow</h2>
+  <span class="role-badge r-admin">Admin</span>
+
+  <h3 class="subsection-title">6.1 User Management</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Access <em>Users</em> from the Admin sidebar</div>
+      <p>Search by name or email. Use the role and status filters to narrow the list.</p>
+    </li>
+    <li>
+      <div class="step-title">Review and activate accounts</div>
+      <p>New participant accounts registered via the portal are <strong>Active</strong> by default. You can suspend, ban, or change a user's role via the Actions menu.</p>
+    </li>
+    <li>
+      <div class="step-title">Verify email addresses manually</div>
+      <p>If a user did not receive the verification email, use <strong>Verify Email</strong> from the user detail actions.</p>
+    </li>
+  </ol>
+
+  <h3 class="subsection-title">6.2 Proposal Approval</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Open <em>All Events → Proposals</em></div>
+      <p>Proposals in <em>Pending Review</em> status are listed first. Click a proposal to open the full details.</p>
+    </li>
+    <li>
+      <div class="step-title">Review proposal details</div>
+      <p>Check objectives, budget, target sector, proposed dates, and checklist.</p>
+    </li>
+    <li>
+      <div class="step-title">Approve, request revision, or reject</div>
+      <p>Use the action buttons at the top of the proposal page. Approved proposals are published and become discoverable by participants.</p>
+    </li>
+  </ol>
+
+  <!-- ══ 7. Enterprise Management ══════════════════════════════════ -->
+  <h2 class="section-title" id="enterprise-mgmt">7. Enterprise Management (Admin)</h2>
+  <span class="role-badge r-admin">Admin</span>
+  <p style="margin-top:10px">Navigate to <strong>Enterprises</strong> in the Admin sidebar to manage all registered MSME and organization profiles.</p>
+
+  <h3 class="subsection-title">7.1 Viewing and Filtering Enterprises</h3>
+  <ul style="padding-left:18px; font-size:13px; color:#475569; margin-top:8px;">
+    <li>Use the <strong>search box</strong> to find enterprises by business name or TIN.</li>
+    <li>Filter by <strong>Stage</strong> (Pre-Startup, Startup, Growth, Expansion, Mature).</li>
+    <li>Filter by <strong>Verified</strong> status to find unverified enterprises awaiting review.</li>
+  </ul>
+
+  <h3 class="subsection-title">7.2 Verifying an Enterprise</h3>
+  <p>Click <strong>Verify</strong> in the Actions column. This marks the enterprise as officially recognized by DTI. Verified status is shown with a green checkmark in the list and on the participant's profile.</p>
+
+  <h3 class="subsection-title">7.3 Listing / Unlisting an Enterprise</h3>
+  <p>Click <strong>List</strong> to make the enterprise publicly visible in the EMS Business Directory. Click <strong>Unlist</strong> to hide it. Only publicly listed enterprises appear in directory searches.</p>
+
+  <h3 class="subsection-title">7.4 Editing an Enterprise</h3>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Click the <em>pencil (✏️) icon</em> in the Actions column</div>
+      <p>The Edit Enterprise modal opens with all current details pre-filled.</p>
+    </li>
+    <li>
+      <div class="step-title">Update the required fields</div>
+      <p>You can change: Business Name, Trade Name, Registration No., TIN, Industry Sector, Business Stage, Employee Count, Annual Revenue, Region, Province, City/Municipality, and toggle Verified / Publicly Listed.</p>
+    </li>
+    <li>
+      <div class="step-title">Click <em>Save Changes</em></div>
+      <p>Changes take effect immediately. An audit log entry is created automatically.</p>
+    </li>
+  </ol>
+
+  <h3 class="subsection-title">7.5 Deleting an Enterprise</h3>
+  <div class="warn-box">
+    <strong>⚠ Destructive action:</strong> Deleting an enterprise permanently removes its profile and all associated membership records. This cannot be undone. Only delete duplicates or test entries.
+  </div>
+  <ol class="workflow">
+    <li>
+      <div class="step-title">Click the <em>trash (🗑) icon</em> in the Actions column</div>
+      <p>A confirmation dialog appears showing the enterprise name.</p>
+    </li>
+    <li>
+      <div class="step-title">Confirm deletion</div>
+      <p>Click <strong>Delete Enterprise</strong> to proceed. The action is logged in the Audit Log under the <code>ENTERPRISE_DELETED</code> event.</p>
+    </li>
+  </ol>
+
+  <h3 class="subsection-title">7.6 Linking a Participant to an Existing Enterprise</h3>
+  <p>If a participant registered and created a duplicate enterprise profile, do the following:</p>
+  <ol style="padding-left:18px; font-size:13px; color:#475569; margin-top:6px;">
+    <li>Delete the duplicate enterprise via the Enterprises page.</li>
+    <li>Open the participant's profile in the <strong>Users</strong> page and note their user ID.</li>
+    <li>In the correct enterprise, contact the enterprise owner to add the participant via <em>Enterprise Members → Add Member by Email</em>.</li>
+  </ol>
+
+  <!-- ══ 8. Surveys ════════════════════════════════════════════════ -->
+  <h2 class="section-title" id="surveys">8. Surveys &amp; Evaluation</h2>
+
+  <h3 class="subsection-title">8.1 Training Needs Assessment (TNA)</h3>
+  <p>The TNA is a <strong>pre-training baseline survey</strong> completed by participants when they register for an event. It measures their existing knowledge and identifies skill gaps <em>before</em> the training begins.</p>
+  <div class="info-box">
+    Results from the TNA are used by organizers to confirm topic priorities and by the program team to measure the improvement achieved after training (pre- vs. post-event comparison).
+  </div>
+
+  <h3 class="subsection-title">8.2 Client Satisfaction Form (CSF)</h3>
+  <p>The CSF is a <strong>post-training evaluation</strong> form completed by participants after the event ends. It rates eight Service Quality Dimensions (SQD 1–8) on a 1–5 scale.</p>
+  <table>
+    <tr><th>Dimension</th><th>What it measures</th></tr>
+    <tr><td>SQD 1</td><td>Timeliness of service</td></tr>
+    <tr><td>SQD 2</td><td>Waiting time</td></tr>
+    <tr><td>SQD 3</td><td>Responsiveness of staff</td></tr>
+    <tr><td>SQD 4</td><td>Knowledge &amp; competence</td></tr>
+    <tr><td>SQD 5</td><td>Helpfulness / courtesy</td></tr>
+    <tr><td>SQD 6</td><td>Quality of service delivery</td></tr>
+    <tr><td>SQD 7</td><td>Overall satisfaction</td></tr>
+    <tr><td>SQD 8</td><td>Would you recommend this service?</td></tr>
+  </table>
+  <div class="warn-box">Responses with any SQD score of <strong>1 or 2 (Very Dissatisfied / Dissatisfied)</strong> are automatically flagged in the CSF Results page with a red alert banner. Organizers should review these individually and address concerns in the post-activity report.</div>
+
+  <!-- ══ 9. Certificates ════════════════════════════════════════════ -->
+  <h2 class="section-title" id="certificates">9. Certificates</h2>
+
+  <p>Certificates of participation are generated <strong>automatically</strong> once the organizer submits the post-activity report for a completed event.</p>
+
+  <h3 class="subsection-title">For Participants</h3>
+  <ol style="padding-left:18px; font-size:13px; color:#475569; margin-top:6px; line-height:1.8">
+    <li>Log in and go to <strong>Dashboard</strong>. A blue certificate banner appears when new certificates are available.</li>
+    <li>Click <em>View Certificates →</em> or navigate to <strong>My Certificates</strong> from the sidebar.</li>
+    <li>Click <strong>Download</strong> to get a PDF copy of your certificate.</li>
+  </ol>
+
+  <h3 class="subsection-title">Eligibility Criteria</h3>
+  <ul style="padding-left:18px; font-size:13px; color:#475569; margin-top:6px; line-height:1.8">
+    <li>Participant must have attended at least one recorded session (QR-scanned attendance).</li>
+    <li>Completion of the CSF survey is recommended but not required by default.</li>
+    <li>The post-activity report must be submitted and accepted by the admin.</li>
+  </ul>
+
+  <!-- ══ 10. Quick Reference ════════════════════════════════════════ -->
+  <h2 class="section-title" id="quick-ref">10. Quick Reference</h2>
+
+  <table>
+    <tr><th>Task</th><th>Who</th><th>Where in the system</th></tr>
+    <tr><td>Create account</td><td>Anyone</td><td>Public portal → Register</td></tr>
+    <tr><td>Update profile / enterprise info</td><td>Participant</td><td>My Profile</td></tr>
+    <tr><td>Browse &amp; register for events</td><td>Participant</td><td>Events (public listing)</td></tr>
+    <tr><td>Submit TNA</td><td>Participant</td><td>My Events → Event → TNA Survey</td></tr>
+    <tr><td>Submit CSF</td><td>Participant</td><td>My Events → Event → CSF Survey (Pending badge)</td></tr>
+    <tr><td>Download certificate</td><td>Participant</td><td>My Certificates</td></tr>
+    <tr><td>Create event proposal</td><td>Organizer</td><td>New Proposal</td></tr>
+    <tr><td>View participant list / CSF QR</td><td>Organizer</td><td>My Events → Participant List</td></tr>
+    <tr><td>Submit post-activity report</td><td>Organizer</td><td>My Events → Post-Activity Report</td></tr>
+    <tr><td>Approve proposals</td><td>Admin / Director</td><td>Admin → All Events</td></tr>
+    <tr><td>Manage users</td><td>Admin</td><td>Admin → Users</td></tr>
+    <tr><td>Edit / verify / delete enterprise</td><td>Admin</td><td>Admin → Enterprises → ✏️ or 🗑</td></tr>
+    <tr><td>View audit trail</td><td>Admin</td><td>Admin → Audit Logs</td></tr>
+    <tr><td>View effectiveness report</td><td>Admin / Director</td><td>Admin → Reports → Effectiveness</td></tr>
+  </table>
+
+  <div class="tip-box" style="margin-top:32px">
+    <strong>💡 Tip — Offline use:</strong> The EMS portal will show an amber <em>"You are currently offline"</em> banner when your device loses internet connectivity. No data will be submitted while offline. Reconnect and try your action again when the banner disappears.
+  </div>
+
+  <hr style="margin: 48px 0 24px; border:none; border-top:1px solid #e2e8f0" />
+  <p style="font-size:12px; color:#94a3b8; text-align:center">
+    Department of Trade and Industry · Region 7 · 3/F, WDC Bldg., Osmeña Blvd. cor. P. Burgos, Cebu City, 6000, Cebu, Philippines<br />
+    EMS Workflow Guide v1.0 · For inquiries contact your DTI Regional Office
+  </p>
+</div>
+</body>
+</html>

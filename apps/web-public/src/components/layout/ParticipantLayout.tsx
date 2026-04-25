@@ -1,7 +1,27 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import dtiLogo from '@/assets/dti-logo.jpg';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
+import { WifiOff } from 'lucide-react';
+
+function OfflineBanner() {
+  const [offline, setOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const goOff = () => setOffline(true);
+    const goOn  = () => setOffline(false);
+    window.addEventListener('offline', goOff);
+    window.addEventListener('online', goOn);
+    return () => { window.removeEventListener('offline', goOff); window.removeEventListener('online', goOn); };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div className="bg-amber-500 text-white text-xs flex items-center justify-center gap-2 py-1.5 px-4">
+      <WifiOff className="w-3.5 h-3.5 shrink-0" />
+      <span>You are currently offline. Some features may not be available until your connection is restored.</span>
+    </div>
+  );
+}
 
 const NAV = [
   { to: '/dashboard',       label: 'Dashboard'        },
@@ -29,6 +49,7 @@ export function ParticipantLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      <OfflineBanner />
       {/* Header */}
       <header className="bg-dti-blue shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">

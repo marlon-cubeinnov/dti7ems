@@ -124,7 +124,10 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
     const responses = await app.prisma.csfSurveyResponse.findMany({
       where: { eventId, status: 'SUBMITTED' },
       orderBy: { submittedAt: 'desc' },
-      include: { speakerRatings: true },
+      include: {
+        speakerRatings: true,
+        participation: { select: { participantName: true, participantEmail: true } },
+      },
     });
 
     const count = responses.length;
@@ -236,6 +239,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
           reasonsForLowRating: (r as any).reasonsForLowRating ?? null,
           speakerRatings: r.speakerRatings.map(sr => ({ speakerId: sr.speakerId, rating: sr.rating })),
           submittedAt: r.submittedAt,
+          participantName: r.participation?.participantName ?? null,
+          participantEmail: r.participation?.participantEmail ?? null,
         })),
       },
     });

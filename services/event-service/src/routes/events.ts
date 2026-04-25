@@ -449,7 +449,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         include: {
           tnaResponse:  { select: { compositeScore: true, recommendedTrack: true } },
           certificate:  { select: { status: true, issuedAt: true, verificationCode: true } },
-          csfSurveyResponse: { select: { status: true, submittedAt: true } },
+          csfSurveyResponse: { select: { id: true, status: true, submittedAt: true } },
           _count:       { select: { attendanceRecords: true } },
         },
       }),
