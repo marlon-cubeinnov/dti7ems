@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi, surveyApi } from '@/lib/api';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 function StarRating({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   return (
@@ -189,7 +189,9 @@ export function ImpactSurveyPage() {
       {/* FM-CT-5 Official Header */}
       <div className="card border-2 border-gray-300 p-6 mb-6">
         <div className="flex items-start justify-between gap-4">
-          <img src={dtiLogo} alt="DTI Logo" className="h-16 w-auto" />
+          <div className="flex items-center gap-3 shrink-0">
+            <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-16 w-auto" />
+          </div>
           <div className="text-center flex-1">
             <p className="text-sm font-bold text-gray-900">DEPARTMENT OF TRADE AND INDUSTRY</p>
             <p className="text-sm text-gray-700">[Region VII — Central Visayas]</p>

@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { organizerApi, staffApi, eventsApi, ApiError } from '@/lib/api';
+import { organizerApi, staffApi, eventsApi, tnaApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { ArrowLeft, Plus, Trash2, Save, UserCheck, Rocket } from 'lucide-react';
+import { Link as RouterLink } from 'react-router-dom';
+import { ArrowLeft, Plus, Trash2, Save, UserCheck, Rocket, ClipboardList, Upload, FileCheck, ExternalLink } from 'lucide-react';
 
-const TRAINING_TYPES = [
-  { value: '', label: '— Select —' },
-  { value: 'BUSINESS', label: 'Business' },
-  { value: 'MANAGERIAL', label: 'Managerial' },
-  { value: 'ORGANIZATIONAL', label: 'Organizational' },
-  { value: 'ENTREPRENEURIAL', label: 'Entrepreneurial' },
-  { value: 'INTER_AGENCY', label: 'Inter-Agency' },
+const PROPOSAL_TYPES = [
+  { value: '', label: '— Select —', group: '' },
+  { value: 'BUSINESS', label: 'Business Training', group: 'Training' },
+  { value: 'MANAGERIAL', label: 'Managerial Training', group: 'Training' },
+  { value: 'ORGANIZATIONAL', label: 'Organizational Training', group: 'Training' },
+  { value: 'ENTREPRENEURIAL', label: 'Entrepreneurial Training', group: 'Training' },
+  { value: 'INTER_AGENCY', label: 'Inter-Agency Training', group: 'Training' },
+  { value: 'SEMINAR', label: 'Seminar', group: 'Events' },
+  { value: 'FORUM', label: 'Forum / Panel Discussion', group: 'Events' },
+  { value: 'CONFERENCE', label: 'Conference', group: 'Events' },
+  { value: 'TRADE_FAIR', label: 'Trade Fair / Exhibit', group: 'Events' },
+  { value: 'TRADE_MISSION', label: 'Trade Mission', group: 'Events' },
+  { value: 'CONSULTATION', label: 'Consultation / Meeting', group: 'Events' },
 ];
 
 const PROPOSAL_STATUS_COLORS: Record<string, string> = {
@@ -56,9 +63,12 @@ export function OrganizerProposalPage() {
   const [msg, setMsg] = useState('');
   const [errMsg, setErrMsg] = useState('');
 
-  // Assign facilitator
-  const [staffSearch, setStaffSearch] = useState('');
-  const [selectedFacilitatorId, setSelectedFacilitatorId] = useState('');
+  // Upload approved proposal doc
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  // Assign Event/Training Lead
+  const [staffSearch, setStaffSearch] = useState('');  
+  const [selectedLeadId, setSelectedLeadId] = useState('');
 
   // Proposal fields state
   const [trainingType, setTrainingType] = useState('');
@@ -99,6 +109,12 @@ export function OrganizerProposalPage() {
     enabled: Boolean(id),
   });
 
+  const { data: linkedTnaData } = useQuery({
+    queryKey: ['tna-linked', id],
+    queryFn: () => tnaApi.listTnas({ linkedEventId: id!, limit: 10 }),
+    enabled: !!id,
+  });
+
   const event = eventData?.data as any;
   const proposal = proposalData?.data as any;
   const budgetItems: any[] = (budgetData as any)?.data ?? [];
@@ -119,6 +135,7 @@ export function OrganizerProposalPage() {
 
   const proposalStatus = proposal?.proposalStatus ?? 'DRAFT';
   const isLocked = proposalStatus === 'APPROVED';
+  const hasLead = !!proposal?.assignedOrganizerId;
   const canActivate = proposalStatus === 'APPROVED' && event?.status === 'DRAFT'
     && (user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN');
 
@@ -178,24 +195,36 @@ export function OrganizerProposalPage() {
     mutationFn: (action: 'APPROVE' | 'REJECT') => organizerApi.approveProposal(id!, action),
     onSuccess: (_, action) => {
       qc.invalidateQueries({ queryKey: ['proposal', id] });
-      setMsg(action === 'APPROVE' ? 'Proposal approved. You can now assign a facilitator.' : 'Proposal rejected.');
+      setMsg(action === 'APPROVE' ? 'Proposal approved. You can now upload the signed document and assign a facilitator.' : 'Proposal rejected.');
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
   });
 
+  const uploadMut = useMutation({
+    mutationFn: () => organizerApi.uploadApprovedProposal(id!, uploadFile!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['proposal', id] });
+      setUploadFile(null);
+      setMsg('Signed proposal document uploaded successfully.');
+      setErrMsg('');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Upload failed.'),
+  });
+
   const assignMut = useMutation({
     mutationFn: () => {
-      const selected = facilitators.find((f: any) => f.id === selectedFacilitatorId);
+      const selected = staffList.find((s: any) => s.id === selectedLeadId);
       const name = selected ? `${selected.firstName} ${selected.lastName}` : undefined;
-      return organizerApi.assignOrganizer(id!, selectedFacilitatorId, name);
+      const email = selected?.email;
+      return organizerApi.assignOrganizer(id!, selectedLeadId, name, email);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['proposal', id] });
       qc.invalidateQueries({ queryKey: ['event', id] });
-      setMsg('Facilitator assigned successfully.');
+      setMsg('Event/Training Lead assigned. They will receive a notification.');
       setErrMsg('');
     },
-    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to assign facilitator.'),
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to assign lead.'),
   });
 
   const { data: staffData } = useQuery({
@@ -204,7 +233,6 @@ export function OrganizerProposalPage() {
     enabled: proposalStatus === 'APPROVED',
   });
   const staffList: any[] = (staffData as any)?.data ?? [];
-  const facilitators = staffList.filter((s: any) => s.role === 'EVENT_ORGANIZER');
 
   // Budget mutations
   const [newBudget, setNewBudget] = useState<BudgetItem>({ item: '', unitCost: 0, quantity: 1, estimatedAmount: 0, sourceOfFunds: '', actualSpent: null });
@@ -293,7 +321,7 @@ export function OrganizerProposalPage() {
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Training Proposal</h1>
+            <h1 className="text-xl font-bold text-gray-900">Event & Training Proposal</h1>
             <p className="text-sm text-gray-500 mt-0.5">{event?.title ?? 'Loading…'}</p>
           </div>
         </div>
@@ -325,10 +353,20 @@ export function OrganizerProposalPage() {
         <div className="card space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Training Type</label>
+              <label className="label">Event / Training Type</label>
               <select className="input" value={trainingType} disabled={isLocked}
                 onChange={e => setTrainingType(e.target.value)}>
-                {TRAINING_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                <option value="">— Select Type —</option>
+                <optgroup label="Training">
+                  {PROPOSAL_TYPES.filter(t => t.group === 'Training').map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Events">
+                  {PROPOSAL_TYPES.filter(t => t.group === 'Events').map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <div>
@@ -408,21 +446,90 @@ export function OrganizerProposalPage() {
             </div>
           )}
 
-          {/* Step 3 — Activate Event (APPROVED + DRAFT → PUBLISHED + auto-seeds checklist) */}
+          {/* Assign Event/Training Lead — shown when APPROVED, for PM/Admin */}
+          {proposalStatus === 'APPROVED' && ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '') && (
+            <div className="border-t pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <UserCheck size={16} className="text-green-600" />
+                <h3 className="text-sm font-semibold text-gray-800">Assign Event / Training Lead</h3>
+                {hasLead && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">Assigned</span>
+                )}
+              </div>
+              {hasLead && !selectedLeadId ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-green-800 font-medium">
+                      {proposal.assignedOrganizerName || 'Lead'} <span className="text-xs text-green-600">(Event/Training Lead)</span>
+                    </p>
+                    <p className="text-xs text-green-600 mt-0.5">A notification has been sent to this person.</p>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedLeadId('x'); setStaffSearch(''); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500">
+                    Search and select the staff member who will lead this event/training. They will receive an email notification once assigned.
+                  </p>
+                  <input
+                    className="input text-sm"
+                    placeholder="Search by name or email…"
+                    value={staffSearch}
+                    onChange={e => { setStaffSearch(e.target.value); setSelectedLeadId(''); }}
+                  />
+                  {staffSearch && staffList.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto bg-white shadow-sm">
+                      {staffList.map((s: any) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => { setSelectedLeadId(s.id); setStaffSearch(`${s.firstName} ${s.lastName}`); }}
+                          className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedLeadId === s.id ? 'bg-blue-50 text-blue-700' : 'text-gray-800'}`}
+                        >
+                          <span className="font-medium">{s.firstName} {s.lastName}</span>
+                          <span className="ml-2 text-xs text-gray-400">{s.email}</span>
+                          <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{s.role.replace(/_/g, ' ')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {staffSearch && staffList.length === 0 && (
+                    <p className="text-xs text-gray-400">No staff members found.</p>
+                  )}
+                  <button
+                    onClick={() => assignMut.mutate()}
+                    disabled={!selectedLeadId || selectedLeadId === 'x' || assignMut.isPending}
+                    className="btn-primary flex items-center gap-2 text-sm"
+                  >
+                    <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign as Event/Training Lead'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Step 3 — Activate Event, unlocked once lead is assigned */}
           {canActivate && (
             <div className="border-t pt-5">
-              <div className="rounded-xl border-2 border-dashed border-green-300 bg-green-50 p-5 space-y-3">
+              <div className={`rounded-xl border-2 border-dashed p-5 space-y-3 ${hasLead ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
                 <div className="flex items-center gap-2">
-                  <Rocket size={18} className="text-green-600" />
-                  <h3 className="text-sm font-semibold text-green-800">Step 3 — Facilitate Pre-Activity Requirements</h3>
+                  <Rocket size={18} className={hasLead ? 'text-green-600' : 'text-gray-400'} />
+                  <h3 className={`text-sm font-semibold ${hasLead ? 'text-green-800' : 'text-gray-500'}`}>Step 3 — Facilitate Pre-Activity Requirements</h3>
                 </div>
-                <p className="text-xs text-green-700">
-                  The proposal has been approved. Activating the event will publish it and auto-generate the <strong>DTI Training Monitoring Checklist (FM-CT-7)</strong> with all standard pre-training, actual training, and post-training tasks.
+                <p className={`text-xs ${hasLead ? 'text-green-700' : 'text-gray-400'}`}>
+                  {hasLead
+                    ? <span>The proposal is approved and a lead is assigned. Activating the event will publish it and auto-generate the <strong>DTI Training Monitoring Checklist (FM-CT-7)</strong> with all standard pre-training, actual training, and post-training tasks.</span>
+                    : 'Assign an Event/Training Lead above to unlock this step.'}
                 </p>
                 <button
                   onClick={() => activateMut.mutate()}
-                  disabled={activateMut.isPending}
-                  className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
+                  disabled={!hasLead || activateMut.isPending}
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors ${hasLead ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                 >
                   <Rocket size={15} /> {activateMut.isPending ? 'Activating…' : 'Activate Event & Start Pre-Activity'}
                 </button>
@@ -430,57 +537,125 @@ export function OrganizerProposalPage() {
             </div>
           )}
 
-          {/* Assign Facilitator — shown when proposal is APPROVED and user is Technical Staff or Admin */}
-          {proposalStatus === 'APPROVED' && ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '') && (
+          {/* Upload Signed / Approved Proposal Document */}
+          {proposalStatus === 'APPROVED' && (
             <div className="border-t pt-5 space-y-3">
               <div className="flex items-center gap-2">
-                <UserCheck size={16} className="text-green-600" />
-                <h3 className="text-sm font-semibold text-gray-800">Assign Facilitator</h3>
-                {proposal?.assignedOrganizerId && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">Assigned</span>
-                )}
+                <FileCheck size={16} className="text-blue-600" />
+                <h3 className="text-sm font-semibold text-gray-800">Signed / Approved Proposal Document</h3>
               </div>
-              {proposal?.assignedOrganizerId ? (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <p className="text-sm text-green-800 font-medium">
-                    {proposal.assignedOrganizerName || 'Facilitator'} <span className="text-xs text-green-600">(assigned)</span>
-                  </p>
+
+              {proposal?.approvedProposalUrl ? (
+                <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                  <FileCheck size={18} className="text-blue-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-800">Uploaded document on file</p>
+                    <a
+                      href={proposal.approvedProposalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5 break-all"
+                    >
+                      <ExternalLink size={11} /> {proposal.approvedProposalUrl}
+                    </a>
+                  </div>
+                  {/* Allow re-upload to replace */}
+                  {['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '') && (
+                    <label className="btn-secondary text-xs cursor-pointer shrink-0">
+                      Replace
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
                 </div>
               ) : (
-                <>
-                  <p className="text-xs text-gray-500">Select a Facilitator to hand over this event.</p>
-                  <div className="flex gap-2">
+                <div className="rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 p-5 space-y-3">
+                  <p className="text-xs text-blue-700">
+                    Upload the scanned copy of the signed/approved proposal document (PDF, JPEG, or PNG, max 20 MB). It will be stored on Google Drive.
+                  </p>
+                  <label className="flex items-center gap-2 w-fit cursor-pointer btn-secondary text-sm">
+                    <Upload size={14} />
+                    {uploadFile ? uploadFile.name : 'Choose file…'}
                     <input
-                      className="input flex-1 text-sm"
-                      placeholder="Search facilitator by name…"
-                      value={staffSearch}
-                      onChange={e => setStaffSearch(e.target.value)}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      className="hidden"
+                      onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
                     />
-                  </div>
-                  <select
-                    className="input text-sm"
-                    value={selectedFacilitatorId}
-                    onChange={e => setSelectedFacilitatorId(e.target.value)}
-                  >
-                    <option value="">— Select a Facilitator —</option>
-                    {facilitators.map((f: any) => (
-                      <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
-                    ))}
-                    {facilitators.length === 0 && staffSearch && (
-                      <option disabled>No facilitators found</option>
-                    )}
-                  </select>
+                  </label>
+                </div>
+              )}
+
+              {uploadFile && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600 truncate max-w-xs">{uploadFile.name}</span>
                   <button
-                    onClick={() => assignMut.mutate()}
-                    disabled={!selectedFacilitatorId || assignMut.isPending}
-                    className="btn-primary flex items-center gap-2 text-sm"
+                    onClick={() => uploadMut.mutate()}
+                    disabled={uploadMut.isPending}
+                    className="btn-primary text-sm flex items-center gap-2 shrink-0"
                   >
-                    <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign Facilitator'}
+                    <Upload size={14} /> {uploadMut.isPending ? 'Uploading…' : 'Upload to Google Drive'}
                   </button>
-                </>
+                  <button onClick={() => setUploadFile(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
               )}
             </div>
           )}
+
+          {/* TNA Reference */}
+          <div className="border-t pt-5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <ClipboardList size={16} className="text-gray-400" />
+                <h3 className="text-sm font-semibold text-gray-700">Training Needs Assessment (TNA)</h3>
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Optional</span>
+              </div>
+              <RouterLink to="/organizer/tna" className="text-xs text-blue-600 hover:underline font-medium">
+                Manage TNAs →
+              </RouterLink>
+            </div>
+            {(() => {
+              const tnas = ((linkedTnaData as Record<string, unknown>)?.data as unknown[]) ?? [];
+              if (tnas.length === 0) {
+                return (
+                  <p className="text-xs text-gray-500">
+                    No TNA linked to this proposal.{' '}
+                    <RouterLink to="/organizer/tna/new" className="text-blue-600 hover:underline">Create a TNA</RouterLink>
+                    {' '}and set this proposal as its reference, or link an existing one from the{' '}
+                    <RouterLink to="/organizer/tna" className="text-blue-600 hover:underline">TNA list</RouterLink>.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-1.5">
+                  {tnas.map((t: unknown) => {
+                    const tna = t as Record<string, unknown>;
+                    const finalized = tna.status === 'FINALIZED';
+                    return (
+                      <div key={tna.id as string} className="flex items-center justify-between gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800">{tna.title as string}</p>
+                          <p className="text-[10px] text-gray-500">{tna.sector as string}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${finalized ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {finalized ? 'Finalized' : 'Draft'}
+                          </span>
+                          <RouterLink to={`/organizer/tna/${tna.id}`} className="text-xs text-blue-600 hover:underline font-medium">
+                            View →
+                          </RouterLink>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 

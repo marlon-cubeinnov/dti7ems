@@ -5,13 +5,19 @@ import { organizerApi, eventsApi, ApiError, type EventBody } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { ArrowLeft, Save, FileText } from 'lucide-react';
 
-const TRAINING_TYPES = [
-  { value: '', label: '— Select Training Type —' },
-  { value: 'BUSINESS', label: 'Business Training' },
-  { value: 'MANAGERIAL', label: 'Managerial Training' },
-  { value: 'ORGANIZATIONAL', label: 'Organizational Training' },
-  { value: 'ENTREPRENEURIAL', label: 'Entrepreneurial Training' },
-  { value: 'INTER_AGENCY', label: 'Inter-Agency Training' },
+const PROPOSAL_TYPES = [
+  { value: '', label: '— Select Type —', group: '' },
+  { value: 'BUSINESS', label: 'Business Training', group: 'Training' },
+  { value: 'MANAGERIAL', label: 'Managerial Training', group: 'Training' },
+  { value: 'ORGANIZATIONAL', label: 'Organizational Training', group: 'Training' },
+  { value: 'ENTREPRENEURIAL', label: 'Entrepreneurial Training', group: 'Training' },
+  { value: 'INTER_AGENCY', label: 'Inter-Agency Training', group: 'Training' },
+  { value: 'SEMINAR', label: 'Seminar', group: 'Events' },
+  { value: 'FORUM', label: 'Forum / Panel Discussion', group: 'Events' },
+  { value: 'CONFERENCE', label: 'Conference', group: 'Events' },
+  { value: 'TRADE_FAIR', label: 'Trade Fair / Exhibit', group: 'Events' },
+  { value: 'TRADE_MISSION', label: 'Trade Mission', group: 'Events' },
+  { value: 'CONSULTATION', label: 'Consultation / Meeting', group: 'Events' },
 ];
 
 const EMPTY: EventBody = {
@@ -26,7 +32,7 @@ const EMPTY: EventBody = {
   endDate: '',
   targetSector: '',
   targetRegion: '',
-  requiresTNA: true,
+  requiresTNA: false,
   trainingType: null,
   partnerInstitution: null,
   background: null,
@@ -183,7 +189,7 @@ export function OrganizerEventFormPage() {
 
       {!isEdit && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-input px-4 py-3">
-          Step 1 — Prepare your training proposal. After creating it, you can add budget items, risk register entries, and target groups before submitting for review.
+          Step 1 — Prepare your event or training proposal. After creating it, you can add budget items, risk register entries, and target groups before submitting for review.
         </div>
       )}
 
@@ -197,12 +203,12 @@ export function OrganizerEventFormPage() {
         onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(); }}
         className="space-y-6"
       >
-        {/* Section 1: Training Information */}
+        {/* Section 1: Event & Training Information */}
         <div className="card space-y-5">
-          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">Training Information</h2>
+          <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">Event & Training Information</h2>
 
           <div>
-            <label className="label">Training Title *</label>
+            <label className="label">Title *</label>
             <input className="input" value={form.title} required minLength={3}
               onChange={(e) => set('title', e.target.value)} placeholder="e.g. Negosyo Workshop 2026" />
           </div>
@@ -211,15 +217,25 @@ export function OrganizerEventFormPage() {
             <label className="label">Description</label>
             <textarea className="input min-h-[100px]" value={form.description ?? ''}
               onChange={(e) => set('description', e.target.value)}
-              placeholder="Brief description of the training program…" />
+              placeholder="Brief description of the event or training program…" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Training Type</label>
+              <label className="label">Event / Training Type</label>
               <select className="input" value={form.trainingType ?? ''}
                 onChange={(e) => set('trainingType', e.target.value || null)}>
-                {TRAINING_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                <option value="">— Select Type —</option>
+                <optgroup label="Training">
+                  {PROPOSAL_TYPES.filter(t => t.group === 'Training').map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Events">
+                  {PROPOSAL_TYPES.filter(t => t.group === 'Events').map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <div>
@@ -312,7 +328,7 @@ export function OrganizerEventFormPage() {
               checked={form.requiresTNA}
               onChange={(e) => set('requiresTNA', e.target.checked)} />
             <label htmlFor="tna" className="text-sm text-gray-700">
-              Require Training Needs Assessment (TNA) before registration
+              Require Training Needs Assessment (TNA) before registration (optional — case-by-case)
             </label>
           </div>
         </div>

@@ -1,9 +1,9 @@
 // ============================================================
 // AIML v2.1 — AI/ML Design Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Purpose : Model AI/ML pipelines for TNA scoring, program
 //           recommendation, enterprise outcome prediction,
 //           and ecosystem cluster detection.
@@ -13,6 +13,8 @@
 //           drift detectors, and governance controls defined here
 //           are planned for future deployment on GCP Vertex AI.
 //           No ML code exists in the current codebase.
+//           v1.2: datasource fields updated to reflect EnterpriseMembership
+//           status enum (PENDING|ACTIVE|INACTIVE|REJECTED) from schema.
 // ============================================================
 
 aiml model DTI_EMS_AI {
@@ -88,16 +90,18 @@ aiml model DTI_EMS_AI {
     frequency      = 24 ;
     retention_days = 730 ;
     fields {
-      field enterprise_id       : uuid ;
-      field enterprise_type     : string ;
-      field stage               : string ;
-      field industry_tags       : json ;
-      field region              : string ;
-      field employee_count      : int ;
-      field annual_revenue_php  : float ;
-      field is_exporter         : boolean ;
-      field activity_score      : float ;
-      field verification_status : string ;
+      field enterprise_id         : uuid ;
+      field enterprise_type       : string ;
+      field stage                 : string ;   // ideation | startup | growth | maturity | export_ready
+      field industry_tags         : json ;
+      field region                : string ;
+      field employee_count        : int ;
+      field annual_revenue_php    : float ;
+      field is_exporter           : boolean ;
+      field activity_score        : float ;
+      field verification_status   : string ;
+      field is_publicly_listed    : boolean ;  // added v1.2
+      field membership_status     : string ;   // PENDING|ACTIVE|INACTIVE|REJECTED (from EnterpriseMembership)
     }
   }
 

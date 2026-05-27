@@ -53,7 +53,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-dti-blue mb-4">
-            <Shield className="text-dti-orange" size={28} />
+            <Shield className="text-dti-yellow" size={28} />
           </div>
           <h1 className="text-xl font-bold text-gray-900">DTI EMS Admin Console</h1>
           <p className="text-sm text-gray-500 mt-1">Sign in with your admin credentials</p>

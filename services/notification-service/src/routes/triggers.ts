@@ -165,4 +165,94 @@ export const triggerRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
 
     return reply.code(202).send({ success: true, message: `${queued} impact survey invites queued.` });
   });
+
+  // POST /notify/materials-shared — bulk email: notify participants of available presentation materials
+  app.post('/materials-shared', async (request, reply) => {
+    const body = z.object({
+      eventTitle: z.string(),
+      eventDate:  z.string(),
+      materials: z.array(z.object({
+        title:     z.string(),
+        driveUrl:  z.string().url(),
+        expiresAt: z.string(),
+      })).min(1),
+      participants: z.array(z.object({
+        to:              z.string().email(),
+        participantName: z.string(),
+      })),
+    }).parse(request.body);
+
+    let queued = 0;
+    for (const p of body.participants) {
+      await app.queues.email.add(`materials-shared-${p.to}`, {
+        type: 'materials-shared',
+        to: p.to,
+        data: {
+          participantName: p.participantName,
+          eventTitle: body.eventTitle,
+          eventDate: body.eventDate,
+          materials: body.materials,
+        },
+      });
+      queued++;
+    }
+
+    return reply.code(202).send({ success: true, message: `${queued} materials notifications queued.` });
+  });
+
+  // POST /notify/event-status-change — notify participants of event status change (e.g. registration open, cancelled)
+  app.post('/event-status-change', async (request, reply) => {
+    const body = z.object({
+      eventTitle:  z.string(),
+      eventDate:   z.string(),
+      eventVenue:  z.string().optional(),
+      newStatus:   z.string(),
+      message:     z.string().optional(),
+      recipients: z.array(z.object({
+        to:            z.string().email(),
+        recipientName: z.string(),
+      })),
+    }).parse(request.body);
+
+    let queued = 0;
+    for (const r of body.recipients) {
+      await app.queues.email.add(`event-status-${body.newStatus}-${r.to}`, {
+        type: 'event-status-change',
+        to: r.to,
+        data: {
+          recipientName: r.recipientName,
+          eventTitle: body.eventTitle,
+          eventDate: body.eventDate,
+          eventVenue: body.eventVenue,
+          newStatus: body.newStatus,
+          message: body.message,
+        },
+      });
+      queued++;
+    }
+
+    return reply.code(202).send({ success: true, message: `${queued} status change notifications queued.` });
+  });
+
+  // POST /notify/enterprise-update-reminder — annual company info update reminder
+  app.post('/enterprise-update-reminder', async (request, reply) => {
+    const body = z.object({
+      to:           z.string().email(),
+      name:         z.string(),
+      businessName: z.string(),
+      enterpriseId: z.string(),
+      year:         z.number().int(),
+    }).parse(request.body);
+
+    await app.queues.email.add(`enterprise-update-reminder-${body.enterpriseId}-${body.year}`, {
+      type: 'enterprise-update-reminder',
+      to: body.to,
+      data: body,
+    }, {
+      // Deduplicate: don't re-queue if the same job was already added this year
+      jobId: `enterprise-update-reminder-${body.enterpriseId}-${body.year}`,
+    });
+
+    return reply.code(202).send({ success: true, message: 'Enterprise update reminder queued.' });
+  });
 };

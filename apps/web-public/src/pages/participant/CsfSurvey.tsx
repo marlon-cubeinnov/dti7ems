@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventsApi, surveyApi, organizerApi } from '@/lib/api';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 /* ── Exact questions from official DTI FM-CSF-ACT form ── */
 
@@ -190,13 +190,9 @@ export function CsfSurveyPage() {
       <div className="bg-white border border-gray-300 rounded-t-lg">
         {/* Header with Logo and Document Code */}
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
-          {/* Left: DTI Logo */}
-          <div className="flex items-center gap-2">
-            <img src={dtiLogo} alt="DTI Logo" className="w-14 h-14 object-contain" />
-            <div>
-              <p className="text-[8px] text-gray-400 italic">PHILIPPINES</p>
-              <p className="text-[8px] font-bold text-[#003087]">BAGONG PILIPINAS</p>
-            </div>
+          {/* Left: DTI + Bagong Pilipinas Logo */}
+          <div className="flex items-center">
+            <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-14 w-auto object-contain" />
           </div>
 
           {/* Center: DTI Header */}
@@ -227,6 +223,14 @@ export function CsfSurveyPage() {
             I agree to let the DTI collect and use my name, contact details, and feedback for purposes of monitoring,
             measuring, and analyzing responses to improve its services. This consent is valid until revoked or withdrawn
             in writing, following the Data Privacy Act of 2012 (RA 10173).
+          </p>
+        </div>
+
+        {/* Digital Form Notice */}
+        <div className="px-5 py-2.5 bg-green-50 border-b border-green-200 flex items-center gap-2">
+          <span className="text-green-700 text-base">📋</span>
+          <p className="text-[11px] text-green-800 font-medium">
+            This is a digital form — <strong>no signature is required</strong>. Simply complete and submit your responses online.
           </p>
         </div>
 

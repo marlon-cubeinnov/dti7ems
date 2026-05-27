@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminIdentityApi, ApiError } from '@/lib/api';
-import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, Eye, Pencil, Trash2, X } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth.store';
+import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, Eye, Pencil, Trash2, X, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_BADGE: Record<string, string> = {
   ACTIVE:               'bg-green-100 text-green-700',
   PENDING_VERIFICATION: 'bg-yellow-100 text-yellow-700',
+  PENDING_APPROVAL:     'bg-amber-100 text-amber-700',
   SUSPENDED:            'bg-red-100 text-red-600',
   DEACTIVATED:          'bg-gray-100 text-gray-600',
 };
+
+const APPROVE_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'];
 
 const ROLE_BADGE: Record<string, string> = {
   PARTICIPANT:              'bg-blue-50 text-blue-700',
@@ -79,6 +83,7 @@ interface UserDetail {
 }
 
 export function AdminUsersPage() {
+  const { user: currentUser } = useAuthStore();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -203,7 +208,8 @@ export function AdminUsersPage() {
         >
           <option value="">All statuses</option>
           <option value="ACTIVE">Active</option>
-          <option value="PENDING_VERIFICATION">Pending</option>
+          <option value="PENDING_VERIFICATION">Pending Verification</option>
+          <option value="PENDING_APPROVAL">Pending Approval</option>
           <option value="SUSPENDED">Suspended</option>
           <option value="DEACTIVATED">Deactivated</option>
         </select>
@@ -308,6 +314,15 @@ export function AdminUsersPage() {
                           title="Reactivate"
                         >
                           <ShieldCheck size={13} />
+                        </button>
+                      ) : u.status === 'PENDING_APPROVAL' && APPROVE_ROLES.includes(currentUser?.role ?? '') ? (
+                        <button
+                          onClick={() => { setActionModal({ type: 'status', user: u }); setActionValue('ACTIVE'); }}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                          title="Approve account"
+                        >
+                          <UserCheck size={13} />
+                          <span>Approve</span>
                         </button>
                       ) : null}
                       <button

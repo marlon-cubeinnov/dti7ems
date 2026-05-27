@@ -21,12 +21,34 @@ export class AuthService {
     email: string;
     password: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
+    nameSuffix?: string | null;
+    sex?: string | null;
+    birthdate?: string | null;
     mobileNumber?: string | null;
+    employmentCategory?: string | null;
+    socialClassification?: string | null;
+    region?: string | null;
+    province?: string | null;
+    cityMunicipality?: string | null;
+    companyName?: string | null;
+    companyRegion?: string | null;
+    companyProvince?: string | null;
+    companyCityMunicipality?: string | null;
+    companyEmail?: string | null;
+    companyPhone?: string | null;
+    jobTitle?: string | null;
     dpaConsentGiven: boolean;
     clientType?: string | null;
   }) {
-    const { email, password, firstName, lastName, mobileNumber, dpaConsentGiven, clientType } = data;
+    const {
+      email, password, firstName, middleName, lastName, nameSuffix,
+      sex, birthdate, mobileNumber, employmentCategory, socialClassification,
+      region, province, cityMunicipality,
+      companyName, companyRegion, companyProvince, companyCityMunicipality,
+      companyEmail, companyPhone, jobTitle, dpaConsentGiven, clientType,
+    } = data;
 
     if (!dpaConsentGiven) {
       throw new BadRequestError(
@@ -44,20 +66,59 @@ export class AuthService {
     const verifyToken = nanoid(48);
     const verifyTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // Derive clientType from employmentCategory if not explicitly provided
+    const resolvedClientType = clientType ??
+      (employmentCategory === 'EMPLOYED_GOVT' ? 'GOVERNMENT' :
+       employmentCategory === 'EMPLOYED_PRIVATE' || employmentCategory === 'SELF_EMPLOYED' ? 'BUSINESS' :
+       'CITIZEN');
+
     const user = await this.app.prisma.userProfile.create({
       data: {
         email,
         passwordHash,
         firstName,
+        middleName: middleName ?? null,
         lastName,
+        nameSuffix: nameSuffix ?? null,
+        sex: sex ?? null,
+        birthdate: birthdate ? new Date(birthdate) : null,
         mobileNumber: mobileNumber ?? null,
-        clientType: clientType ?? null,
+        employmentCategory: employmentCategory ?? null,
+        socialClassification: socialClassification ?? null,
+        region: region ?? null,
+        province: province ?? null,
+        cityMunicipality: cityMunicipality ?? null,
+        jobTitle: jobTitle ?? null,
+        clientType: resolvedClientType,
         dpaConsentGiven: true,
         dpaConsentAt: new Date(),
         verifyToken,
         verifyTokenExp,
       },
     });
+
+    // If company name given and user is employed, upsert enterprise and link membership
+    if (companyName?.trim() && (employmentCategory === 'EMPLOYED_GOVT' || employmentCategory === 'EMPLOYED_PRIVATE' || employmentCategory === 'SELF_EMPLOYED')) {
+      const existing = await this.app.prisma.enterpriseProfile.findFirst({
+        where: { businessName: { equals: companyName.trim(), mode: 'insensitive' } },
+      });
+      const enterpriseId = existing?.id ?? (await this.app.prisma.enterpriseProfile.create({
+        data: {
+          userId: user.id,
+          businessName: companyName.trim(),
+          industrySector: 'Other',
+          region: companyRegion ?? null,
+          province: companyProvince ?? null,
+          cityMunicipality: companyCityMunicipality ?? null,
+        },
+      })).id;
+
+      await this.app.prisma.enterpriseMembership.upsert({
+        where: { enterpriseId_userId: { enterpriseId, userId: user.id } },
+        create: { enterpriseId, userId: user.id, role: existing ? 'MEMBER' : 'OWNER' },
+        update: {},
+      });
+    }
 
     await this.sendVerificationEmail(user.email, user.firstName, verifyToken);
 
@@ -312,12 +373,13 @@ export class AuthService {
       throw new UnauthorizedError('Please verify your email address first.', ErrorCode.EMAIL_NOT_VERIFIED);
     }
 
-    if (user.status === 'SUSPENDED') {
-      throw new UnauthorizedError('Your account has been suspended. Contact support.', ErrorCode.ACCOUNT_SUSPENDED);
+    if (user.status === 'PENDING_APPROVAL') {
+      throw new UnauthorizedError('Your account is pending approval by DTI Region 7 staff. You will be notified by email once approved.', ErrorCode.ACCOUNT_SUSPENDED);
     }
 
-    if (user.status === 'DEACTIVATED') {
-      throw new UnauthorizedError('This account has been deactivated.', ErrorCode.ACCOUNT_DEACTIVATED);
+    if (user.status !== 'ACTIVE') {
+      if (user.status === 'SUSPENDED') throw new UnauthorizedError('Your account has been suspended. Contact support.', ErrorCode.ACCOUNT_SUSPENDED);
+      if (user.status === 'DEACTIVATED') throw new UnauthorizedError('This account has been deactivated.', ErrorCode.ACCOUNT_DEACTIVATED);
     }
 
     // Issue tokens
@@ -409,13 +471,13 @@ export class AuthService {
       data: {
         emailVerified: true,
         emailVerifiedAt: new Date(),
-        status: 'ACTIVE',
+        status: 'PENDING_APPROVAL',
         verifyToken: null,
         verifyTokenExp: null,
       },
     });
 
-    return { message: 'Email verified successfully. You can now log in.' };
+    return { message: 'Email verified successfully. Your account is pending approval by DTI Region 7 staff.' };
   }
 
   async forgotPassword(email: string) {

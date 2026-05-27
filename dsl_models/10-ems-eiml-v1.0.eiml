@@ -1,0 +1,739 @@
+// ============================================================
+// EIML v1.0 — Enterprise Integration Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.0
+// Date    : 2026-05-09
+// Purpose : Define the integration layer between microservices:
+//           identity-service, event-service, notification-service,
+//           and Phase 3 infrastructure (Kafka, analytics, ETL).
+//           Covers adapters, endpoints, contracts, message schemas,
+//           inter-service workflows, event bridges, and error policies.
+//
+// STATUS  : Phase 1–2 integrations are IMPLEMENTED (HTTP fire-and-forget).
+//           Phase 3 Kafka event bus and ETL bridges are NOT IMPLEMENTED.
+//           All definitions are canonical specifications; HTTP-based
+//           wiring is implemented in services/event-service/src/notify.ts
+//           and services/notification-service/src/triggers/*.
+// ============================================================
+
+eiml model DTI_EMS_Integration {
+
+  import "./01-ems-dbml-v1.0.dbml" as domain ;
+  import "./02-ems-sdml-v1.0.sdml" as security ;
+  import "./06-ems-otml-v1.0.otml" as infra ;
+
+  security use security.DTI_SecurityModel ;
+
+  // ─────────────────────────────────────────────
+  // INTEGRATION CONTEXTS
+  // ─────────────────────────────────────────────
+
+  context IdentityIntegrationContext {
+    label       = "Identity Service Integration Boundary" ;
+    description = "Adapters and endpoints for auth, user profile, and enterprise operations exposed by identity-service on port 3011." ;
+    domain      = domain.IdentityContext ;
+    bind IdentityService = infra.IdentityServiceNode ;
+  }
+
+  context EventIntegrationContext {
+    label       = "Event Service Integration Boundary" ;
+    description = "Adapters and endpoints for events, participations, QR, certificates, surveys, and analytics exposed by event-service on port 3012." ;
+    domain      = domain.EventContext ;
+    bind EventService = infra.EventServiceNode ;
+  }
+
+  context NotificationIntegrationContext {
+    label       = "Notification Service Integration Boundary" ;
+    description = "BullMQ-backed HTTP trigger endpoints and queue adapters for email and SMS notifications via notification-service on port 3013." ;
+    domain      = domain.SurveyContext ;
+    bind NotificationService = infra.NotificationServiceNode ;
+  }
+
+  context AdminIntegrationContext {
+    label       = "Admin Console Integration Boundary" ;
+    description = "Integration between the web-admin SPA and identity-service admin routes." ;
+    domain      = domain.IdentityContext ;
+    bind AdminConsole = infra.WebAdminNode ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ADAPTERS
+  // ─────────────────────────────────────────────
+
+  adapter HttpRestAdapter {
+    label           = "Internal HTTP/REST JSON Adapter" ;
+    protocol        = rest ;
+    direction       = bidirectional ;
+    auth            = jwt ;
+    serialization   = json ;
+    base_url        = "http://localhost" ;
+    timeout_ms      = 5000 ;
+  }
+
+  adapter HttpPublicAdapter {
+    label           = "Public-facing HTTP REST Adapter (no auth)" ;
+    protocol        = rest ;
+    direction       = inbound ;
+    auth            = none ;
+    serialization   = json ;
+    base_url        = "http://localhost" ;
+    timeout_ms      = 5000 ;
+  }
+
+  adapter BullMQQueueAdapter {
+    label           = "BullMQ Redis Queue Adapter" ;
+    protocol        = queue ;
+    direction       = outbound ;
+    auth            = none ;
+    serialization   = json ;
+    redis_url       = "redis://localhost:6379" ;
+    queue_name      = "notifications" ;
+  }
+
+  adapter KafkaAdapter {
+    label           = "Apache Kafka Event Bus Adapter (Phase 3 — NOT IMPLEMENTED)" ;
+    protocol        = kafka ;
+    direction       = bidirectional ;
+    auth            = none ;
+    serialization   = json ;
+    broker          = "localhost:9092" ;
+    status          = "phase3-planned" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ENDPOINTS — Identity Service (port 3011)
+  // ─────────────────────────────────────────────
+
+  endpoint AuthLoginEndpoint {
+    label           = "POST /auth/login" ;
+    adapter         = HttpPublicAdapter ;
+    url             = "http://localhost:3011/auth/login" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint AuthRefreshEndpoint {
+    label           = "POST /auth/refresh-token" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/auth/refresh-token" ;
+    method          = POST ;
+    timeout_ms      = 3000 ;
+  }
+
+  endpoint UserProfileGetEndpoint {
+    label           = "GET /users/:id — profile pre-fill for event registration" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/users/:id" ;
+    method          = GET ;
+    timeout_ms      = 3000 ;
+  }
+
+  endpoint UserProfilePatchEndpoint {
+    label           = "PATCH /users/:id — update user profile" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/users/:id" ;
+    method          = PATCH ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint EnterpriseGetEndpoint {
+    label           = "GET /enterprises/:id" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/enterprises/:id" ;
+    method          = GET ;
+    timeout_ms      = 3000 ;
+  }
+
+  endpoint DirectorySearchEndpoint {
+    label           = "GET /directory/enterprises — public enterprise directory" ;
+    adapter         = HttpPublicAdapter ;
+    url             = "http://localhost:3011/directory/enterprises" ;
+    method          = GET ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint AdminStatsEndpoint {
+    label           = "GET /admin/stats — admin dashboard statistics" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/admin/stats" ;
+    method          = GET ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint AdminEmailSettingsGetEndpoint {
+    label           = "GET /admin/settings/email" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/admin/settings/email" ;
+    method          = GET ;
+    timeout_ms      = 3000 ;
+  }
+
+  endpoint AdminEmailSettingsPutEndpoint {
+    label           = "PUT /admin/settings/email — update SMTP configuration" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3011/admin/settings/email" ;
+    method          = PUT ;
+    timeout_ms      = 5000 ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ENDPOINTS — Event Service (port 3012)
+  // ─────────────────────────────────────────────
+
+  endpoint EventListEndpoint {
+    label           = "GET /events — public event listing" ;
+    adapter         = HttpPublicAdapter ;
+    url             = "http://localhost:3012/events" ;
+    method          = GET ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint EventRegistrationEndpoint {
+    label           = "POST /participations/events/:eventId/register" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/participations/events/:eventId/register" ;
+    method          = POST ;
+    timeout_ms      = 10000 ;
+  }
+
+  endpoint TNASubmitEndpoint {
+    label           = "POST /participations/:id/tna — TNA form submission" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/participations/:id/tna" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint QRScanEndpoint {
+    label           = "POST /participations/attendance/scan — QR attendance scan" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/participations/attendance/scan" ;
+    method          = POST ;
+    timeout_ms      = 3000 ;
+  }
+
+  endpoint CertificateIssueEndpoint {
+    label           = "POST /certificates/:participationId/issue" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/certificates/:participationId/issue" ;
+    method          = POST ;
+    timeout_ms      = 10000 ;
+  }
+
+  endpoint CertificatePDFEndpoint {
+    label           = "GET /certificates/:participationId/pdf — PDFKit stream" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/certificates/:participationId/pdf" ;
+    method          = GET ;
+    timeout_ms      = 15000 ;
+  }
+
+  endpoint CSFSurveySubmitEndpoint {
+    label           = "POST /surveys/events/:eventId/csf — CSF survey submission" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/surveys/events/:eventId/csf" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint ImpactSurveySubmitEndpoint {
+    label           = "POST /surveys/events/:eventId/impact — 6-month impact survey" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/surveys/events/:eventId/impact" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+  }
+
+  endpoint AnalyticsOverviewEndpoint {
+    label           = "GET /admin/analytics/overview — admin analytics summary" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3012/admin/analytics/overview" ;
+    method          = GET ;
+    timeout_ms      = 8000 ;
+  }
+
+  endpoint CertificateVerifyEndpoint {
+    label           = "GET /certificates/verify/:code — public certificate verification" ;
+    adapter         = HttpPublicAdapter ;
+    url             = "http://localhost:3012/certificates/verify/:code" ;
+    method          = GET ;
+    timeout_ms      = 3000 ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ENDPOINTS — Notification Service (port 3013)
+  // ─────────────────────────────────────────────
+
+  endpoint TriggerRegistrationConfirmEndpoint {
+    label           = "POST /triggers/registration-confirmation" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/registration-confirmation" ;
+    method          = POST ;
+    timeout_ms      = 3000 ;
+    retry_policy    = DefaultRetryPolicy ;
+  }
+
+  endpoint TriggerRSVPReminderEndpoint {
+    label           = "POST /triggers/rsvp-reminder" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/rsvp-reminder" ;
+    method          = POST ;
+    timeout_ms      = 3000 ;
+    retry_policy    = DefaultRetryPolicy ;
+  }
+
+  endpoint TriggerBulkCSFInviteEndpoint {
+    label           = "POST /triggers/bulk-csf-invite — fired 1h after event COMPLETED" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/bulk-csf-invite" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+    retry_policy    = DefaultRetryPolicy ;
+  }
+
+  endpoint TriggerCertificateIssuedEndpoint {
+    label           = "POST /triggers/certificate-issued" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/certificate-issued" ;
+    method          = POST ;
+    timeout_ms      = 3000 ;
+    retry_policy    = DefaultRetryPolicy ;
+  }
+
+  endpoint TriggerImpactSurveyInviteEndpoint {
+    label           = "POST /triggers/impact-survey-invite — fired 180 days post-event" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/impact-survey-invite" ;
+    method          = POST ;
+    timeout_ms      = 5000 ;
+    retry_policy    = DefaultRetryPolicy ;
+  }
+
+  endpoint TriggerTestEmailEndpoint {
+    label           = "POST /triggers/test-email — admin SMTP test" ;
+    adapter         = HttpRestAdapter ;
+    url             = "http://localhost:3013/triggers/test-email" ;
+    method          = POST ;
+    timeout_ms      = 10000 ;
+  }
+
+  // ─────────────────────────────────────────────
+  // MESSAGE SCHEMAS
+  // ─────────────────────────────────────────────
+
+  message RegistrationConfirmationMsg {
+    label       = "Registration confirmation payload to notification-service" ;
+    based-on    = domain.EventParticipation ;
+    field participation_id : string ;
+    field user_id          : string ;
+    field event_id         : string ;
+    field user_name        : string ;
+    field user_email       : string ;
+    field event_title      : string ;
+    field event_start_date : string ;
+    field event_venue      : string ;
+    field event_format     : string ;
+  }
+
+  message RSVPReminderMsg {
+    label       = "RSVP reminder payload" ;
+    field participation_id : string ;
+    field user_id          : string ;
+    field user_email       : string ;
+    field user_name        : string ;
+    field event_title      : string ;
+    field event_start_date : string ;
+    field days_until_event : int ;
+    field rsvp_confirm_url : string ;
+  }
+
+  message CSFInviteMsg {
+    label       = "Bulk CSF survey invite payload" ;
+    based-on    = domain.CsfSurveyResponse ;
+    field event_id         : string ;
+    field participant_ids  : json ;
+    field event_title      : string ;
+    field survey_url       : string ;
+    field expires_in_days  : int ;
+  }
+
+  message CertificateIssuedMsg {
+    label       = "Certificate issued notification payload" ;
+    based-on    = domain.Certificate ;
+    field participation_id : string ;
+    field user_id          : string ;
+    field user_email       : string ;
+    field user_name        : string ;
+    field event_title      : string ;
+    field certificate_code : string ;
+    field verify_url       : string ;
+    field pdf_url          : string ;
+  }
+
+  message ImpactSurveyInviteMsg {
+    label       = "6-month impact survey invite payload" ;
+    field participation_id : string ;
+    field user_id          : string ;
+    field user_email       : string ;
+    field user_name        : string ;
+    field event_title      : string ;
+    field survey_url       : string ;
+    field event_completed_date : string ;
+    field expires_in_days  : int ;
+  }
+
+  message KafkaDomainEventMsg {
+    label       = "Generic domain event envelope for Phase 3 Kafka bus" ;
+    field event_type   : string ;
+    field aggregate_id : string ;
+    field payload      : json ;
+    field occurred_at  : datetime ;
+    field schema_version : string ;
+  }
+
+  // ─────────────────────────────────────────────
+  // CONTRACTS — API Call Guarantees
+  // ─────────────────────────────────────────────
+
+  contract RegistrationContract {
+    entity  = domain.EventParticipation ;
+    action  = domain.RegisterParticipant ;
+    event   = domain.ParticipantRegistered ;
+    input   = RegistrationConfirmationMsg ;
+    output  = RegistrationConfirmationMsg ;
+    require "dpa_consent == true" ;
+    require "event.status in registration_open" ;
+    require "participation.status != cancelled" ;
+  }
+
+  contract TNASubmissionContract {
+    entity  = domain.TnaResponse ;
+    action  = domain.SubmitTNA ;
+    input   = domain.TnaResponseInput ;
+    output  = domain.TnaResponseOutput ;
+    require "participation.rsvp_confirmed == true" ;
+    require "answers_json != null" ;
+  }
+
+  contract QRScanContract {
+    entity  = domain.AttendanceRecord ;
+    action  = domain.ScanQR ;
+    input   = domain.QRScanInput ;
+    output  = domain.QRScanResult ;
+    require "session_id != null" ;
+    require "qr_token != null" ;
+    require "event.status == ongoing" ;
+  }
+
+  contract CertificateIssueContract {
+    entity  = domain.Certificate ;
+    action  = domain.IssueCertificate ;
+    input   = domain.CertificateIssueInput ;
+    output  = domain.Certificate ;
+    require "participation.status == attended" ;
+    require "certificate.status != issued" ;
+  }
+
+  contract NotificationTriggerContract {
+    entity  = domain.NotificationLog ;
+    action  = domain.TriggerNotification ;
+    input   = RegistrationConfirmationMsg ;
+    output  = domain.NotificationResult ;
+    require "user_email != null" ;
+    require "notification_service_available == true" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // TRANSFORMATIONS
+  // ─────────────────────────────────────────────
+
+  transform UserProfileToRegistrationTransform {
+    from     = domain.UserProfile ;
+    to       = RegistrationConfirmationMsg ;
+    language = js ;
+    script   = "mapUserToRegistrationPayload" ;
+  }
+
+  transform ParticipationToCertificateMsgTransform {
+    from     = domain.EventParticipation ;
+    to       = CertificateIssuedMsg ;
+    language = js ;
+    script   = "mapParticipationToCertificateMsg" ;
+  }
+
+  transform EventToCSFInviteMsgTransform {
+    from     = domain.Event ;
+    to       = CSFInviteMsg ;
+    language = js ;
+    script   = "mapEventToCSFInvite" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // FIELD MAPPINGS
+  // ─────────────────────────────────────────────
+
+  mapping UserToRegistrationPayloadMapping {
+    from = domain.UserProfile ;
+    to   = RegistrationConfirmationMsg ;
+    id            -> user_id ;
+    firstName     -> user_name ;
+    email         -> user_email ;
+  }
+
+  mapping ParticipationToNotifyMapping {
+    from = domain.EventParticipation ;
+    to   = RegistrationConfirmationMsg ;
+    id            -> participation_id ;
+    userId        -> user_id ;
+    eventId       -> event_id ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ROUTING
+  // ─────────────────────────────────────────────
+
+  route RegistrationToNotifyRoute {
+    source  = EventRegistrationEndpoint ;
+    target  = TriggerRegistrationConfirmEndpoint ;
+    when    = "registration.status == confirmed" ;
+  }
+
+  route EventCompletedToCSFRoute {
+    source  = EventIntegrationContext ;
+    target  = TriggerBulkCSFInviteEndpoint ;
+    when    = "event.status == completed" ;
+    delay_ms = 3600000 ;
+  }
+
+  route CertificateIssuedToNotifyRoute {
+    source  = CertificateIssueEndpoint ;
+    target  = TriggerCertificateIssuedEndpoint ;
+    when    = "certificate.status == issued" ;
+  }
+
+  route CronToImpactSurveyRoute {
+    source  = EventIntegrationContext ;
+    target  = TriggerImpactSurveyInviteEndpoint ;
+    when    = "days_since_event_completion == 180" ;
+  }
+
+  route AdminEmailTestRoute {
+    source  = AdminEmailSettingsPutEndpoint ;
+    target  = TriggerTestEmailEndpoint ;
+    when    = "test_requested == true" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // WORKFLOWS — Inter-Service Flows
+  // ─────────────────────────────────────────────
+
+  workflow RegistrationNotificationWorkflow {
+    entity = domain.EventParticipation ;
+    step Validate {
+      invoke          = RegistrationContract ;
+    }
+    step Register {
+      invoke          = EventRegistrationEndpoint ;
+      emit-event      = domain.ParticipantRegistered ;
+    }
+    step Notify {
+      invoke          = TriggerRegistrationConfirmEndpoint ;
+      call-endpoint   = TriggerRegistrationConfirmEndpoint ;
+    }
+    transition ValidateToRegister {
+      from  = Validate ;
+      to    = Register ;
+      when  = "validation_passed == true" ;
+    }
+    transition RegisterToNotify {
+      from  = Register ;
+      to    = Notify ;
+      when  = "registration.status == confirmed" ;
+    }
+  }
+
+  workflow CertificateIssuanceWorkflow {
+    entity = domain.Certificate ;
+    step CheckEligibility {
+      invoke = CertificateIssueContract ;
+    }
+    step IssuePDF {
+      invoke        = CertificateIssueEndpoint ;
+      call-endpoint = CertificatePDFEndpoint ;
+      emit-event    = domain.CertificateIssued ;
+    }
+    step NotifyParticipant {
+      invoke          = TriggerCertificateIssuedEndpoint ;
+      call-endpoint   = TriggerCertificateIssuedEndpoint ;
+    }
+    transition EligibleToIssue {
+      from  = CheckEligibility ;
+      to    = IssuePDF ;
+      when  = "attendance_rate >= 1.0" ;
+    }
+    transition IssueToNotify {
+      from  = IssuePDF ;
+      to    = NotifyParticipant ;
+      when  = "certificate.status == issued" ;
+    }
+  }
+
+  workflow CSFSurveyDispatchWorkflow {
+    entity = domain.CsfSurveyResponse ;
+    step EventCompleted {
+      emit-event = domain.EventCompleted ;
+    }
+    step CreateSurveyPlaceholders {
+      invoke = EventIntegrationContext ;
+    }
+    step DelayedDispatch {
+      invoke = TriggerBulkCSFInviteEndpoint ;
+      delay_ms = 3600000 ;
+    }
+    transition CompleteToCreate {
+      from  = EventCompleted ;
+      to    = CreateSurveyPlaceholders ;
+      when  = "event.status == completed" ;
+    }
+    transition CreateToDispatch {
+      from  = CreateSurveyPlaceholders ;
+      to    = DelayedDispatch ;
+      when  = "placeholders_created == true" ;
+    }
+  }
+
+  workflow ImpactSurveyDispatchWorkflow {
+    entity = domain.ImpactSurveyResponse ;
+    step CronTrigger {
+      invoke = EventIntegrationContext ;
+    }
+    step SurveyChurnCheck {
+      invoke = NotificationIntegrationContext ;
+    }
+    step Dispatch {
+      invoke        = TriggerImpactSurveyInviteEndpoint ;
+      call-endpoint = TriggerImpactSurveyInviteEndpoint ;
+    }
+    transition TriggerToChurnCheck {
+      from  = CronTrigger ;
+      to    = SurveyChurnCheck ;
+      when  = "days_since_completion == 180" ;
+    }
+    transition ChurnCheckToDispatch {
+      from  = SurveyChurnCheck ;
+      to    = Dispatch ;
+      when  = "participants_eligible.count > 0" ;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // ORCHESTRATIONS
+  // ─────────────────────────────────────────────
+
+  orchestration RegistrationOrchestration {
+    workflow = RegistrationNotificationWorkflow ;
+    on start    do NotificationIntegrationContext ;
+    on complete do IdentityIntegrationContext ;
+    on error    do DefaultErrorPolicy ;
+  }
+
+  orchestration CertificateOrchestration {
+    workflow = CertificateIssuanceWorkflow ;
+    on start    do EventIntegrationContext ;
+    on complete do NotificationIntegrationContext ;
+    on error    do DefaultErrorPolicy ;
+  }
+
+  orchestration SurveyDispatchOrchestration {
+    workflow = CSFSurveyDispatchWorkflow ;
+    on start    do EventIntegrationContext ;
+    on complete do NotificationIntegrationContext ;
+    on error    do SurveyDispatchErrorPolicy ;
+  }
+
+  // ─────────────────────────────────────────────
+  // EVENT BRIDGES — Domain Events → Adapters
+  // ─────────────────────────────────────────────
+
+  eventBridge ParticipantRegisteredBridge {
+    from-event  = domain.ParticipantRegistered ;
+    to-adapter  = HttpRestAdapter ;
+    mapping     = UserToRegistrationPayloadMapping ;
+  }
+
+  eventBridge CertificateIssuedBridge {
+    from-event  = domain.CertificateIssued ;
+    to-adapter  = HttpRestAdapter ;
+    mapping     = ParticipationToCertificateMsgTransform ;
+  }
+
+  eventBridge EventCompletedBridge {
+    from-event  = domain.EventCompleted ;
+    to-adapter  = HttpRestAdapter ;
+    mapping     = EventToCSFInviteMsgTransform ;
+  }
+
+  eventBridge KafkaParticipantRegisteredBridge {
+    from-event  = domain.ParticipantRegistered ;
+    to-adapter  = KafkaAdapter ;
+    topic       = "participation.registered" ;
+    status      = "phase3-planned" ;
+  }
+
+  eventBridge KafkaEventCompletedBridge {
+    from-event  = domain.EventCompleted ;
+    to-adapter  = KafkaAdapter ;
+    topic       = "event.completed" ;
+    status      = "phase3-planned" ;
+  }
+
+  eventBridge KafkaCertificateIssuedBridge {
+    from-event  = domain.CertificateIssued ;
+    to-adapter  = KafkaAdapter ;
+    topic       = "certificate.issued" ;
+    status      = "phase3-planned" ;
+  }
+
+  eventBridge KafkaImpactSurveySubmittedBridge {
+    from-event  = domain.ImpactSurveySubmitted ;
+    to-adapter  = KafkaAdapter ;
+    topic       = "survey.impact_submitted" ;
+    status      = "phase3-planned" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // ERROR POLICIES
+  // ─────────────────────────────────────────────
+
+  errorPolicy DefaultRetryPolicy {
+    retry       = 3 ;
+    backoff_ms  = 1000 ;
+    on-failure  = notify ;
+  }
+
+  errorPolicy DefaultErrorPolicy {
+    retry       = 3 ;
+    backoff_ms  = 2000 ;
+    on-failure  = notify ;
+  }
+
+  errorPolicy SurveyDispatchErrorPolicy {
+    retry       = 5 ;
+    backoff_ms  = 5000 ;
+    on-failure  = compensate ;
+  }
+
+  errorPolicy CertificateErrorPolicy {
+    retry       = 3 ;
+    backoff_ms  = 3000 ;
+    on-failure  = compensate ;
+  }
+
+  errorPolicy KafkaPublishErrorPolicy {
+    retry       = 10 ;
+    backoff_ms  = 500 ;
+    on-failure  = abort ;
+    status      = "phase3-planned" ;
+  }
+
+}

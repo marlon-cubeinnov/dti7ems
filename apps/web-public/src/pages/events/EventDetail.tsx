@@ -195,7 +195,7 @@ export function EventDetailPage() {
                     onChange={e => setNewStage(e.target.value)}
                     className="border border-amber-300 rounded px-2 py-1 text-xs bg-white text-gray-700"
                   >
-                    {['PRE_STARTUP','STARTUP','GROWTH','EXPANSION','MATURE'].map(s => (
+                    {['IDEATION','VALIDATION','GROWTH','EXPANSION','MATURITY_EXIT'].map(s => (
                       <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                     ))}
                   </select>

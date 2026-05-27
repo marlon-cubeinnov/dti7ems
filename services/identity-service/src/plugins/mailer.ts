@@ -44,8 +44,12 @@ export const mailerPlugin = fp(async (app) => {
   const cfg = await loadSmtpConfig(app.prisma);
   const transporter = buildTransport(cfg);
 
-  await transporter.verify();
-  app.log.info('SMTP mailer connected');
+  try {
+    await transporter.verify();
+    app.log.info('SMTP mailer connected');
+  } catch (err) {
+    app.log.warn({ err }, 'SMTP mailer could not connect — emails will fail until credentials are configured in Admin → Settings → Email.');
+  }
 
   app.decorate('mailer', transporter);
 

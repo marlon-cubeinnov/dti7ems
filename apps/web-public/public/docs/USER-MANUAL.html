@@ -208,6 +208,7 @@
     <a href="#part-csf">CSF Survey</a>
     <a href="#part-impact">Impact Survey</a>
     <a href="#part-certs">My Certificates</a>
+    <a href="#part-enterprise">Enterprise Membership</a>
     <a href="#part-profile">Profile Management</a>
 
     <span class="section-label">Staff Guide</span>
@@ -232,6 +233,7 @@
     <a href="#admin-settings">System Settings</a>
 
     <span class="section-label">Reference</span>
+    <a href="#ref-changelog">Changelog</a>
     <a href="#ref-lifecycle">Event Lifecycle</a>
     <a href="#ref-statuses">Status Reference</a>
     <a href="#ref-forms">DTI Forms Reference</a>
@@ -253,7 +255,7 @@
   <p class="subtitle">User Manual</p>
   <p class="region">Region VII — Central Visayas<br>Cebu City, Philippines</p>
   <div class="version">
-    Version 1.0 &nbsp;·&nbsp; April 2026<br>
+    Version 1.2 &nbsp;·&nbsp; April 2026<br>
     Document Code: DTI-EMS-UM-001
   </div>
 </div>
@@ -283,8 +285,8 @@
 <h4>System Access</h4>
 <table>
   <tr><th>Portal</th><th>URL</th><th>Description</th></tr>
-  <tr><td>Main Application</td><td><code>http://localhost:5173\</code\>\</td\>\<td\>Public site, participant portal, and staff portal</td></tr>
-  <tr><td>Admin Console</td><td><code>http://localhost:5174\</code\>\</td\>\<td\>Standalone administration panel</td></tr>
+  <tr><td>Main Application</td><td><code>https://dti7ems.cubeworks.com.ph</code><br><small style="color:#718096">(local dev: <code>http://localhost:8086</code>)</small></td><td>Public site, participant portal, and staff portal</td></tr>
+  <tr><td>Admin Console</td><td><code>http://localhost:5174</code></td><td>Standalone administration panel (local dev only)</td></tr>
 </table>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -393,15 +395,23 @@
 
 <div class="step-box">
   <span class="step-num">2</span>
-  <h5>Choose registration type</h5>
-  <p>Select the <strong>Individual</strong> tab for personal registration, or <strong>Business</strong> tab to register as an enterprise representative.</p>
+  <h5>Choose your registrant category</h5>
+  <p>Select the category that best describes you:</p>
+  <table>
+    <tr><th>Category</th><th>Who should select this</th></tr>
+    <tr><td><strong>Individual</strong></td><td>Private persons registering as a training participant with no business affiliation</td></tr>
+    <tr><td><strong>Business Owner / Enterprise Rep</strong></td><td>Owners, officers, or authorized representatives of a registered MSME or enterprise</td></tr>
+    <tr><td><strong>Organization</strong></td><td>Members of cooperatives, associations, foundations, NGOs, or industry groups</td></tr>
+    <tr><td><strong>Government</strong></td><td>Employees of LGUs, national government agencies, or GOCCs</td></tr>
+  </table>
 </div>
 
 <div class="step-box">
   <span class="step-num">3</span>
   <h5>Fill in your details</h5>
-  <p><strong>Individual:</strong> First Name, Last Name, Email, Mobile Number, Region, Password (minimum 10 characters, must include uppercase and number).</p>
-  <p><strong>Business (additional):</strong> Business Name, Industry Sector, Trade Name, Registration Number, TIN, Stage (Pre-Startup/Startup/Growth/Expansion/Mature), Employee Count.</p>
+  <p><strong>Individual / Organization / Government:</strong> First Name, Last Name, Email, Mobile Number, Region, Password (minimum 10 characters, must include uppercase and number).</p>
+  <p><strong>Business Owner / Enterprise Rep (additional fields):</strong> Business Name, Industry Sector, Trade Name, Registration Number, TIN, Business Stage (Pre-Startup / Startup / Growth / Expansion / Mature), Employee Count.</p>
+  <div class="info-box">Each enterprise is registered as a <strong>unique profile</strong> independent of the events attended or the representative signing up. If your enterprise is already registered, you can request to join it instead of creating a duplicate — see Section 12 (Enterprise Membership).</div>
 </div>
 
 <div class="step-box">
@@ -461,7 +471,22 @@
 <div class="step-box">
   <span class="step-num">2</span>
   <h5>Filter events (optional)</h5>
-  <p>Use the search box to find events by keyword. Filter by <strong>Sector</strong> (Manufacturing, Food Processing, Tourism, ICT, etc.) or <strong>Mode</strong> (Face to Face, Online, Hybrid).</p>
+  <p>Use the search box to find events by keyword. Filter by <strong>Sector</strong> or <strong>Mode</strong> (Face to Face, Online, Hybrid).</p>
+  <p>Available sector filters include:</p>
+  <table style="font-size:13px">
+    <tr><th>Sector</th><th>Example Sub-sectors</th></tr>
+    <tr><td>Manufacturing</td><td>Garments, Furniture, Metalworks, Packaging</td></tr>
+    <tr><td>Food Processing</td><td>Delicacies, Beverages, Agri-processing, Fishery Products</td></tr>
+    <tr><td>Tourism &amp; Hospitality</td><td>Accommodation, Travel Services, Food &amp; Beverage, Events</td></tr>
+    <tr><td>ICT &amp; Digital Services</td><td>Software, E-commerce, Digital Marketing, BPO/KPO</td></tr>
+    <tr><td>Retail &amp; Trade</td><td>General Merchandise, Specialty Shops, Online Selling</td></tr>
+    <tr><td>Agriculture &amp; Agri-business</td><td>Crop Production, Livestock, Organic Farming, Supply Chain</td></tr>
+    <tr><td>Startup &amp; Innovation</td><td>Tech Startups, Social Enterprises, Product Development, Prototyping</td></tr>
+    <tr><td>Creative Industries</td><td>Design, Arts &amp; Crafts, Media Production, Fashion, Architecture</td></tr>
+    <tr><td>Professional Services</td><td>Consulting, Legal, Accounting, Healthcare, Education</td></tr>
+    <tr><td>Construction &amp; Real Estate</td><td>Contracting, Property Development, Interior Design</td></tr>
+    <tr><td>Others / Cross-sector</td><td>Multi-sector programs not fitting a single category</td></tr>
+  </table>
 </div>
 
 <div class="step-box">
@@ -495,6 +520,7 @@
   <span class="step-num">4</span>
   <h5>Click "Register for this Event"</h5>
   <p>Your registration status will be set to <span class="badge badge-blue">REGISTERED</span>. If the event requires a Training Needs Assessment (TNA), you will be prompted to complete it.</p>
+  <p>If you registered as a <strong>Business Owner / Enterprise Rep</strong>, the system will also prompt you to <strong>confirm or update your current business stage</strong> (e.g., Pre-Startup → Startup). This allows DTI to track enterprise growth over time across multiple training participations.</p>
 </div>
 
 <div class="info-box">
@@ -504,7 +530,29 @@
 <!-- ── TNA ── -->
 <h2 id="part-tna">7. Training Needs Assessment (TNA)</h2>
 
-<p>Some events require participants to complete a Training Needs Assessment before confirming their RSVP. This helps organizers tailor the training content.</p>
+<div class="info-box">
+  <strong>Two types of TNA exist — they serve different purposes:</strong>
+  <table style="margin-top:10px;font-size:13px">
+    <tr><th>Type</th><th>When</th><th>Who does it</th><th>Purpose</th><th>Where in the system</th></tr>
+    <tr>
+      <td><strong>Pre-Proposal TNA</strong></td>
+      <td>Before writing the proposal</td>
+      <td>DTI Technical Staff / Program Manager</td>
+      <td>Identifies training needs of the target sector/group; serves as the <em>basis</em> for designing the training program</td>
+      <td>Conducted externally (survey, FGD, consultation). Findings are documented in the proposal's <strong>Background / Rationale</strong> field (Section 15). A dedicated pre-proposal TNA module is planned for a future release.</td>
+    </tr>
+    <tr>
+      <td><strong>Participant TNA</strong></td>
+      <td>At event registration (before RSVP confirmation)</td>
+      <td>Registered participant</td>
+      <td>Gauges the individual's current knowledge, skills, and motivation level; helps organizers customize delivery and manage expectations</td>
+      <td>Built into the registration flow — enabled via the <strong>"Requires TNA"</strong> toggle on the proposal form</td>
+    </tr>
+  </table>
+  <p style="margin-top:8px">Organizers may disable the participant TNA requirement for events where the training need has already been fully established at the planning stage.</p>
+</div>
+
+<p>The steps below describe the <strong>Participant TNA</strong> — the in-system readiness assessment completed by each registered participant.</p>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -612,6 +660,14 @@
   <p>Click <strong>"Submit Survey"</strong>. Your status will show <strong>"Survey Submitted ✓"</strong> on the My Events page.</p>
 </div>
 
+<div class="info-box">
+  <strong>CSF QR Code Access:</strong> For in-person events, organizers can display a <strong>QR code</strong> that links directly to the CSF survey for that specific event. Participants scan the QR code with their phone camera to open the survey immediately — no need to navigate through the portal. This is especially useful during on-site activities where quick access is needed.
+</div>
+
+<div class="warning-box">
+  <strong>Low Rating Alert:</strong> If you rate any SQD dimension as <strong>1 (Strongly Disagree)</strong> or <strong>2 (Disagree)</strong>, the system flags the response as a low-rating submission. The organizing staff will receive an <strong>immediate notification</strong> so that concerns can be addressed promptly — even before the overall CSF report is finalized.
+</div>
+
 <!-- ── IMPACT SURVEY ── -->
 <h2 id="part-impact">10. Impact Survey — FM-CT-5 (Training Monitoring and Evaluation Form)</h2>
 
@@ -658,7 +714,7 @@
 <!-- ── CERTIFICATES ── -->
 <h2 id="part-certs">11. My Certificates</h2>
 
-<p>After attending an event and being issued a certificate by the organizer, you can view, print, and verify your certificates.</p>
+<p>Certificate generation is <strong>fully implemented</strong>. After attending an event and being issued a certificate by the organizer (see Section 20 — Issuing Certificates), you can view, download, print, and verify your certificates.</p>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -678,8 +734,39 @@
   <p>Use the <strong>"Verify Certificate"</strong> link or navigate to the public verification page at <code>/verify/[code]</code>. Enter the verification code to confirm authenticity.</p>
 </div>
 
+<!-- ── ENTERPRISE MEMBERSHIP ── -->
+<h2 id="part-enterprise">12. Enterprise Membership</h2>
+
+<p>Each enterprise in the system has a <strong>unique profile</strong> independent of any individual user, event, or representative. The same enterprise profile is shared across all training participations and all team members — ensuring consistent business data and enabling DTI to track enterprise growth over time.</p>
+
+<h4>Joining an Existing Enterprise</h4>
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open your Profile → Enterprise Membership section</h5>
+  <p>Click <strong>"Profile"</strong> in the sidebar. Scroll to the <strong>"Enterprise Membership"</strong> section.</p>
+</div>
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Search for your enterprise</h5>
+  <p>Use the search box to find your company by name. Publicly listed enterprises will appear in results.</p>
+</div>
+<div class="step-box action">
+  <span class="step-num">3</span>
+  <h5>Send a join request</h5>
+  <p>Click <strong>"Request to Join"</strong>. Your membership status will show <span class="badge badge-yellow">PENDING</span> until approved by the enterprise owner or an admin.</p>
+</div>
+
+<h4>Membership Statuses</h4>
+<table>
+  <tr><th>Status</th><th>Description</th></tr>
+  <tr><td><span class="badge badge-yellow">PENDING</span></td><td>Join request submitted, awaiting approval from the enterprise owner</td></tr>
+  <tr><td><span class="badge badge-green">ACTIVE</span></td><td>Approved member — enterprise data linked to your participations</td></tr>
+  <tr><td><span class="badge badge-gray">INACTIVE</span></td><td>Removed from the enterprise by the owner or admin</td></tr>
+  <tr><td><span class="badge badge-red">REJECTED</span></td><td>Join request was declined</td></tr>
+</table>
+
 <!-- ── PROFILE ── -->
-<h2 id="part-profile">12. Profile Management</h2>
+<h2 id="part-profile">13. Profile Management</h2>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -711,7 +798,7 @@
 <!-- ════════════════════════════════════════════════════════════════
      STAFF GUIDE
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="staff-dashboard">13. Staff Dashboard</h2>
+<h2 id="staff-dashboard">14. Staff Dashboard</h2>
 
 <p>Staff users (Technical Staff, Facilitators, Division Chiefs, Directors) are directed to the organizer portal upon login.</p>
 
@@ -766,7 +853,7 @@
     <li><strong>Registration Deadline</strong></li>
     <li><strong>Max Participants</strong></li>
     <li><strong>Target Sector &amp; Region</strong></li>
-    <li><strong>Requires TNA</strong> — Check if a Training Needs Assessment is required</li>
+    <li><strong>Requires TNA</strong> — Toggle this <strong>on</strong> if you want each registered participant to complete a <em>Participant TNA</em> (readiness self-assessment) before their RSVP is confirmed. Leave it <strong>off</strong> if the training need has already been established through a pre-proposal TNA and no individual readiness check is needed.</li>
   </ul>
 </div>
 
@@ -774,7 +861,7 @@
   <span class="step-num">4</span>
   <h5>Write Proposal Details</h5>
   <ul>
-    <li>Background/Rationale</li>
+    <li><strong>Background/Rationale</strong> — <em>This is where pre-proposal TNA findings should be documented.</em> Summarize the training needs identified through sector consultations, FGDs, surveys, or previous training evaluations that justify this proposal.</li>
     <li>Objectives</li>
     <li>Expected Learning Outcomes</li>
     <li>Methodology</li>
@@ -1277,9 +1364,9 @@
 
 <table>
   <tr><th>Section</th><th>Information Displayed</th></tr>
-  <tr><td>Microservices</td><td>Identity (port 3011), Event (port 3012), Notification (port 3013), Frontend (port 5173) status</td></tr>
+  <tr><td>Microservices</td><td>Identity (port 3011), Event (port 3012), Notification (port 3013), Frontend (port 8086) status</td></tr>
   <tr><td>Database</td><td>PostgreSQL and Redis connection status, record counts</td></tr>
-  <tr><td>Notification Providers</td><td>Email (Resend API) and SMS (Semaphore PH) configuration</td></tr>
+  <tr><td>Notification Providers</td><td>Email (Gmail SMTP via App Password) and SMS (Semaphore PH) configuration</td></tr>
   <tr><td>Authentication</td><td>RS256 JWT, token TTLs, cookie settings</td></tr>
   <tr><td>Scheduled Jobs</td><td>Impact Survey Dispatch, Survey Expiry Check, RSVP Reminders</td></tr>
   <tr><td>System Health</td><td>Active/Pending/Suspended users with warning indicators</td></tr>
@@ -1288,9 +1375,44 @@
 </table>
 
 <!-- ════════════════════════════════════════════════════════════════
+     CHANGELOG
+     ════════════════════════════════════════════════════════════════ -->
+<h2 id="ref-changelog">30. Changelog</h2>
+
+<table>
+  <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr>
+    <td><strong>v1.2</strong></td>
+    <td>April 27, 2026</td>
+    <td>
+      <ul style="margin:0;padding-left:18px">
+        <li>Updated System Access URL to <code>https://dti7ems.cubeworks.com.ph</code> (port 8086 locally)</li>
+        <li>Registration redesigned with four categories: Individual, Business Owner/Enterprise Rep, Organization, Government</li>
+        <li>Enterprise profiles clarified as unique per company — independent of events and representatives</li>
+        <li>Added Section 12: Enterprise Membership (join request flow, membership statuses)</li>
+        <li>Expanded Sector filters to include Startup &amp; Innovation and Creative Industries, with sub-sectors</li>
+        <li>Added TNA timing clarification note (proposal-basis TNA vs. participant readiness TNA)</li>
+        <li>Added business status confirmation prompt on event registration for enterprise reps</li>
+        <li>Confirmed Certificate Generation is fully implemented</li>
+        <li>Added CSF QR code feature for direct in-event survey access</li>
+        <li>Added CSF low-rating alert — immediate notification triggered for ratings ≤ 2</li>
+        <li>Added FAQ: Offline / no-internet-connection guidance</li>
+        <li>Updated Notification Provider from Resend API to Gmail SMTP</li>
+        <li>Updated Frontend port reference from 5173 to 8086</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>v1.0</strong></td>
+    <td>April 2026</td>
+    <td>Initial release</td>
+  </tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════════
      REFERENCE SECTION
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="ref-lifecycle">30. Event Lifecycle Reference</h2>
+<h2 id="ref-lifecycle">31. Event Lifecycle Reference</h2>
 
 <h4>Complete Status Flow</h4>
 <div class="flow">
@@ -1338,7 +1460,7 @@
 </table>
 
 <!-- ── STATUS REFERENCE ── -->
-<h2 id="ref-statuses">31. Status Reference</h2>
+<h2 id="ref-statuses">32. Status Reference</h2>
 
 <h4>Event Statuses</h4>
 <table>
@@ -1374,7 +1496,7 @@
 </table>
 
 <!-- ── FORMS REFERENCE ── -->
-<h2 id="ref-forms">32. DTI Forms Reference</h2>
+<h2 id="ref-forms">33. DTI Forms Reference</h2>
 
 <table>
   <tr><th>Form Code</th><th>Title</th><th>Purpose</th><th>System Location</th></tr>
@@ -1386,9 +1508,20 @@
 </table>
 
 <!-- ── FAQ ── -->
-<h2 id="ref-faq">33. Frequently Asked Questions</h2>
+<h2 id="ref-faq">34. Frequently Asked Questions</h2>
 
 <h4>General</h4>
+
+<div class="step-box">
+  <h5>Q: How does the system work with no internet connection?</h5>
+  <p>DTI EMS is a web-based platform and requires an internet connection for most features. However, the following considerations apply for low-connectivity situations:</p>
+  <ul>
+    <li><strong>QR Attendance (offline-tolerant):</strong> QR codes are pre-generated and stored on participants' devices. If the device scanning the code loses connectivity briefly, the check-in can be queued locally and synced when the connection is restored.</li>
+    <li><strong>CSF Survey QR:</strong> The survey QR code links to the live system — an internet connection is required to submit responses.</li>
+    <li><strong>PDF Certificates:</strong> Once downloaded, PDF certificates are available offline for viewing and printing.</li>
+    <li><strong>Recommendation:</strong> For events in venues with unreliable connectivity, coordinators should download and print attendance sheets and CSF paper forms as a backup. Data can be manually encoded afterward.</li>
+  </ul>
+</div>
 
 <div class="step-box">
   <h5>Q: Which web browsers are supported?</h5>
@@ -1454,7 +1587,7 @@
   <p><strong>Department of Trade and Industry — Region VII</strong></p>
   <p>3/F, WDC Bldg., Osmeña Blvd. cor. P. Burgos,<br>
   Cebu City, 6000, Cebu, Philippines</p>
-  <p style="margin-top: 12px;">DTI EMS User Manual v1.0 &nbsp;·&nbsp; Document Code: DTI-EMS-UM-001 &nbsp;·&nbsp; April 2026</p>
+  <p style="margin-top: 12px;">DTI EMS User Manual v1.2 &nbsp;·&nbsp; Document Code: DTI-EMS-UM-001 &nbsp;·&nbsp; April 2026</p>
   <p style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
     This document is for internal use by DTI Region VII staff and authorized training participants.
     <br>Data privacy is governed by RA 10173 (Data Privacy Act of 2012).

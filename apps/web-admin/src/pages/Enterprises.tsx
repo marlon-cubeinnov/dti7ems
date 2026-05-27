@@ -5,11 +5,11 @@ import { Search, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-
 import { format } from 'date-fns';
 
 const STAGE_BADGE: Record<string, string> = {
-  PRE_STARTUP: 'bg-gray-100 text-gray-600',
-  STARTUP:     'bg-blue-100 text-blue-700',
-  GROWTH:      'bg-green-100 text-green-700',
-  EXPANSION:   'bg-purple-100 text-purple-700',
-  MATURE:      'bg-teal-100 text-teal-700',
+  IDEATION:     'bg-gray-100 text-gray-600',
+  VALIDATION:   'bg-blue-100 text-blue-700',
+  GROWTH:       'bg-green-100 text-green-700',
+  EXPANSION:    'bg-purple-100 text-purple-700',
+  MATURITY_EXIT: 'bg-teal-100 text-teal-700',
 };
 
 interface Enterprise {

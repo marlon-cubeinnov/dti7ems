@@ -2,15 +2,19 @@
 // DBML v3.1 — Domain & Behavior Model
 // System  : DTI Region 7 — Event Management System (EMS)
 //           & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Stack   : Node.js / React · PostgreSQL · Docker (dev) · GCP (Phase 3)
 //
 // STATUS  : Reflects Phase 1–2 implementation.
 //           SurveyContext CSF surveys run inside event-service.
 //           PDF certificates use PDFKit (no Puppeteer).
 //           Notifications via HTTP fire-and-forget (no Kafka yet).
+//           Admin Console fully active (Phase 1–2).
+//           Enterprise membership join-request flow implemented.
+//           SMTP: Gmail (configurable via Admin → Settings → Email).
+//           system_settings table persists all configurable platform settings.
 // ============================================================
 
 dbml model DTI_EMS_Domain {
@@ -100,6 +104,13 @@ dbml model DTI_EMS_Domain {
     owner ;
     admin ;
     member ;
+  }
+
+  enum MembershipStatus {
+    pending  ; // Join request submitted, awaiting owner/admin approval
+    active   ; // Full active member
+    inactive ; // Deactivated by owner/admin
+    rejected ; // Join request explicitly rejected
   }
 
   enum VerificationStatus {
@@ -222,7 +233,9 @@ dbml model DTI_EMS_Domain {
       field id                   : uuid               { required = true ; unique = true ; index = true ; }
       field legal_name           : string             { required = true ; }
       field trade_name           : string             { required = false ; }
-      field registration_number  : string             { required = false ; unique = true ; }
+      field registration_number  : string             { required = false ; unique = true ; label = "SEC/DTI/CDA/DOLE registration number" ; }
+      field tin_number           : string             { required = false ; label = "BIR Tax Identification Number" ; }
+      field industry_sector      : string             { required = true ; }
       field enterprise_type      : EnterpriseType     { required = true ; enum = EnterpriseType ; }
       field stage                : EnterpriseStage    { required = true ; default = "startup" ; enum = EnterpriseStage ; }
       field industry_tags        : json               { required = false ; label = "Industry Tags (array)" ; }
@@ -235,6 +248,7 @@ dbml model DTI_EMS_Domain {
       field employee_count       : int                { required = false ; }
       field annual_revenue_php   : decimal            { required = false ; precision = 18 ; scale = 2 ; }
       field is_exporter          : boolean            { default = false ; }
+      field is_publicly_listed   : boolean            { default = false ; label = "Visible in public enterprise directory" ; }
       field verification_status  : VerificationStatus { required = true ; default = "unverified" ; enum = VerificationStatus ; }
       field activity_score       : decimal            { computed = true ; precision = 5 ; scale = 2 ; }
       field beneficiary_status   : boolean            { default = false ; }
@@ -310,12 +324,14 @@ dbml model DTI_EMS_Domain {
       category = transactional ;
       kind     = junction ;
 
-      field id            : uuid           { required = true ; unique = true ; index = true ; }
-      field enterprise_id : uuid           { required = true ; index = true ; }
-      field user_id       : uuid           { required = true ; index = true ; }
-      field role          : MembershipRole { required = true ; default = "member" ; enum = MembershipRole ; }
-      field joined_at     : datetime       { required = true ; }
-      field is_active      : boolean        { default = true ; }
+      field id            : uuid             { required = true ; unique = true ; index = true ; }
+      field enterprise_id : uuid             { required = true ; index = true ; }
+      field user_id       : uuid             { required = true ; index = true ; }
+      field role          : MembershipRole   { required = true ; default = "member" ; enum = MembershipRole ; }
+      field status        : MembershipStatus { required = true ; default = "active" ; enum = MembershipStatus ;
+                                               label = "PENDING (join request) | ACTIVE | INACTIVE | REJECTED" ; }
+      field is_active     : boolean          { default = true ; label = "Legacy flag — ACTIVE status implies is_active = true" ; }
+      field joined_at     : datetime         { required = true ; }
 
       relation enterprise {
         from = EnterpriseMembership.enterprise_id ;
@@ -335,6 +351,25 @@ dbml model DTI_EMS_Domain {
         fields = [enterprise_id, user_id] ;
         label  = "A user can only belong to a given enterprise once" ;
       }
+
+      behavior {
+        workflow use EnterpriseMembershipWorkflow ;
+      }
+    }
+
+    // System-level configurable settings (SMTP, feature flags, etc.)
+    entity SystemSetting {
+      label    = "System Setting" ;
+      category = config ;
+      kind     = root ;
+
+      field key        : string   { required = true ; unique = true ; index = true ;
+                                    label = "Setting key (e.g., smtp_host, smtp_port, smtp_user)" ; }
+      field value      : text     { required = false ; label = "Setting value" ; }
+      field updated_at : datetime { required = true ; }
+      field updated_by : uuid     { required = false ; label = "Admin user who last changed this setting" ; }
+
+      // Known keys: smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, smtp_from
     }
   }
 
@@ -608,7 +643,7 @@ dbml model DTI_EMS_Domain {
   // ─────────────────────────────────────────────
 
   context NotificationContext {
-    label = "Notification Service (port 3013 — BullMQ + Resend + Semaphore)" ;
+    label = "Notification Service (port 3013 — BullMQ + nodemailer/Gmail SMTP)" ;
 
     entity NotificationLog {
       label    = "Notification Log" ;
@@ -758,6 +793,51 @@ dbml model DTI_EMS_Domain {
       from   = active ;
       to     = inactive ;
       role   = UserRole.super_admin ;
+    }
+  }
+
+  workflow EnterpriseMembershipWorkflow {
+    entity      = IdentityContext.EnterpriseMembership ;
+    state-field = status ;
+    // Governs the two membership creation paths:
+    //   Path A: Owner/admin directly adds a user   → immediately ACTIVE
+    //   Path B: User submits a join request         → starts as PENDING
+
+    state pending  { initial = true ; label = "Join request submitted" ; }
+    state active   { }
+    state inactive { final = true ; }
+    state rejected { final = true ; }
+
+    transition ApproveJoinRequest {
+      from   = pending ;
+      to     = active ;
+      role   = MembershipRole.owner ;
+      role   = MembershipRole.admin ;
+      note   = "Owner or admin approves a pending join request" ;
+    }
+
+    transition RejectJoinRequest {
+      from   = pending ;
+      to     = rejected ;
+      role   = MembershipRole.owner ;
+      role   = MembershipRole.admin ;
+      note   = "Owner or admin rejects a pending join request" ;
+    }
+
+    transition DeactivateMember {
+      from   = active ;
+      to     = inactive ;
+      role   = MembershipRole.owner ;
+      role   = MembershipRole.admin ;
+      note   = "Owner or admin removes a member" ;
+    }
+
+    transition ReactivateMember {
+      from   = inactive ;
+      to     = active ;
+      role   = MembershipRole.owner ;
+      role   = MembershipRole.admin ;
+      note   = "Owner or admin reactivates a previously removed member" ;
     }
   }
 
@@ -1007,8 +1087,12 @@ dbml model DTI_EMS_Domain {
   // ─────────────────────────────────────────────
 
   integration SMTPGateway {
-    channel = email ;
-    // Resend API via notification-service
+    channel     = email ;
+    provider    = "Gmail SMTP (smtp.gmail.com:587 STARTTLS)" ;
+    auth        = "App Password (Google 2-Step Verification required)" ;
+    config      = "Configurable live via Admin → Settings → Email (stored in system_settings table)." ;
+    fallback    = "Env vars: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM." ;
+    uses        = ["email_verification", "password_reset", "invite_employee", "csf_survey_link"] ;
   }
 
   integration SMSGateway {

@@ -8,6 +8,7 @@ import { jwtPlugin } from './plugins/jwt.js';
 import { redisPlugin } from './plugins/redis.js';
 import { mailerPlugin } from './plugins/mailer.js';
 import { errorHandler } from './plugins/error-handler.js';
+import { cronPlugin } from './plugins/cron.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
 import { enterpriseRoutes } from './routes/enterprises.js';
@@ -34,7 +35,7 @@ export async function buildApp() {
     contentSecurityPolicy: false, // API — no HTML served
   });
 
-  const origins = (process.env['CORS_ORIGINS'] ?? 'http://localhost:5173,http://localhost:5174').split(',');
+  const origins = (process.env['CORS_ORIGINS'] ?? 'http://localhost:8086,http://localhost:5174,https://dti7ems.cubeworks.com.ph').split(',');
   await app.register(cors, {
     origin: origins,
     credentials: true,
@@ -63,7 +64,10 @@ export async function buildApp() {
   await app.register(jwtPlugin);
   await app.register(mailerPlugin);
 
-  // ── Error handler ──────────────────────────────────────────────────────────
+  // ── Cron jobs ─────────────────────────────────────────────────────────────
+  await app.register(cronPlugin);
+
+  // ── Error handler ─────────────────────────────────────────────────────────
   app.setErrorHandler(errorHandler);
 
   // ── Routes ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 import { LayoutDashboard, CalendarDays, PlusCircle, LogOut, User, Users, Building2, ScrollText, BarChart3, ShieldCheck, Settings, ClipboardList, Shield, FileText } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -19,6 +19,7 @@ const PM_NAV = [
   { to: '/organizer/dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
   { to: '/organizer/proposals',     label: 'My Proposals',   icon: FileText        },
   { to: '/organizer/proposals/new', label: 'New Proposal',   icon: PlusCircle      },
+  { to: '/organizer/tna',           label: 'TNA',            icon: ClipboardList   },
   { to: '/organizer/events',        label: 'My Events',      icon: CalendarDays    },
   { to: '/organizer/reports',       label: 'Reports',        icon: BarChart3       },
 ];
@@ -44,14 +45,15 @@ const RD_NAV = [
 
 // Admin/System users see PM_NAV
 const ADMIN_NAV = [
-  { to: '/admin/dashboard',    label: 'Admin Dashboard',  icon: ShieldCheck      },
-  { to: '/admin/users',        label: 'Users',            icon: Users            },
-  { to: '/admin/enterprises',  label: 'Enterprises',      icon: Building2        },
-  { to: '/admin/events',       label: 'All Events',       icon: CalendarDays     },
-  { to: '/admin/audit-logs',   label: 'Audit Logs',       icon: ScrollText       },
-  { to: '/admin/reports',      label: 'Reports',          icon: BarChart3        },
-  { to: '/admin/roles',        label: 'Roles & Permissions', icon: Shield          },
-  { to: '/admin/settings',     label: 'Settings',         icon: Settings         },
+  { to: '/admin/dashboard',          label: 'Admin Dashboard',    icon: ShieldCheck   },
+  { to: '/admin/users',              label: 'Users',              icon: Users         },
+  { to: '/admin/enterprises',        label: 'Enterprises',        icon: Building2     },
+  { to: '/admin/enterprise-updates', label: 'Company Updates',    icon: Building2     },
+  { to: '/admin/events',             label: 'All Events',         icon: CalendarDays  },
+  { to: '/admin/audit-logs',         label: 'Audit Logs',         icon: ScrollText    },
+  { to: '/admin/reports',            label: 'Reports',            icon: BarChart3     },
+  { to: '/admin/roles',              label: 'Roles & Permissions', icon: Shield       },
+  { to: '/admin/settings',           label: 'Settings',           icon: Settings      },
 ];
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'];
@@ -61,7 +63,7 @@ export function OrganizerLayout() {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await authApi.logout();
+    try { await authApi.logout(); } catch { /* best-effort */ }
     logout();
     navigate('/');
   };
@@ -69,37 +71,37 @@ export function OrganizerLayout() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
       isActive
-        ? 'bg-white/20 text-white'
-        : 'text-blue-100 hover:bg-white/10 hover:text-white'
+        ? 'bg-[#172187] text-white'
+        : 'text-[#172187] hover:bg-[#172187]/10'
     }`;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-dti-blue shadow-md sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-          <Link to="/organizer/dashboard" className="flex items-center gap-2">
-            <img src={dtiLogo} alt="DTI Central Visayas Region" className="h-9 w-auto" />
-            <span className="text-white font-bold text-sm hidden sm:block">DTI Region 7 EMS</span>
+          <Link to="/organizer/dashboard" className="flex items-center gap-3">
+            <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-10 w-auto" />
+            <span className="text-[#172187] font-bold text-sm hidden sm:block">DTI Region 7 EMS</span>
           </Link>
 
           <div className="flex items-center gap-2 text-sm">
-            <NavLink to="/" end className={navLinkClass}>Home</NavLink>
+            <NavLink to={ADMIN_ROLES.includes(user?.role ?? '') ? '/admin/dashboard' : '/organizer/dashboard'} className={navLinkClass}>Home</NavLink>
             <NavLink to="/events" className={navLinkClass}>Events</NavLink>
             <NavLink to="/directory" className={navLinkClass}>Directory</NavLink>
             <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className={navLinkClass({ isActive: false })}>User Manual</a>
 
-            <div className="w-px h-6 bg-white/20 mx-2" />
+            <div className="w-px h-6 bg-gray-300 mx-2" />
 
-            <span className="text-blue-200 text-xs hidden sm:block">
-              {user?.firstName} {user?.lastName}
-              <span className="ml-2 bg-blue-700 text-blue-100 text-[10px] px-1.5 py-0.5 rounded">
+            <span className="text-gray-500 text-xs hidden sm:block">
+              {user?.firstName}
+              <span className="ml-2 bg-[#172187] text-white text-[10px] px-1.5 py-0.5 rounded">
                 {ROLE_LABELS[user?.role ?? ''] ?? user?.role}
               </span>
             </span>
             <button
               onClick={handleLogout}
-              className="px-4 py-1.5 rounded-full text-sm font-medium border border-white/40 text-white hover:bg-white hover:text-dti-blue transition-all"
+              className="px-4 py-1.5 rounded-full text-sm font-medium border border-[#172187]/40 text-[#172187] hover:bg-[#172187] hover:text-white transition-all"
             >
               Log out
             </button>

@@ -392,7 +392,7 @@ export function AdminSettingsPage() {
             <SettingRow label="Identity Service" value="Port 3011" status="ok" />
             <SettingRow label="Event Service" value="Port 3012" status="ok" />
             <SettingRow label="Notification Service" value="Port 3013" status="ok" />
-            <SettingRow label="Frontend (web-public)" value="Port 5173" status="ok" />
+            <SettingRow label="Frontend (web-public)" value="Port 8086" status="ok" />
           </div>
         </SettingsSection>
 

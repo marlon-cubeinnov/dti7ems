@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminIdentityApi, ApiError } from '@/lib/api';
-import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -201,7 +201,16 @@ export function UsersPage() {
                           <MailCheck size={13} />
                         </button>
                       )}
-                      {u.status === 'ACTIVE' ? (
+                      {u.status === 'PENDING_APPROVAL' ? (
+                        <button
+                          onClick={() => { setActionModal({ type: 'status', user: u }); setActionValue('ACTIVE'); }}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                          title="Approve account"
+                        >
+                          <UserCheck size={13} />
+                          <span>Approve</span>
+                        </button>
+                      ) : u.status === 'ACTIVE' ? (
                         <button
                           onClick={() => { setActionModal({ type: 'status', user: u }); setActionValue('SUSPENDED'); }}
                           className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-800"

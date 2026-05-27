@@ -188,20 +188,30 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send({ success: true, data: user });
   });
 
-  // PATCH /users/:id/status — admin only
+  // PATCH /users/:id/status — admin or staff (staff may only approve pending accounts)
   app.patch('/:id/status', async (request, reply) => {
-    if (!ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number])) {
-      throw new ForbiddenError('Only administrators can change user status.');
+    const callerRole = request.user.role;
+    const isAdmin = ADMIN_ROLES.includes(callerRole as typeof ADMIN_ROLES[number]);
+    const isStaff = STAFF_ROLES.includes(callerRole as typeof STAFF_ROLES[number]);
+    if (!isAdmin && !isStaff) {
+      throw new ForbiddenError('Only administrators or staff can change user status.');
     }
 
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const { status, reason } = z.object({
-      status: z.enum(['ACTIVE', 'SUSPENDED', 'DEACTIVATED']),
+      status: z.enum(['ACTIVE', 'SUSPENDED', 'DEACTIVATED', 'PENDING_APPROVAL']),
       reason: z.string().min(1),
     }).parse(request.body);
 
     const existing = await app.prisma.userProfile.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError('User not found');
+
+    // Non-admin staff may only approve pending accounts
+    if (!isAdmin && isStaff) {
+      if (existing.status !== 'PENDING_APPROVAL' || status !== 'ACTIVE') {
+        throw new ForbiddenError('Staff may only approve pending accounts.');
+      }
+    }
 
     const updated = await app.prisma.userProfile.update({
       where: { id },

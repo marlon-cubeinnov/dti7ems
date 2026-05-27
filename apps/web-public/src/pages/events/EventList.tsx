@@ -1,25 +1,52 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { eventsApi } from '@/lib/api';
 import { EventCard } from '@/components/events/EventCard';
 import type { Event } from '@dti-ems/shared-types';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown, Check } from 'lucide-react';
 
 const SECTORS = ['All', 'Manufacturing', 'Food Processing', 'Tourism', 'ICT', 'Agriculture', 'Retail', 'Services'];
 const MODES   = ['All', 'FACE_TO_FACE', 'ONLINE', 'HYBRID'];
 
+const STATUS_OPTIONS = [
+  { value: 'REGISTRATION_OPEN', label: 'Open for Registration' },
+  { value: 'ONGOING',           label: 'On-going' },
+  { value: 'COMPLETED',         label: 'Completed' },
+];
+
 export function EventListPage() {
-  const [search,  setSearch]  = useState('');
-  const [sector,  setSector]  = useState('');
-  const [mode,    setMode]    = useState('');
-  const [page,    setPage]    = useState(1);
+  const [search,   setSearch]   = useState('');
+  const [sector,   setSector]   = useState('');
+  const [mode,     setMode]     = useState('');
+  const [statuses, setStatuses] = useState<string[]>(['REGISTRATION_OPEN', 'ONGOING']);
+  const [page,     setPage]     = useState(1);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) {
+        setStatusOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  function toggleStatus(value: string) {
+    setStatuses((prev) =>
+      prev.includes(value) ? prev.filter((s) => s !== value) : [...prev, value]
+    );
+    setPage(1);
+  }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['events', { search, sector, mode, page }],
+    queryKey: ['events', { search, sector, mode, statuses, page }],
     queryFn: () => eventsApi.list({
       search:       search || undefined,
       sector:       sector || undefined,
       deliveryMode: mode   || undefined,
+      status:       statuses.length > 0 && statuses.length < STATUS_OPTIONS.length ? statuses.join(',') : undefined,
       page,
       limit: 12,
     }),
@@ -60,6 +87,45 @@ export function EventListPage() {
         >
           {MODES.map((m) => <option key={m}>{m}</option>)}
         </select>
+
+        {/* Status multi-select */}
+        <div className="relative sm:w-52" ref={statusRef}>
+          <button
+            type="button"
+            className="input w-full flex items-center justify-between text-left"
+            onClick={() => setStatusOpen((o) => !o)}
+          >
+            <span className="truncate text-sm text-gray-700">
+              {statuses.length === 0
+                ? 'All Statuses'
+                : statuses.length === STATUS_OPTIONS.length
+                ? 'All Statuses'
+                : STATUS_OPTIONS.filter((o) => statuses.includes(o.value)).map((o) => o.label).join(', ')}
+            </span>
+            <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
+          </button>
+          {statusOpen && (
+            <div className="absolute z-20 top-full mt-1 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+              {STATUS_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${statuses.includes(opt.value) ? 'bg-[#172187] border-[#172187]' : 'border-gray-300'}`}>
+                    {statuses.includes(opt.value) && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={statuses.includes(opt.value)}
+                    onChange={() => toggleStatus(opt.value)}
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Event grid ───────────────────────────────────────────────────── */}

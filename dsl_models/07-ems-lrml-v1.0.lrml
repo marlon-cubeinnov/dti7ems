@@ -1,17 +1,20 @@
 // ============================================================
-// LRML v1.0 — Reporting & Dashboard Model
+// LRML v3.0 — Reporting & Dashboard Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.3
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-05-09
 // Purpose : Define all datasets, metrics, reports, and
 //           dashboard layouts for the EMS Organizer Console,
 //           Admin Console, and Industry Dashboard.
 //
 // STATUS  : Reflects Phase 1–2 implementation.
 //           Organizer-level reports (CSF, Event) are active.
-//           Impact datasets, Admin dashboards, and Industry
-//           Dashboard are Phase 3 (NOT IMPLEMENTED).
+//           Admin Console dashboard (AdminSystemDashboard) is NOW ACTIVE.
+//           Enterprise membership dataset updated to include PENDING status.
+//           Admin stats metrics (users by role, enterprises by stage,
+//           pending verifications) added.
+//           Impact datasets, and Industry Dashboard are Phase 3 (NOT IMPLEMENTED).
 //           CSF survey data is in event-service (not survey-service).
 // ============================================================
 
@@ -185,7 +188,11 @@ lrml model DTI_EMS_Reporting {
   dataset EnterpriseMembershipDataset {
     source = dbml : domain.IdentityContext.EnterpriseMembership ;
     filter {
-      is_active == true ;
+      status IN ["ACTIVE", "PENDING"] ;
+    }
+    compute {
+      active_count  = count(status == "ACTIVE") ;
+      pending_count = count(status == "PENDING") ;
     }
   }
 
@@ -338,6 +345,47 @@ lrml model DTI_EMS_Reporting {
     value   = avg(sent_count) ;
     label   = "Notification Delivery Rate" ;
     format  = "0.0%" ;
+  }
+
+  // Admin stats metrics (from GET /admin/stats)
+  metric TotalUsersByRole {
+    dataset = UserProfileDataset ;
+    value   = count(id) ;
+    groupBy = role ;
+    label   = "Total Users by Role" ;
+    format  = "0,0" ;
+  }
+
+  metric PendingEmailVerifications {
+    dataset = UserProfileDataset ;
+    filter  = { email_verified == false } ;
+    value   = count(id) ;
+    label   = "Users Pending Email Verification" ;
+    format  = "0,0" ;
+  }
+
+  metric EnterprisesByStage {
+    dataset = EnterpriseDataset ;
+    value   = count(id) ;
+    groupBy = stage ;
+    label   = "Enterprises by Business Stage" ;
+    format  = "0,0" ;
+  }
+
+  metric PendingEnterpriseVerifications {
+    dataset = EnterpriseDataset ;
+    filter  = { is_verified == false } ;
+    value   = count(id) ;
+    label   = "Enterprises Pending DTI Verification" ;
+    format  = "0,0" ;
+  }
+
+  metric PendingMembershipRequests {
+    dataset = EnterpriseMembershipDataset ;
+    filter  = { status == "PENDING" } ;
+    value   = count(id) ;
+    label   = "Pending Enterprise Join Requests" ;
+    format  = "0,0" ;
   }
 
   // ─────────────────────────────────────────────
@@ -697,7 +745,8 @@ lrml model DTI_EMS_Reporting {
 
   dashboard AdminSystemDashboard {
     title       = "System Administration Dashboard" ;
-    description = "High-level system health and beneficiary overview for DTI admin staff and super admins." ;
+    description = "High-level system health and beneficiary overview for DTI admin staff and super admins.
+                   ACTIVE in Phase 1–2 via apps/web-admin (port 5174)." ;
     audience    = "super_admin, dti_staff" ;
     refresh     = "every 5 minutes" ;
 
@@ -711,6 +760,18 @@ lrml model DTI_EMS_Reporting {
         TotalCertificatesIssued
         TotalJobsCreated
       ]
+    }
+
+    section AdminStats {
+      style   = "metric-cards" ;
+      metrics = [
+        TotalUsersByRole
+        PendingEmailVerifications
+        EnterprisesByStage
+        PendingEnterpriseVerifications
+        PendingMembershipRequests
+      ]
+      title   = "Quick Admin Stats (from GET /admin/stats)" ;
     }
 
     section EventPipelineStatus {

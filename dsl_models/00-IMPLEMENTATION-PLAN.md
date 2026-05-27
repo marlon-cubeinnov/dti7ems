@@ -355,13 +355,19 @@ The following items were completed in previous sprints:
 
 ## DSL Model Index
 
-| File | Grammar | Purpose |
-|---|---|---|
-| [01-ems-dbml-v1.0.dbml](./01-ems-dbml-v1.0.dbml) | DBML v3.1 | All entities, relationships, workflows, permissions, events |
-| [02-ems-sdml-v1.0.sdml](./02-ems-sdml-v1.0.sdml) | SDML v2.0 | Security model, threats, risks, controls (NIST CSF + DPA) |
-| [03-ems-wdml-v1.0.wdml](./03-ems-wdml-v1.0.wdml) | WDML v3.3 | Design system tokens, pages, layouts for all apps |
-| [04-ems-uxml-v1.0.uxml](./04-ems-uxml-v1.0.uxml) | UXML v3.1 | App structure, views, flows, components, user journeys |
-| [05-ems-blml-v1.0.blml](./05-ems-blml-v1.0.blml) | BLML v1.1 | Business rules, formulas, decision tables, constraints |
-| [06-ems-otml-v1.0.otml](./06-ems-otml-v1.0.otml) | OTML v1.7 | Cloud infrastructure, service nodes, pipelines, workflows |
-| [07-ems-lrml-v1.0.lrml](./07-ems-lrml-v1.0.lrml) | LRML v1.0 | Datasets, metrics, reports, dashboards, styles |
-| [08-ems-aiml-v1.0.aiml](./08-ems-aiml-v1.0.aiml) | AIML v2.1 | ML models, training pipelines, inference APIs, governance |
+| File | Grammar | Purpose | Status |
+|---|---|---|---|
+| [01-ems-dbml-v1.0.dbml](./01-ems-dbml-v1.0.dbml) | DBML v3.1 | All entities, relationships, workflows, permissions, events | ✅ Phase 1–2 |
+| [02-ems-sdml-v1.0.sdml](./02-ems-sdml-v1.0.sdml) | SDML v2.0 | Security model, threats, risks, controls (NIST CSF + DPA) | ✅ Phase 1–2 |
+| [03-ems-wdml-v1.0.wdml](./03-ems-wdml-v1.0.wdml) | WDML v3.3 | Design system tokens, pages, layouts for all apps | ✅ Phase 1–2 |
+| [04-ems-uxml-v1.0.uxml](./04-ems-uxml-v1.0.uxml) | UXML v3.1 | App structure, views, flows, components, user journeys | ✅ Phase 1–2 |
+| [05-ems-blml-v1.0.blml](./05-ems-blml-v1.0.blml) | BLML v1.1 | Business rules, formulas, decision tables, constraints | ✅ Phase 1–2 |
+| [06-ems-otml-v1.0.otml](./06-ems-otml-v1.0.otml) | OTML v1.7 | Cloud infrastructure, service nodes, pipelines, workflows | ⚠️ Phase 3 nodes commented out |
+| [07-ems-lrml-v1.0.lrml](./07-ems-lrml-v1.0.lrml) | LRML v3.0 | Datasets, metrics, reports, dashboards, styles | ⚠️ Phase 3 dashboards not implemented |
+| [08-ems-aiml-v1.0.aiml](./08-ems-aiml-v1.0.aiml) | AIML v2.1 | ML models, training pipelines, inference APIs, governance | ❌ Phase 3 — Vertex AI not deployed |
+| [09-ems-adml-v1.0.adml](./09-ems-adml-v1.0.adml) | ADML v2.0 | Executable algorithms (TNA scoring, QR, certs) + ML training pipelines | ⚠️ Algorithms implemented in TS; ML pipelines Phase 3 |
+| [10-ems-eiml-v1.0.eiml](./10-ems-eiml-v1.0.eiml) | EIML v1.0 | Service integration layer: adapters, endpoints, contracts, event bridges | ⚠️ HTTP wiring implemented; Kafka bridges Phase 3 |
+
+> **Grammar files** are in `grammars/`: DBML, SDML, WDML, UXML, BLML, LRML, AIML, ADML, EIML.
+> OTML v1.7 has no grammar file — it is a standalone operational model specification.
+> Updated 2026-05-09: Added ADML v2.0 and EIML v1.0 models. Fixed LRML grammar version (v1.0 → v3.0).

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { eventsApi } from '@/lib/api';
 import { format } from 'date-fns';
-import { Calendar, Award, ClipboardList } from 'lucide-react';
+import { Calendar, Award, ClipboardList, Building2, Pencil } from 'lucide-react';
 
 export function DashboardPage() {
   const { user } = useAuthStore();
@@ -41,7 +41,7 @@ export function DashboardPage() {
         {[
           { icon: <Calendar className="w-5 h-5 text-dti-blue" />, label: 'Events Registered', value: data?.meta?.total ?? 0, to: '/my-events' },
           { icon: <ClipboardList className="w-5 h-5 text-green-600" />, label: 'Completed', value: stats.completed, to: '/my-events' },
-          { icon: <Award className="w-5 h-5 text-dti-orange" />, label: 'Certificates', value: stats.certificates, to: '/my-certificates' },
+          { icon: <Award className="w-5 h-5 text-dti-yellow" />, label: 'Certificates', value: stats.certificates, to: '/my-certificates' },
         ].map((s) => (
           <Link key={s.label} to={s.to} className="card text-center p-4 hover:shadow-md transition-shadow hover:border-dti-blue/20 border border-transparent">
             <div className="flex justify-center mb-2">{s.icon}</div>
@@ -53,12 +53,31 @@ export function DashboardPage() {
 
       {/* Certificates quick-access banner */}
       {stats.certificates > 0 && (
-        <div className="flex items-center justify-between bg-dti-orange/5 border border-dti-orange/20 rounded-xl px-4 py-3">
+        <div className="flex items-center justify-between bg-dti-yellow/10 border border-dti-yellow/40 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Award className="w-4 h-4 text-dti-orange" />
+            <Award className="w-4 h-4 text-dti-blue" />
             <span>You have <strong>{stats.certificates}</strong> certificate{stats.certificates !== 1 ? 's' : ''} ready to download.</span>
           </div>
-          <Link to="/my-certificates" className="text-xs font-semibold text-dti-orange hover:underline shrink-0">View Certificates →</Link>
+          <Link to="/my-certificates" className="text-xs font-semibold text-dti-blue hover:underline shrink-0">View Certificates →</Link>
+        </div>
+      )}
+
+      {/* Enterprise rep — company profile quick-access */}
+      {user?.role === 'ENTERPRISE_REPRESENTATIVE' && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Building2 className="w-5 h-5 text-dti-blue shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-gray-900">Company Profile (MSME CPMS Form 01)</p>
+              <p className="text-xs text-gray-500 mt-0.5">Keep your company information up to date for DTI Region 7 reporting.</p>
+            </div>
+          </div>
+          <Link
+            to="/company-profile"
+            className="flex items-center gap-1.5 text-xs font-semibold text-dti-blue hover:underline shrink-0 ml-4"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Edit Profile
+          </Link>
         </div>
       )}
 

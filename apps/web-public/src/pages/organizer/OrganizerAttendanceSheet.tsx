@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { organizerApi, eventsApi } from '@/lib/api';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { format } from 'date-fns';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 /* ── FM-CT-2A Attendance Sheet (External) ─────────────────────────────────── */
 /* Exact replica of the official DTI form: Document Code FM-CT-2A v1          */
@@ -82,13 +82,9 @@ export function OrganizerAttendanceSheetPage() {
         {/* ── Header with Logo ── */}
         <div className="px-6 pt-4 pb-3">
           <div className="flex items-start justify-between">
-            {/* Left: DTI Logo */}
-            <div className="flex items-center gap-3">
-              <img src={dtiLogo} alt="DTI Logo" className="w-16 h-16 object-contain" />
-              <div>
-                <p className="text-[10px] text-gray-500 italic">PHILIPPINES</p>
-                <p className="text-[10px] font-bold text-[#003087]">BAGONG PILIPINAS</p>
-              </div>
+            {/* Left: DTI + Bagong Pilipinas Logo */}
+            <div className="flex items-center">
+              <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-16 w-auto object-contain" />
             </div>
 
             {/* Center: Title */}

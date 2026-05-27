@@ -8,10 +8,13 @@ import {
   csfSurveyInvite,
   certificateIssued,
   impactSurveyInvite,
+  materialsShared,
+  eventStatusChange,
+  enterpriseUpdateReminder,
 } from '../templates/email.templates.js';
 
 export interface EmailJobData {
-  type: 'registration-confirmation' | 'rsvp-reminder' | 'csf-survey-invite' | 'certificate-issued' | 'impact-survey-invite';
+  type: 'registration-confirmation' | 'rsvp-reminder' | 'csf-survey-invite' | 'certificate-issued' | 'impact-survey-invite' | 'materials-shared' | 'event-status-change' | 'enterprise-update-reminder';
   to: string;
   data: Record<string, unknown>;
 }
@@ -51,6 +54,15 @@ export const emailWorkerPlugin = fp(async (app) => {
           break;
         case 'impact-survey-invite':
           email = impactSurveyInvite(data as any);
+          break;
+        case 'materials-shared':
+          email = materialsShared(data as any);
+          break;
+        case 'event-status-change':
+          email = eventStatusChange(data as any);
+          break;
+        case 'enterprise-update-reminder':
+          email = enterpriseUpdateReminder(data as any);
           break;
         default:
           throw new Error(`Unknown email type: ${type}`);

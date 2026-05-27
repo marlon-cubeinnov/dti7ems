@@ -1,7 +1,6 @@
 import fp from 'fastify-plugin';
 import cron from 'node-cron';
-
-const NOTIFICATION_URL = process.env['NOTIFICATION_SERVICE_URL'] ?? 'http://localhost:3013';
+import { notifyBulkImpactInvite, notifyRsvpReminder } from '../lib/notify.js';
 
 /**
  * Scheduled jobs:
@@ -80,22 +79,18 @@ export const cronPlugin = fp(async (app) => {
             });
           }
 
-          // Fire notification via HTTP
+          // Dispatch via notify helper (EIML: ImpactSurveyDispatchWorkflow)
           try {
-            await fetch(`${NOTIFICATION_URL}/notify/bulk-impact-invite`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                eventTitle: event.title,
-                eventDate: event.endDate.toISOString().split('T')[0],
-                participants: eligible
-                  .filter(p => p.participantEmail)
-                  .map(p => ({
-                    to: p.participantEmail!,
-                    participantName: p.participantName ?? 'Participant',
-                    participationId: p.id,
-                  })),
-              }),
+            await notifyBulkImpactInvite({
+              eventTitle: event.title,
+              eventDate: event.endDate.toISOString().split('T')[0],
+              participants: eligible
+                .filter(p => p.participantEmail)
+                .map(p => ({
+                  to: p.participantEmail!,
+                  participantName: p.participantName ?? 'Participant',
+                  participationId: p.id,
+                })),
             });
           } catch (err) {
             app.log.error({ err, eventId: event.id }, '[cron] Failed to notify impact survey participants');
@@ -151,7 +146,7 @@ export const cronPlugin = fp(async (app) => {
         app.log.info('[cron] Running RSVP reminder check...');
         const now = new Date();
 
-        for (const daysBeforeEvent of [7, 1]) {
+        for (const daysBeforeEvent of [14, 7, 3]) {
           const targetDate = new Date(now.getTime() + daysBeforeEvent * 24 * 60 * 60 * 1000);
           const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
           const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -182,22 +177,15 @@ export const cronPlugin = fp(async (app) => {
             for (const p of participants) {
               if (!p.participantEmail) continue;
 
-              try {
-                await fetch(`${NOTIFICATION_URL}/notify/rsvp-reminder`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    to: p.participantEmail,
-                    participantName: p.participantName ?? 'Participant',
-                    eventTitle: event.title,
-                    eventDate: event.startDate.toISOString().split('T')[0],
-                    eventVenue: event.venue ?? undefined,
-                    daysUntilEvent: daysBeforeEvent,
-                  }),
-                });
-              } catch {
-                // Individual notification failure — don't block others
-              }
+              // Dispatch via notify helper (EIML: CronToImpactSurveyRoute)
+              notifyRsvpReminder({
+                to: p.participantEmail,
+                participantName: p.participantName ?? 'Participant',
+                eventTitle: event.title,
+                eventDate: event.startDate.toISOString().split('T')[0],
+                eventVenue: event.venue ?? undefined,
+                daysUntilEvent: daysBeforeEvent,
+              }).catch(() => { /* individual failure — don't block others */ });
             }
 
             app.log.info(
@@ -208,6 +196,31 @@ export const cronPlugin = fp(async (app) => {
         }
       } catch (err) {
         app.log.error({ err }, '[cron] RSVP reminder check failed');
+      }
+    }),
+  );
+
+  // ── 4. Materials Expiry (daily 03:00) ────────────────────────────────────
+  tasks.push(
+    cron.schedule('0 3 * * *', async () => {
+      try {
+        app.log.info('[cron] Running event materials expiry check...');
+        const now = new Date();
+
+        const expiredMaterials = await app.prisma.eventMaterial.updateMany({
+          where: {
+            isExpired: false,
+            expiresAt: { lte: now },
+          },
+          data: {
+            isExpired:  true,
+            expiredAt:  now,
+          },
+        });
+
+        app.log.info({ count: expiredMaterials.count }, '[cron] Event materials expired');
+      } catch (err) {
+        app.log.error({ err }, '[cron] Materials expiry check failed');
       }
     }),
   );

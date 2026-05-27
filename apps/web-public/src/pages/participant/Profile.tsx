@@ -406,6 +406,16 @@ interface PublicEnterprise {
   stage: string;
 }
 
+const ORGANIZER_ROLES = new Set([
+  'PROGRAM_MANAGER',
+  'EVENT_ORGANIZER',
+  'DIVISION_CHIEF',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_DIRECTOR',
+  'SYSTEM_ADMIN',
+  'SUPER_ADMIN',
+]);
+
 function EnterpriseMembershipSection() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -457,11 +467,12 @@ function EnterpriseMembershipSection() {
   const handleOpenCpms = () => {
     const due = updateStatus?.updateDue;
     const type = updateStatus?.updateType ?? 'ANNUAL';
+    const cpmsPath = ORGANIZER_ROLES.has(user?.role ?? '') ? '/organizer/company-profile' : '/company-profile';
     if (due) {
-      navigate(`/company-profile?mode=required&type=${type}`);
+      navigate(`${cpmsPath}?mode=required&type=${type}`);
       return;
     }
-    navigate('/company-profile');
+    navigate(cpmsPath);
   };
 
   // Members query (only load when team panel is open and user is owner/admin)

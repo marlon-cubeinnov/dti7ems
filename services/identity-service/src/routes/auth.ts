@@ -6,15 +6,32 @@ const REFRESH_COOKIE = 'dti_refresh_token';
 const COOKIE_MAX_AGE = Number(process.env['JWT_REFRESH_TOKEN_EXPIRY_SECONDS'] ?? 604800);
 
 const registerSchema = z.object({
-  email:           z.string().email('Must be a valid email address'),
-  password:        z.string().min(10, 'Password must be at least 10 characters')
-                     .regex(/[A-Z]/, 'Must contain an uppercase letter')
-                     .regex(/[0-9]/, 'Must contain a number'),
-  firstName:       z.string().min(1).max(100),
-  lastName:        z.string().min(1).max(100),
-  mobileNumber:    z.string().regex(/^(\+63|0)9\d{9}$/, 'Invalid PH mobile number').optional().nullable(),
-  dpaConsentGiven: z.literal(true, { errorMap: () => ({ message: 'DPA consent is required' }) }),
-  clientType:      z.enum(['CITIZEN', 'GOVERNMENT', 'BUSINESS']).optional().nullable(),
+  email:                z.string().email('Must be a valid email address'),
+  password:             z.string().min(10, 'Password must be at least 10 characters')
+                          .regex(/[A-Z]/, 'Must contain an uppercase letter')
+                          .regex(/[0-9]/, 'Must contain a number'),
+  firstName:            z.string().min(1).max(100),
+  middleName:           z.string().max(100).optional().nullable(),
+  lastName:             z.string().min(1).max(100),
+  nameSuffix:           z.string().max(20).optional().nullable(),
+  sex:                  z.enum(['MALE', 'FEMALE']).optional().nullable(),
+  birthdate:            z.string().optional().nullable(), // ISO date string
+  mobileNumber:         z.string().regex(/^(\+63|0)9\d{9}$/, 'Invalid PH mobile number').optional().nullable(),
+  employmentCategory:   z.enum(['SELF_EMPLOYED', 'EMPLOYED_GOVT', 'EMPLOYED_PRIVATE', 'GENERAL_PUBLIC']).optional().nullable(),
+  socialClassification: z.enum(['ABLED', 'PWD', 'FOUR_PS', 'YOUTH', 'SENIOR_CITIZEN', 'INDIGENOUS_PERSON', 'OFW', 'OTHERS']).optional().nullable(),
+  // Address (personal)
+  region:               z.string().max(100).optional().nullable(),
+  province:             z.string().max(100).optional().nullable(),
+  cityMunicipality:     z.string().max(100).optional().nullable(),
+  // Employer/Company info (for EMPLOYED_GOVT / EMPLOYED_PRIVATE)
+  companyName:          z.string().max(300).optional().nullable(),
+  companyRegion:        z.string().max(100).optional().nullable(),
+  companyProvince:      z.string().max(100).optional().nullable(),
+  companyCityMunicipality: z.string().max(100).optional().nullable(),
+  companyEmail:         z.string().email().optional().nullable(),
+  companyPhone:         z.string().max(50).optional().nullable(),
+  jobTitle:             z.string().max(200).optional().nullable(),
+  dpaConsentGiven:      z.literal(true, { errorMap: () => ({ message: 'DPA consent is required' }) }),
 });
 
 const loginSchema = z.object({
@@ -48,7 +65,7 @@ const registerBusinessSchema = z.object({
     tradeName:       z.string().max(300).optional().nullable(),
     registrationNo:  z.string().max(100).optional().nullable(),
     tinNumber:       z.string().max(20).optional().nullable(),
-    stage:           z.enum(['PRE_STARTUP', 'STARTUP', 'GROWTH', 'EXPANSION', 'MATURE']).default('STARTUP'),
+    stage:           z.enum(['IDEATION', 'VALIDATION', 'GROWTH', 'EXPANSION', 'MATURITY_EXIT']).default('VALIDATION'),
     employeeCount:   z.number().int().min(1).optional().nullable(),
     region:          z.string().max(100).optional().nullable(),
     province:        z.string().max(100).optional().nullable(),
@@ -73,6 +90,19 @@ const acceptInviteSchema = z.object({
 export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   const authService = new AuthService(app);
 
+  // GET /auth/search-companies?q=...
+  app.get('/search-companies', async (request, reply) => {
+    const { q } = request.query as { q?: string };
+    if (!q || q.trim().length < 2) return reply.send({ success: true, data: [] });
+    const results = await app.prisma.enterpriseProfile.findMany({
+      where: { businessName: { contains: q.trim(), mode: 'insensitive' } },
+      select: { id: true, businessName: true, region: true, province: true, cityMunicipality: true },
+      take: 10,
+      orderBy: { businessName: 'asc' },
+    });
+    return reply.send({ success: true, data: results });
+  });
+
   // POST /auth/register
   app.post('/register', async (request, reply) => {
     const body = registerSchema.parse(request.body);
@@ -84,7 +114,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     });
   });
 
-  // POST /auth/register-business
+  // POST /auth/register-business (kept for backwards compat)
   app.post('/register-business', async (request, reply) => {
     const body = registerBusinessSchema.parse(request.body);
     const result = await authService.registerBusiness(body);

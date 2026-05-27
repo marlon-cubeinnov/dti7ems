@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
 import { WifiOff } from 'lucide-react';
@@ -23,41 +23,47 @@ function OfflineBanner() {
   );
 }
 
+const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'];
+
 export function PublicLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await authApi.logout();
+    try { await authApi.logout(); } catch { /* best-effort */ }
     logout();
     navigate('/');
   };
 
+  const homeLink = isAuthenticated
+    ? (ORGANIZER_ROLES.includes(user?.role ?? '') ? '/organizer/dashboard' : '/dashboard')
+    : '/';
+
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
       isActive
-        ? 'bg-white/20 text-white'
-        : 'text-blue-100 hover:bg-white/10 hover:text-white'
+        ? 'bg-[#172187] text-white'
+        : 'text-[#172187] hover:bg-[#172187]/10'
     }`;
 
   return (
     <div className="min-h-screen flex flex-col">
       <OfflineBanner />
       {/* ── Navigation ─────────────────────────────────────────────────── */}
-      <header className="bg-dti-blue shadow-md sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <img src={dtiLogo} alt="DTI Central Visayas Region" className="h-10 w-auto" />
-            <span className="text-white font-bold text-sm leading-tight hidden sm:block">
+          <Link to="/" className="flex items-center gap-3">
+            <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-11 w-auto" />
+            <span className="text-[#172187] font-bold text-sm leading-tight hidden sm:block">
               DTI Region 7<br />
-              <span className="font-normal text-blue-200 text-xs">Events Management</span>
+              <span className="font-normal text-gray-500 text-xs">Events Management</span>
             </span>
           </Link>
 
           {/* Nav links */}
           <div className="flex items-center gap-2 text-sm">
-            <NavLink to="/" end className={navLinkClass}>
+            <NavLink to={homeLink} end className={navLinkClass}>
               Home
             </NavLink>
             <NavLink to="/events" className={navLinkClass}>
@@ -69,12 +75,12 @@ export function PublicLayout() {
               </NavLink>
             )}
             {isAuthenticated && (
-              <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-full text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white transition-all">
+              <a href="/docs/USER-MANUAL.html" target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-full text-sm font-medium text-[#172187] hover:bg-[#172187]/10 transition-all">
                 User Manual
               </a>
             )}
 
-            <div className="w-px h-6 bg-white/20 mx-2" />
+            <div className="w-px h-6 bg-gray-300 mx-2" />
 
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
@@ -83,7 +89,7 @@ export function PublicLayout() {
                 </NavLink>
                 <button
                   onClick={handleLogout}
-                  className="px-4 py-1.5 rounded-full text-sm font-medium border border-white/40 text-white hover:bg-white hover:text-dti-blue transition-all"
+                  className="px-4 py-1.5 rounded-full text-sm font-medium border border-[#172187]/40 text-[#172187] hover:bg-[#172187] hover:text-white transition-all"
                 >
                   Log out
                 </button>

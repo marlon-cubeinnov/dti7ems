@@ -60,8 +60,11 @@ const createItemSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   phase: z.enum(['PLANNING', 'PREPARATION', 'EXECUTION', 'POST_EVENT']).default('PLANNING'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
-  assignedTo: z.string().optional().nullable(),
-  assignedToName: z.string().max(200).optional().nullable(),
+  // WBS
+  wbsCode: z.string().max(50).optional().nullable(),
+  parentItemId: z.string().optional().nullable(),
+  // Multi-assignee: array of { userId: string, name: string }
+  assignees: z.array(z.object({ userId: z.string(), name: z.string() })).default([]),
   dueDate: z.string().datetime().optional().nullable(),
   orderIndex: z.number().int().min(0).default(0),
   notes: z.string().max(2000).optional().nullable(),
@@ -74,8 +77,11 @@ const updateItemSchema = z.object({
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'CANCELLED']).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   isApplicable: z.boolean().optional().nullable(),
-  assignedTo: z.string().optional().nullable(),
-  assignedToName: z.string().max(200).optional().nullable(),
+  // WBS
+  wbsCode: z.string().max(50).optional().nullable(),
+  parentItemId: z.string().optional().nullable(),
+  // Multi-assignee: replace entire list
+  assignees: z.array(z.object({ userId: z.string(), name: z.string() })).optional(),
   dueDate: z.string().datetime().optional().nullable(),
   orderIndex: z.number().int().min(0).optional(),
   notes: z.string().max(2000).optional().nullable(),
@@ -109,8 +115,15 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       orderBy: { createdAt: 'asc' },
       include: {
         items: {
+          where: { parentItemId: null }, // top-level items only
           orderBy: { orderIndex: 'asc' },
-          include: { comments: { orderBy: { createdAt: 'asc' } } },
+          include: {
+            comments: { orderBy: { createdAt: 'asc' } },
+            children: {
+              orderBy: { orderIndex: 'asc' },
+              include: { comments: { orderBy: { createdAt: 'asc' } } },
+            },
+          },
         },
       },
     });
@@ -170,8 +183,15 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
       where: { id },
       include: {
         items: {
+          where: { parentItemId: null }, // top-level items only
           orderBy: { orderIndex: 'asc' },
-          include: { comments: { orderBy: { createdAt: 'asc' } } },
+          include: {
+            comments: { orderBy: { createdAt: 'asc' } },
+            children: {
+              orderBy: { orderIndex: 'asc' },
+              include: { comments: { orderBy: { createdAt: 'asc' } } },
+            },
+          },
         },
       },
     });
@@ -216,8 +236,9 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
         description: body.description ?? null,
         phase: body.phase,
         priority: body.priority,
-        assignedTo: body.assignedTo ?? null,
-        assignedToName: body.assignedToName ?? null,
+        wbsCode: body.wbsCode ?? null,
+        parentItemId: body.parentItemId ?? null,
+        assignees: body.assignees,
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         orderIndex: body.orderIndex,
         notes: body.notes ?? null,
@@ -247,8 +268,9 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     if (body.description !== undefined) updateData['description'] = body.description;
     if (body.phase !== undefined) updateData['phase'] = body.phase;
     if (body.priority !== undefined) updateData['priority'] = body.priority;
-    if (body.assignedTo !== undefined) updateData['assignedTo'] = body.assignedTo;
-    if (body.assignedToName !== undefined) updateData['assignedToName'] = body.assignedToName;
+    if (body.wbsCode !== undefined) updateData['wbsCode'] = body.wbsCode;
+    if (body.parentItemId !== undefined) updateData['parentItemId'] = body.parentItemId;
+    if (body.assignees !== undefined) updateData['assignees'] = body.assignees;
     if (body.dueDate !== undefined) updateData['dueDate'] = body.dueDate ? new Date(body.dueDate) : null;
     if (body.orderIndex !== undefined) updateData['orderIndex'] = body.orderIndex;
     if (body.notes !== undefined) updateData['notes'] = body.notes;

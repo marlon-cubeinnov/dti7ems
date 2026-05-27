@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { checklistApi, eventsApi } from '@/lib/api';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { format } from 'date-fns';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 /* ── FM-CT-7 Conduct of Training Monitoring Checklist ─────────────────────── */
 /* Exact replica of the official DTI form: Document Code FM-CT-7 v0           */
@@ -72,13 +72,9 @@ export function OrganizerChecklistPrintPage() {
         {/* ── Header with Logo ── */}
         <div className="px-8 pt-6 pb-4">
           <div className="flex items-start justify-between">
-            {/* Left: DTI Logo */}
-            <div className="flex items-center gap-3">
-              <img src={dtiLogo} alt="DTI Logo" className="w-14 h-14 object-contain" />
-              <div>
-                <p className="text-[9px] text-gray-500 italic">PHILIPPINES</p>
-                <p className="text-[9px] font-bold text-[#003087]">BAGONG PILIPINAS</p>
-              </div>
+            {/* Left: DTI + Bagong Pilipinas Logo */}
+            <div className="flex items-center">
+              <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-14 w-auto object-contain" />
             </div>
 
             {/* Center: Title */}

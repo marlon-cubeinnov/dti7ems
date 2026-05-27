@@ -1,15 +1,17 @@
 // ============================================================
 // UXML v3.1 — User Experience & App Flow Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Stack   : React 19 + React Router v6 · TypeScript
 //
 // STATUS  : Reflects Phase 1–2 implementation.
 //           All channels run in a single web-public SPA
 //           with role-based routing (/participant/*, /organizer/*).
-//           Admin Console and Industry Dashboard are Phase 3.
+//           Admin Console is now ACTIVE (apps/web-admin, port 5174).
+//           Enterprise membership join-request UX implemented.
+//           Gmail SMTP settings panel active in Admin Console.
 // ============================================================
 
 uxml model DTI_EMS_UX {
@@ -58,20 +60,12 @@ uxml model DTI_EMS_UX {
     // Routes: /organizer/*
   }
 
-  // Phase 3: AdminChannel and IndustryDashboardChannel
-  /*
   channel AdminChannel {
     label      = "Admin Console" ;
     kind       = admin-console ;
     entry-view = AdminDashboardView ;
+    // Routes: /admin/* (apps/web-admin, port 5174)
   }
-
-  channel IndustryDashboardChannel {
-    label      = "Industry Dashboard" ;
-    kind       = web-app ;
-    entry-view = IndustryPublicOverviewView ;
-  }
-  */
 
   // ─────────────────────────────────────────────
   // LAYOUTS
@@ -399,6 +393,8 @@ uxml model DTI_EMS_UX {
     layout = AuthShellLayout ;
 
     uses entity domain.IdentityContext.UserProfile ;
+    uses entity domain.IdentityContext.EnterpriseProfile ;
+    uses entity domain.IdentityContext.EnterpriseMembership ;
 
     slot main {
       component ProfileAvatarUpload  { }
@@ -406,6 +402,21 @@ uxml model DTI_EMS_UX {
       component ContactInfoForm      { }
       component PasswordChangeForm   { }
       component DPA_ConsentSection   { }
+      component EnterpriseMembershipSection {
+        // State 1: No membership
+        //   → SearchPublicEnterprisesBar (GET /directory/enterprises?search=)
+        //   → EnterpriseSearchResultCard + "Request to Join" button  → POST /:id/join-request
+        //   → RegisterNewEnterpriseLink
+        // State 2: PENDING membership
+        //   → PendingJoinRequestBanner (yellow) — "Awaiting approval"
+        // State 3: ACTIVE membership
+        //   → EnterpriseProfileCard (name, stage, region)
+        //   → ManageTeamToggle (owners/admins only)
+        //       → PendingJoinRequestsList + Approve/Reject buttons
+        //       → CurrentMembersList + Remove button
+        //       → AddExistingUserForm (email + role)
+        //       → InviteNewEmployeeForm (name + email)
+      }
       component SaveProfileBtn       { }
     }
   }
@@ -595,10 +606,8 @@ uxml model DTI_EMS_UX {
   }
 
   // ─────────────────────────────────────────────
-  // ADMIN CONSOLE VIEWS (Phase 3 — NOT IMPLEMENTED)
+  // ADMIN CONSOLE VIEWS (ACTIVE — Phase 1–2)
   // ─────────────────────────────────────────────
-
-  /*
 
   view AdminDashboardView {
     label  = "System Admin Dashboard" ;
@@ -640,13 +649,19 @@ uxml model DTI_EMS_UX {
 
     slot main {
       component EnterpriseSearchBar       { }
+      component StageFilterDropdown       { values = [ ideation, startup, growth, maturity, export_ready ] ; }
       component VerificationStatusFilter  { }
       component EnterpriseDataTable       {
         entity  = domain.IdentityContext.EnterpriseProfile ;
-        columns = [ legal_name, type, stage, region, verification_status, activity_score ]
+        columns = [ business_name, trade_name, stage, region, is_verified, member_count, actions ]
       }
-      component VerifyEnterpriseBtn       { }
-      component LinkProfileToEnterpriseBtn { }
+      component EditEnterpriseModal       {
+        fields = [ business_name, trade_name, registration_no, tin_number,
+                   industry_sector, stage, employee_count, annual_revenue,
+                   region, province, city_municipality, is_publicly_listed ]
+      }
+      component DeleteEnterpriseDialog    { confirmation_required = true ; }
+      component VerifyEnterpriseBtn       { roles = [ super_admin, dti_staff ] ; }
     }
   }
 
@@ -684,15 +699,21 @@ uxml model DTI_EMS_UX {
     label  = "System Settings" ;
     layout = AuthShellLayout ;
 
+    uses entity domain.IdentityContext.SystemSetting ;
+
     slot main {
-      component SMTPConfigForm              { }
-      component SMSGatewayConfigForm        { }
-      component NotificationTemplateEditor  { }
-      component SurveyTemplateManager       { entity = domain.SurveyContext.SurveyTemplate ; }
-      component SaveSettingsBtn             { }
+      component SMTPConfigForm {
+        preset_options = [ Mailpit_Dev, Gmail_STARTTLS_587, Gmail_SSL_465, Custom ] ;
+        fields         = [ smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, smtp_from ] ;
+        note           = "smtp_pass uses Google App Password (2-Step Verification required)" ;
+      }
+      component SMTPTestEmailBtn        { action = "POST /admin/settings/email/test" ; }
+      component SaveReconnectBtn        { action = "PUT /admin/settings/email" ; }
+      component SMSGatewayConfigForm    { }
+      component NotificationTemplateEditor { }
+      component SurveyTemplateManager   { entity = domain.SurveyContext.SurveyTemplate ; }
     }
   }
-  */
 
   // ─────────────────────────────────────────────
   // INDUSTRY DASHBOARD VIEWS (Phase 3 — NOT IMPLEMENTED)
@@ -821,6 +842,30 @@ uxml model DTI_EMS_UX {
     step LinkEnterprise      { view = RegistrationFormView ; component = EnterpriseLinkerStep ; }
     step EnterpriseAppears   { view = DirectoryView ; label = "Enterprise visible in public directory (after verification)" ; }
     step ImpactVerification  { flow = ImpactSurveyFlow ; label = "Dashboard updated with verified badge after 6-month survey" ; }
+  }
+
+  flow EnterpriseMembershipFlow {
+    label = "Enterprise Membership — Join Request & Team Management" ;
+    // Path A: User searches for and requests to join an enterprise
+    step SearchEnterprises   { view = MyProfileView ; component = EnterpriseMembershipSection ;
+                                note = "GET /directory/enterprises?search= (public directory)" ; }
+    step RequestToJoin       { view = MyProfileView ; action = "POST /enterprises/:id/join-request" ;
+                                note = "Creates EnterpriseMembership with status=PENDING" ; }
+    step AwaitApproval       { view = MyProfileView ; component = PendingJoinRequestBanner ;
+                                note = "Yellow banner shown while status=PENDING" ; }
+    step OwnerApproves       { view = MyProfileView ; action = "PATCH /enterprises/:id/join-requests/:membershipId" ;
+                                note = "Owner/admin sets status=ACTIVE (approve) or status=REJECTED (reject)" ; }
+    step MembershipActive    { view = MyProfileView ; component = EnterpriseProfileCard ; }
+
+    // Path B: Owner directly adds an existing user
+    step OwnerAddsByEmail    { view = MyProfileView ; component = AddExistingUserForm ;
+                                action = "POST /enterprises/:id/members" ;
+                                note = "Creates membership directly as status=ACTIVE" ; }
+
+    // Path C: Owner invites a new employee (creates account + sends email)
+    step OwnerInvitesNew     { view = MyProfileView ; component = InviteNewEmployeeForm ;
+                                action = "POST /enterprises/:id/invite-employee" ;
+                                note = "Creates user account with invite token; sends invite email via Gmail SMTP" ; }
   }
 
   flow AdminUserManagementFlow {

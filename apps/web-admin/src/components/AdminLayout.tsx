@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 import {
   LayoutDashboard,
   Users,
@@ -38,30 +39,30 @@ export function AdminLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-dti-blue shadow-md sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="px-4 sm:px-6 flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden text-blue-200 hover:text-white"
+              className="lg:hidden text-gray-500 hover:text-[#172187]"
             >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <Link to="/" className="flex items-center gap-2">
-              <Shield size={22} className="text-dti-orange" />
-              <span className="text-white font-bold text-sm">DTI EMS Admin</span>
+            <Link to="/" className="flex items-center gap-3">
+              <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-10 w-auto" />
+              <span className="text-[#172187] font-bold text-sm">DTI EMS Admin</span>
             </Link>
           </div>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-blue-200 text-xs hidden sm:block">
+            <span className="text-gray-500 text-xs hidden sm:block">
               {user?.firstName} {user?.lastName}
-              <span className="ml-2 bg-blue-700 text-blue-100 text-[10px] px-1.5 py-0.5 rounded">
+              <span className="ml-2 bg-[#172187] text-white text-[10px] px-1.5 py-0.5 rounded">
                 {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'System Admin'}
               </span>
             </span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 text-blue-200 hover:text-white text-xs transition-colors"
+              className="flex items-center gap-1 text-gray-500 hover:text-[#172187] text-xs transition-colors"
             >
               <LogOut size={13} /> Log out
             </button>

@@ -16,6 +16,7 @@ import { DirectoryPage } from '@/pages/Directory';
 import { DashboardPage } from '@/pages/participant/Dashboard';
 import { MyEventsPage } from '@/pages/participant/MyEvents';
 import { ProfilePage } from '@/pages/participant/Profile';
+import { CompanyProfilePage } from '@/pages/participant/CompanyProfile';
 import { TNAPage } from '@/pages/participant/TNA';
 import { MyCertificatesPage } from '@/pages/participant/MyCertificates';
 import { MyQrPage } from '@/pages/participant/MyQr';
@@ -37,12 +38,15 @@ import { OrganizerEffectivenessReportPage } from '@/pages/organizer/OrganizerEff
 import { OrganizerCsfReportPage } from '@/pages/organizer/OrganizerCsfReport';
 import { OrganizerProposalPage } from '@/pages/organizer/OrganizerProposal';
 import { OrganizerProposalListPage } from '@/pages/organizer/OrganizerProposalList';
+import OrganizerTnaPage from '@/pages/organizer/OrganizerTnaPage';
+import OrganizerTnaList from '@/pages/organizer/OrganizerTnaList';
 import { OrganizerAttendanceSheetPage } from '@/pages/organizer/OrganizerAttendanceSheet';
 import { OrganizerChecklistPrintPage } from '@/pages/organizer/OrganizerChecklistPrint';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboard';
 import { AdminUsersPage } from '@/pages/admin/AdminUsers';
 import { AdminEventsPage } from '@/pages/admin/AdminEvents';
 import { AdminEnterprisesPage } from '@/pages/admin/AdminEnterprises';
+import { AdminEnterpriseUpdatesPage } from '@/pages/admin/AdminEnterpriseUpdates';
 import { AdminAuditLogsPage } from '@/pages/admin/AdminAuditLogs';
 import { AdminReportsPage } from '@/pages/admin/AdminReports';
 import { AdminSettingsPage } from '@/pages/admin/AdminSettings';
@@ -92,9 +96,13 @@ export default function App() {
           <Route path="/organizer/events/:id/csf-report"           element={<OrganizerCsfReportPage />} />
           <Route path="/organizer/events/:id/attendance-sheet"     element={<OrganizerAttendanceSheetPage />} />
           <Route path="/organizer/events/:id/checklist-print"      element={<OrganizerChecklistPrintPage />} />
+          <Route path="/organizer/tna"                               element={<OrganizerTnaList />} />
+          <Route path="/organizer/tna/new"                           element={<OrganizerTnaPage />} />
+          <Route path="/organizer/tna/:tnaId"                        element={<OrganizerTnaPage />} />
           <Route path="/organizer/events/:id/proposal"             element={<OrganizerProposalPage />} />
           <Route path="/organizer/reports"                       element={<OrganizerReportsPage />} />
           <Route path="/organizer/profile"            element={<ProfilePage />} />
+          <Route path="/organizer/company-profile"    element={<CompanyProfilePage />} />
 
           {/* Admin-only routes (sidebar gated in OrganizerLayout) */}
           <Route path="/admin/dashboard"    element={<AdminDashboardPage />} />
@@ -103,6 +111,7 @@ export default function App() {
           <Route path="/admin/events"       element={<AdminEventsPage />} />
           <Route path="/admin/audit-logs"   element={<AdminAuditLogsPage />} />
           <Route path="/admin/reports"      element={<AdminReportsPage />} />
+          <Route path="/admin/enterprise-updates" element={<AdminEnterpriseUpdatesPage />} />
           <Route path="/admin/roles"        element={<AdminRolesPermissionsPage />} />
           <Route path="/admin/settings"     element={<AdminSettingsPage />} />
         </Route>
@@ -120,6 +129,7 @@ export default function App() {
           <Route path="/my-events/:participationId/responses" element={<MySurveyResponsesPage />} />
           <Route path="/my-certificates"     element={<MyCertificatesPage />} />
           <Route path="/profile"             element={<ProfilePage />} />
+          <Route path="/company-profile"     element={<CompanyProfilePage />} />
         </Route>
       </Route>
 

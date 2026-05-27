@@ -1,0 +1,294 @@
+(* ===================================================================== *)
+(* LRML v3.0 -- Semantic Reporting and Analytics Modeling Language        *)
+(* Standardized ISO-style EBNF                                            *)
+(* Purpose: Canonical, grammar-constrained modeling of semantic datasets, *)
+(*          analytics, statistical analysis, dependency analysis, reports,*)
+(*          dashboards, and analytic outputs across the Composable Stack. *)
+(* ===================================================================== *)
+
+(* ============================== *)
+(* LEXICAL                        *)
+(* ============================== *)
+
+identifier        = letter , { letter | digit | "_" | "-" } ;
+qualified-name    = identifier , { "." , identifier } ;
+integer           = [ "-" ] , digit , { digit } ;
+number            = [ "-" ] , digit , { digit } , [ "." , { digit } ] ;
+boolean           = "true" | "false" ;
+string            = '"' , { character } , '"' ;
+scalar            = string | integer | number | boolean ;
+
+letter = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+       | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+       | "U" | "V" | "W" | "X" | "Y" | "Z"
+       | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+       | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+       | "u" | "v" | "w" | "x" | "y" | "z" ;
+digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+character         = ? any valid character except quotation mark and line break ? ;
+
+(* ============================== *)
+(* ROOT MODEL                     *)
+(* ============================== *)
+
+lrml-model        = "lrml" , "model" , identifier , "{" ,
+                                                                             { import-def } ,
+                                                                             { lrml-element } ,
+                                                                      "}" ;
+
+import-def        = "import" , qualified-name , ";" ;
+
+lrml-element      =
+                     context-def
+              | dataset-def
+              | semantic-layer-def
+              | statistical-analysis-def
+              | dependency-analysis-def
+              | report-def
+              | dashboard-def
+              | output-def
+              | security-ref
+              | annotation-def ;
+
+security-ref      = "security" , "use" , qualified-name , ";" ;
+
+(* ============================== *)
+(* CONTEXT                        *)
+(* ============================== *)
+
+context-def       = "context" , identifier , "{" ,
+                                                                             [ "label" , "=" , string , ";" ] ,
+                                                                             [ "description" , "=" , string , ";" ] ,
+                                                                             [ "domain" , "=" , qualified-name , ";" ] ,
+                                                                             { property } ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* DATASETS                       *)
+(* ============================== *)
+
+dataset-def       = "dataset" , identifier , "{" ,
+                                                                             "source" , "=" , source-ref , ";" ,
+                                                                             { dataset-transform-def } ,
+                                                                             { dataset-filter-def } ,
+                                                                             { dataset-join-def } ,
+                                                                      "}" ;
+
+source-ref        = qualified-name ;
+dataset-transform-def
+                                                               = "transform" , identifier , "{" ,
+                                                                             "use" , "=" , qualified-name , ";" ,
+                                                                      "}" ;
+
+dataset-filter-def
+                                                               = "filter" , identifier , "{" ,
+                                                                             "use" , "=" , qualified-name , ";" ,
+                                                                      "}" ;
+
+dataset-join-def  = "join" , identifier , "{" ,
+                                                                             "type" , "=" , join-type , ";" ,
+                                                                             "left" , "=" , qualified-name , ";" ,
+                                                                             "right" , "=" , qualified-name , ";" ,
+                                                                             "on" , "=" , qualified-name , ";" ,
+                                                                      "}" ;
+
+join-type         = "inner" | "left" | "right" | "full" ;
+
+(* ============================== *)
+(* SEMANTIC LAYERS                *)
+(* ============================== *)
+
+semantic-layer-def
+                                                               = "semantic-layer" , identifier , "{" ,
+                                                                             "dataset" , "=" , identifier , ";" ,
+                                                                             { dimension-def } ,
+                                                                             { hierarchy-def } ,
+                                                                             { measure-def } ,
+                                                                             { calculated-metric-def } ,
+                                                                             { kpi-def } ,
+                                                                      "}" ;
+
+dimension-def     = "dimension" , identifier , "{" ,
+                                                                             "field" , "=" , qualified-name , ";" ,
+                                                                             "type" , "=" , dimension-type , ";" ,
+                                                                             [ "label" , "=" , string , ";" ] ,
+                                                                             [ "format" , "=" , string , ";" ] ,
+                                                                      "}" ;
+
+dimension-type    = "categorical" | "time" | "geographical" | "numeric" ;
+
+hierarchy-def     = "hierarchy" , identifier , "{" ,
+                                                                             "dimension" , "=" , identifier , ";" ,
+                                                                             "levels" , "=" , "[" , identifier , { "," , identifier } , "]" , ";" ,
+                                                                      "}" ;
+
+measure-def       = "measure" , identifier , "{" ,
+                                                                             "use" , "=" , qualified-name , ";" ,
+                                                                             [ "aggregation" , "=" , aggregation-type , ";" ] ,
+                                                                             [ "format" , "=" , string , ";" ] ,
+                                                                      "}" ;
+
+aggregation-type  = "sum" | "avg" | "min" | "max" | "count" | "distinct-count" ;
+
+calculated-metric-def
+                                                               = "calculated-metric" , identifier , "{" ,
+                                                                             "use" , "=" , qualified-name , ";" ,
+                                                                             [ "format" , "=" , string , ";" ] ,
+                                                                      "}" ;
+
+kpi-def           = "kpi" , identifier , "{" ,
+                                                                             "value" , "=" , qualified-name , ";" ,
+                                                                             [ "target" , "=" , qualified-name , ";" ] ,
+                                                                             [ "status-rule" , "=" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* ANALYSIS                       *)
+(* ============================== *)
+
+statistical-analysis-def
+                                                               = "statisticalAnalysis" , identifier , "{" ,
+                                                                             "dataset" , "=" , identifier , ";" ,
+                                                                             [ "measures" , "{" , { statistical-measure-def } , "}" ] ,
+                                                                             [ "tests" , "{" , { statistical-test-def } , "}" ] ,
+                                                                             [ "outputs" , "{" , { string , ";" } , "}" ] ,
+                                                                      "}" ;
+
+statistical-measure-def
+                                                               = identifier , "{" ,
+                                                                             "type" , "=" , statistical-measure-type , ";" ,
+                                                                             [ "fields" , "=" , "[" , qualified-name , { "," , qualified-name } , "]" , ";" ] ,
+                                                                      "}" ;
+
+statistical-measure-type
+                                                               = "mean"
+                                                               | "median"
+                                                               | "variance"
+                                                               | "stddev"
+                                                               | "covariance"
+                                                               | "correlation"
+                                                               | "effect-size"
+                                                               | "confidence-interval"
+                                                               | identifier ;
+
+statistical-test-def
+                                                               = identifier , "{" ,
+                                                                             "method" , "=" , string , ";" ,
+                                                                             [ "hypothesis" , "=" , string , ";" ] ,
+                                                                             [ "alpha" , "=" , number , ";" ] ,
+                                                                             [ "fields" , "=" , "[" , qualified-name , { "," , qualified-name } , "]" , ";" ] ,
+                                                                      "}" ;
+
+dependency-analysis-def
+                                                               = "dependencyAnalysis" , identifier , "{" ,
+                                                                             "dataset" , "=" , identifier , ";" ,
+                                                                             [ "dimensions" , "=" , "[" , identifier , { "," , identifier } , "]" , ";" ] ,
+                                                                             [ "measures" , "=" , "[" , identifier , { "," , identifier } , "]" , ";" ] ,
+                                                                             [ "method" , "=" , string , ";" ] ,
+                                                                             [ "threshold" , "=" , number , ";" ] ,
+                                                                             [ "outputs" , "{" , { string , ";" } , "}" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* REPORTS                        *)
+(* ============================== *)
+
+report-def        = "report" , identifier , "{" ,
+                                                                             "semantic-layer" , "=" , identifier , ";" ,
+                                                                             { report-section-def } ,
+                                                                             [ report-binding ] ,
+                                                                             [ output-ref ] ,
+                                                                      "}" ;
+
+report-section-def
+                                                               = "section" , identifier , "{" ,
+                                                                             { visualization-def } ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* DASHBOARDS                     *)
+(* ============================== *)
+
+dashboard-def     = "dashboard" , identifier , "{" ,
+                                                                             "semantic-layer" , "=" , identifier , ";" ,
+                                                                             { visualization-def } ,
+                                                                             { dashboard-filter-def } ,
+                                                                             { dashboard-action-def } ,
+                                                                             [ dashboard-state-def ] ,
+                                                                             [ dashboard-binding ] ,
+                                                                             [ output-ref ] ,
+                                                                      "}" ;
+
+visualization-def = chart-def | table-def | metric-def | narrative-def ;
+
+chart-def         = "chart" , identifier , "{" ,
+                                                                             "type" , "=" , chart-type , ";" ,
+                                                                             "x" , "=" , identifier , ";" ,
+                                                                             "y" , "=" , identifier , ";" ,
+                                                                             [ "series" , "=" , identifier , ";" ] ,
+                                                                             [ "use-interaction" , "=" , qualified-name , ";" ] ,
+                                                                             [ visibility-def ] ,
+                                                                      "}" ;
+
+chart-type        = "bar" | "line" | "pie" | "area" | "scatter" | "heatmap" ;
+
+table-def         = "table" , identifier , "{" ,
+                                                                             "columns" , "=" , "[" , identifier , { "," , identifier } , "]" , ";" ,
+                                                                             [ "use-interaction" , "=" , qualified-name , ";" ] ,
+                                                                             [ visibility-def ] ,
+                                                                      "}" ;
+
+metric-def        = "metric" , identifier , "{" ,
+                                                                             "value" , "=" , identifier , ";" ,
+                                                                             [ "use-interaction" , "=" , qualified-name , ";" ] ,
+                                                                             [ visibility-def ] ,
+                                                                      "}" ;
+
+narrative-def     = "narrative" , identifier , "{" ,
+                                                                             "text" , "=" , string , ";" ,
+                                                                             [ visibility-def ] ,
+                                                                      "}" ;
+
+dashboard-filter-def
+                                                               = "filter" , identifier , "{" ,
+                                                                             "dimension" , "=" , identifier , ";" ,
+                                                                             [ "default" , "=" , scalar , ";" ] ,
+                                                                      "}" ;
+
+dashboard-action-def
+                                                               = "action" , identifier , "{" ,
+                                                                             "use" , "=" , qualified-name , ";" ,
+                                                                      "}" ;
+
+dashboard-state-def
+                                                               = "state" , "{" , { state-variable-def } , "}" ;
+
+state-variable-def
+                                                               = identifier , "=" , scalar , ";" ;
+
+visibility-def    = "visible-if" , "=" , qualified-name , ";" ;
+
+(* ============================== *)
+(* OUTPUTS                        *)
+(* ============================== *)
+
+report-binding    = "render-using" , "=" , qualified-name , ";" ;
+dashboard-binding = "render-using" , "=" , qualified-name , ";" ;
+output-ref        = "output" , "=" , qualified-name , ";" ;
+
+output-def        = "output" , identifier , "{" ,
+                                                                             "format" , "=" , output-format , ";" ,
+                                                                             "via" , "=" , qualified-name , ";" ,
+                                                                      "}" ;
+
+output-format     = "pdf" | "html" | "json" | "image" | "stream" ;
+
+(* ============================== *)
+(* ANNOTATIONS & PROPERTIES       *)
+(* ============================== *)
+
+annotation-def    = "@" , identifier , [ "(" , annotation-args , ")" ] , ";" ;
+annotation-args   = annotation-arg , { "," , annotation-arg } ;
+annotation-arg    = identifier , "=" , scalar ;
+
+property          = identifier , "=" , scalar , ";" ;

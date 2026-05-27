@@ -1,14 +1,19 @@
 // ============================================================
 // OTML v1.7 — Operational & Service Infrastructure Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Purpose : Model cloud-hosted microservices, message brokers,
 //           pipelines, monitoring, and operational workflows
 //           using OTML's service-oriented metaphor.
 //
 // STATUS  : Reflects Phase 1–2 implementation (local dev).
+//           IdentityService endpoints updated: enterprise membership
+//           join-request routes and admin settings routes added.
+//           NotificationService uses Gmail SMTP via identity-service mailer
+//           (not a standalone notification-service email transport in Phase 1–2).
+//           Admin Console (web-admin, port 5174) is now ACTIVE.
 //           Phase 3 nodes are annotated but not implemented.
 // ============================================================
 
@@ -29,7 +34,8 @@ SystemBlock "DTI_EMS_Platform" {
   // ── Active Nodes (Phase 1–2) ──
   node : IdentityServiceNode ;     // Port 3011
   node : EventServiceNode ;        // Port 3012 — includes surveys, certificates, PDF generation
-  node : NotificationServiceNode ; // Port 3013 — BullMQ + Resend email + Semaphore SMS
+  node : NotificationServiceNode ; // Port 3013 — BullMQ + Gmail SMTP (identity-service mailer in Phase 1–2)
+  node : WebAdminNode ;            // Port 5174 — apps/web-admin React SPA (Admin Console)
   node : PostgreSQLNode ;          // Port 5433 (Docker)
   node : RedisNode ;               // Port 6379 (localhost)
 
@@ -58,12 +64,40 @@ node IdentityServiceNode {
     "POST /auth/login"
     "POST /auth/logout"
     "POST /auth/refresh-token"
+    "GET  /auth/verify-email"
+    "POST /auth/resend-verification"
     "GET  /users/me"
     "GET  /users/:id"
     "PATCH /users/:id"
+    // Enterprise CRUD
+    "GET  /enterprises/my"
+    "GET  /enterprises/my-membership"
     "GET  /enterprises"
     "POST /enterprises"
+    "GET  /enterprises/:id"
     "PATCH /enterprises/:id"
+    "PATCH /enterprises/:id/verify"
+    "DELETE /enterprises/:id"
+    // Enterprise Membership
+    "GET  /enterprises/:id/members"
+    "POST /enterprises/:id/members"
+    "POST /enterprises/:id/invite-employee"
+    "DELETE /enterprises/:id/members/:userId"
+    "POST /enterprises/:id/join-request"
+    "GET  /enterprises/:id/join-requests"
+    "PATCH /enterprises/:id/join-requests/:membershipId"
+    // Public Directory
+    "GET  /directory/enterprises"
+    // Admin
+    "GET  /admin/stats"
+    "PATCH /admin/users/:id/role"
+    "PATCH /admin/users/:id/verify-email"
+    "GET  /admin/audit-logs"
+    "GET  /admin/enterprises"
+    "GET  /admin/enterprises/stats"
+    "GET  /admin/settings/email"
+    "PUT  /admin/settings/email"
+    "POST /admin/settings/email/test"
   ]
   auth        : "JWT RS256 (15-min access + 7-day refresh, firstName/lastName in payload)" ;
   password_hash : "Argon2" ;
@@ -138,7 +172,10 @@ node NotificationServiceNode {
   replicas    : 1 ;
   queue_backend : "Redis via BullMQ (queues: mail, sms)" ;
   channels : [
-    "Email (Resend API — dry-run when RESEND_API_KEY missing)"
+    // Phase 1–2: transactional emails (verification, invite) sent directly by identity-service
+    // via nodemailer + Gmail SMTP (smtp.gmail.com:587, STARTTLS, DB-configurable).
+    // notification-service BullMQ workers handle event-triggered notifications:
+    "Email (nodemailer + Gmail SMTP — configured via Admin Settings → system_settings table)"
     "SMS   (Semaphore PH API — dry-run when SEMAPHORE_API_KEY missing)"
   ]
   // No Kafka — receives work via HTTP trigger endpoints from event-service
@@ -150,7 +187,7 @@ node NotificationServiceNode {
     "POST /triggers/test-email"
   ]
   workers : [
-    "email.worker.ts — processes 'mail' queue via Resend API"
+    "email.worker.ts — processes 'mail' queue via nodemailer + Gmail SMTP"
     "sms.worker.ts   — processes 'sms' queue via Semaphore API"
   ]
   templates : [
@@ -159,6 +196,23 @@ node NotificationServiceNode {
     "csf-survey-invite (HTML email)"
     "certificate-issued (HTML email)"
   ]
+}
+
+node WebAdminNode {
+  runtime     : "React 18 + Vite 6 + TailwindCSS" ;
+  hosting     : "Local dev (port 5174) → Cloudflare Pages or static CDN (prod)" ;
+  port        : 5174 ;
+  description : "Admin Console SPA — apps/web-admin. Provides system admin views for user
+                 management, enterprise CRUD, audit logs, and system settings (SMTP config)." ;
+  routes : [
+    "/admin/dashboard"
+    "/admin/users"
+    "/admin/enterprises"
+    "/admin/audit-logs"
+    "/admin/settings"
+  ]
+  auth    : "JWT RS256 (role = super_admin | dti_staff)" ;
+  backend : "IdentityServiceNode (port 3011)" ;
 }
 
 // DocumentServiceNode — REMOVED

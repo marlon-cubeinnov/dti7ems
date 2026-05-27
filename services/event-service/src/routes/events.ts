@@ -1,41 +1,48 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ConflictError, ErrorCode } from '@dti-ems/shared-errors';
-import { notifyBulkCsfInvite } from '../lib/notify.js';
+import { notifyBulkCsfInvite, notifyEventStatusChange, notifyMaterialsShared, notifyLeadAssigned } from '../lib/notify.js';
+import { uploadToGoogleDrive } from '../lib/google-drive.js';
 
 const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 type OrganizerRole = typeof ORGANIZER_ROLES[number];
 
 const createEventSchema = z.object({
-  programId:           z.string().optional().nullable(),
-  title:               z.string().min(3).max(300),
-  description:         z.string().max(5000).optional().nullable(),
-  venue:               z.string().max(500).optional().nullable(),
-  deliveryMode:        z.enum(['FACE_TO_FACE', 'ONLINE', 'HYBRID']).default('FACE_TO_FACE'),
-  onlineLink:          z.string().url().optional().nullable(),
-  maxParticipants:     z.number().int().min(1).optional().nullable(),
+  programId:            z.string().optional().nullable(),
+  title:                z.string().min(3).max(300),
+  description:          z.string().max(5000).optional().nullable(),
+  venue:                z.string().max(500).optional().nullable(),
+  deliveryMode:         z.enum(['FACE_TO_FACE', 'ONLINE', 'HYBRID']).default('FACE_TO_FACE'),
+  onlineLink:           z.string().url().optional().nullable(),
+  maxParticipants:      z.number().int().min(1).optional().nullable(),
   registrationDeadline: z.string().datetime().optional().nullable(),
-  startDate:           z.string().datetime(),
-  endDate:             z.string().datetime(),
-  targetSector:        z.string().max(200).optional().nullable(),
-  targetRegion:        z.string().max(200).optional().nullable(),
-  requiresTNA:         z.boolean().default(true),
-  latitude:            z.number().min(-90).max(90).optional().nullable(),
-  longitude:           z.number().min(-180).max(180).optional().nullable(),
+  startDate:            z.string().datetime(),
+  endDate:              z.string().datetime(),
+  targetSector:         z.string().max(200).optional().nullable(),
+  targetRegion:         z.string().max(200).optional().nullable(),
+  requiresTNA:          z.boolean().default(true),
+  latitude:             z.number().min(-90).max(90).optional().nullable(),
+  longitude:            z.number().min(-180).max(180).optional().nullable(),
+  // Event type: training vs general event
+  eventType:            z.enum(['TRAINING', 'EVENT']).default('TRAINING'),
   // Proposal fields (can be set during creation)
-  trainingType:        z.enum(['BUSINESS', 'MANAGERIAL', 'ORGANIZATIONAL', 'ENTREPRENEURIAL', 'INTER_AGENCY']).optional().nullable(),
-  partnerInstitution:  z.string().max(500).optional().nullable(),
-  background:          z.string().max(10000).optional().nullable(),
-  objectives:          z.string().max(10000).optional().nullable(),
-  learningOutcomes:    z.string().max(10000).optional().nullable(),
-  methodology:         z.string().max(10000).optional().nullable(),
-  monitoringPlan:      z.string().max(10000).optional().nullable(),
+  trainingType:         z.enum(['BUSINESS', 'MANAGERIAL', 'ORGANIZATIONAL', 'ENTREPRENEURIAL', 'INTER_AGENCY']).optional().nullable(),
+  partnerInstitution:   z.string().max(500).optional().nullable(),
+  background:           z.string().max(10000).optional().nullable(),
+  objectives:           z.string().max(10000).optional().nullable(),
+  expectedOutputs:      z.string().max(10000).optional().nullable(),
+  learningOutcomes:     z.string().max(10000).optional().nullable(),
+  methodology:          z.string().max(10000).optional().nullable(),
+  monitoringPlan:       z.string().max(10000).optional().nullable(),
+  // Approved proposal document (URL to uploaded file)
+  approvedProposalUrl:  z.string().url().optional().nullable(),
 });
 
 const listEventsSchema = z.object({
   page:         z.coerce.number().min(1).default(1),
   limit:        z.coerce.number().min(1).max(50).default(12),
   status:       z.string().optional(),
+  eventType:    z.enum(['TRAINING', 'EVENT']).optional(),
   sector:       z.string().optional(),
   region:       z.string().optional(),
   search:       z.string().optional(),
@@ -52,11 +59,14 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const skip = (q.page - 1) * q.limit;
 
     const where: Record<string, unknown> = {
-      status: q.status ?? { in: ['PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'] },
+      status: q.status
+        ? (q.status.includes(',') ? { in: q.status.split(',') } : q.status)
+        : { in: ['PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'] },
     };
 
     if (q.sector)       where['targetSector']  = { contains: q.sector, mode: 'insensitive' };
     if (q.region)       where['targetRegion']  = { contains: q.region, mode: 'insensitive' };
+    if (q.eventType)    where['eventType']     = q.eventType;
     if (q.deliveryMode) where['deliveryMode']  = q.deliveryMode;
     if (q.upcoming)     where['startDate']     = { gte: new Date() };
     if (q.search) {
@@ -76,7 +86,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         orderBy: { startDate: 'asc' },
         select: {
           id: true, title: true, description: true, venue: true,
-          deliveryMode: true, status: true, startDate: true, endDate: true,
+          eventType: true, deliveryMode: true, status: true, startDate: true, endDate: true,
           maxParticipants: true, registrationDeadline: true,
           targetSector: true, targetRegion: true, requiresTNA: true,
           coverImageUrl: true, onlineLink: true,
@@ -131,8 +141,8 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }).parse(request.query);
 
     const where: Record<string, unknown> = {};
-    if (q.status) where['status'] = q.status;
-    if (q.proposalStatus) where['proposalStatus'] = q.proposalStatus;
+    if (q.status) where['status'] = q.status.includes(',') ? { in: q.status.split(',') } : q.status;
+    if (q.proposalStatus) where['proposalStatus'] = q.proposalStatus.includes(',') ? { in: q.proposalStatus.split(',') } : q.proposalStatus;
 
     // View filter: "proposals" = all proposal items regardless of approval status, "events" = approved/active items
     if (q.view === 'proposals') {
@@ -257,12 +267,17 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       throw new ForbiddenError('Only organizers or admins can change event status.');
     }
 
-    // Workflow validation (from BLML EventWorkflow)
+    // Workflow validation
+    // Roll-back transitions (e.g. pause registration, revert to draft) are intentionally allowed
+    // so staff can correct mistakes without cancelling the entire event.
     const allowedTransitions: Record<string, string[]> = {
       DRAFT:               ['PUBLISHED', 'CANCELLED'],
       PUBLISHED:           ['REGISTRATION_OPEN', 'CANCELLED'],
-      REGISTRATION_OPEN:   ['REGISTRATION_CLOSED', 'ONGOING', 'CANCELLED'],
-      REGISTRATION_CLOSED: ['ONGOING', 'CANCELLED'],
+      // REGISTRATION_OPEN → PUBLISHED: "pause / stop registration temporarily"
+      // REGISTRATION_OPEN → REGISTRATION_CLOSED: close registration normally
+      REGISTRATION_OPEN:   ['PUBLISHED', 'REGISTRATION_CLOSED', 'ONGOING', 'CANCELLED'],
+      // REGISTRATION_CLOSED → PUBLISHED: reopen registration window
+      REGISTRATION_CLOSED: ['PUBLISHED', 'REGISTRATION_OPEN', 'ONGOING', 'CANCELLED'],
       ONGOING:             ['COMPLETED', 'CANCELLED'],
       COMPLETED:           [],
       CANCELLED:           [],
@@ -310,6 +325,38 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
               to: p.participantEmail!,
               participantName: p.participantName ?? p.participantEmail ?? 'Participant',
               participationId: p.id,
+            })),
+        }).catch(() => { /* best effort */ });
+      }
+    }
+
+    // Notify participants of status changes: REGISTRATION_OPEN and CANCELLED
+    if (status === 'REGISTRATION_OPEN' || status === 'CANCELLED') {
+      const registeredParticipants = await app.prisma.eventParticipation.findMany({
+        where: {
+          eventId: id,
+          status: { in: ['REGISTERED', 'TNA_PENDING', 'RSVP_CONFIRMED', 'ATTENDED', 'WAITLISTED'] },
+          participantEmail: { not: null },
+        },
+        select: { participantEmail: true, participantName: true },
+      });
+
+      if (registeredParticipants.length > 0) {
+        const statusMessages: Record<string, string> = {
+          REGISTRATION_OPEN: `Registration is now open for this event. Please make sure your participation is confirmed.`,
+          CANCELLED: `We regret to inform you that this event has been cancelled. We apologize for any inconvenience.`,
+        };
+        notifyEventStatusChange({
+          eventTitle: updated.title,
+          eventDate: updated.startDate.toISOString().split('T')[0],
+          eventVenue: updated.venue ?? undefined,
+          newStatus: status,
+          message: statusMessages[status],
+          recipients: registeredParticipants
+            .filter(p => p.participantEmail)
+            .map(p => ({
+              to: p.participantEmail!,
+              recipientName: p.participantName ?? 'Participant',
             })),
         }).catch(() => { /* best effort */ });
       }
@@ -1200,16 +1247,17 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     });
     if (!event) throw new NotFoundError('Event not found');
 
-    return reply.send({
-      success: true,
-      data: {
+    return reply.send({ success: true, data: {
         trainingType: event.trainingType,
+        eventType: event.eventType,
         partnerInstitution: event.partnerInstitution,
         background: event.background,
         objectives: event.objectives,
+        expectedOutputs: event.expectedOutputs,
         learningOutcomes: event.learningOutcomes,
         methodology: event.methodology,
         monitoringPlan: event.monitoringPlan,
+        approvedProposalUrl: event.approvedProposalUrl,
         proposalStatus: event.proposalStatus,
         proposalSubmittedAt: event.proposalSubmittedAt,
         proposalReviewedAt: event.proposalReviewedAt,
@@ -1242,9 +1290,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       partnerInstitution: z.string().max(500).optional().nullable(),
       background:         z.string().max(10000).optional().nullable(),
       objectives:         z.string().max(10000).optional().nullable(),
+      expectedOutputs:    z.string().max(10000).optional().nullable(),
       learningOutcomes:   z.string().max(10000).optional().nullable(),
       methodology:        z.string().max(10000).optional().nullable(),
       monitoringPlan:     z.string().max(10000).optional().nullable(),
+      approvedProposalUrl: z.string().url().optional().nullable(),
     }).parse(request.body);
 
     const updated = await app.prisma.event.update({
@@ -1335,21 +1385,25 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
   });
 
-  // POST /events/:id/assign-organizer — PM/Admin assigns EVENT_ORGANIZER as facilitator after approval
+  // POST /events/:id/assign-organizer — PM/Admin assigns Event/Training Lead after proposal approval
   app.post('/:id/assign-organizer', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const role = request.user.role;
     if (!['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only Technical Staff can assign a facilitator.');
+      throw new ForbiddenError('Only Technical Staff can assign an Event/Training Lead.');
     }
 
-    const { organizerId, organizerName } = z.object({ organizerId: z.string().min(1), organizerName: z.string().optional() }).parse(request.body);
+    const { organizerId, organizerName, organizerEmail } = z.object({
+      organizerId: z.string().min(1),
+      organizerName: z.string().optional(),
+      organizerEmail: z.string().email().optional(),
+    }).parse(request.body);
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
     if (event.proposalStatus !== 'APPROVED') {
-      throw new BadRequestError('Proposal must be APPROVED before assigning a facilitator.', ErrorCode.VALIDATION_ERROR);
+      throw new BadRequestError('Proposal must be APPROVED before assigning a lead.', ErrorCode.VALIDATION_ERROR);
     }
 
     const updated = await app.prisma.event.update({
@@ -1357,7 +1411,67 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       data: { assignedOrganizerId: organizerId, assignedOrganizerName: organizerName ?? null },
     });
 
-    return reply.send({ success: true, data: updated, message: 'Facilitator assigned.' });
+    // Notify the assigned lead (fire-and-forget)
+    if (organizerEmail && organizerName) {
+      notifyLeadAssigned({
+        to: organizerEmail,
+        leadName: organizerName,
+        eventTitle: event.title,
+        eventDate: event.startDate.toISOString(),
+        assignedByName: request.user.sub,
+      });
+    }
+
+    return reply.send({ success: true, data: updated, message: 'Event/Training Lead assigned.' });
+  });
+
+  // POST /events/:id/upload-approved-proposal — upload scanned copy of signed/approved proposal to Google Drive
+  app.post('/:id/upload-approved-proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers or admins can upload proposal documents.');
+    }
+
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+    if (event.proposalStatus !== 'APPROVED') {
+      throw new BadRequestError('Proposal must be APPROVED before uploading the signed document.', ErrorCode.VALIDATION_ERROR);
+    }
+
+    // Read multipart file
+    const data = await request.file();
+    if (!data) throw new BadRequestError('No file attached.', ErrorCode.VALIDATION_ERROR);
+
+    const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!ALLOWED_MIME.includes(data.mimetype)) {
+      throw new BadRequestError('Only PDF, JPEG, PNG, or WEBP files are allowed.', ErrorCode.VALIDATION_ERROR);
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk as Buffer);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    if (buffer.length > 20 * 1024 * 1024) {
+      throw new BadRequestError('File exceeds the 20 MB limit.', ErrorCode.VALIDATION_ERROR);
+    }
+
+    const ext = data.filename.split('.').pop() ?? 'pdf';
+    const filename = `approved-proposal-${id}-${Date.now()}.${ext}`;
+
+    const driveUrl = await uploadToGoogleDrive({
+      filename,
+      mimeType: data.mimetype,
+      buffer,
+    });
+
+    const updated = await app.prisma.event.update({
+      where: { id },
+      data: { approvedProposalUrl: driveUrl },
+    });
+
+    return reply.send({ success: true, data: updated, url: driveUrl, message: 'Approved proposal uploaded successfully.' });
   });
 
   // POST /events/:id/activate — Step 3: Technical Staff activates event after proposal approval
@@ -1624,5 +1738,391 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     await app.prisma.trainingTargetGroup.delete({ where: { id: groupId } });
     return reply.send({ success: true, message: 'Target group deleted.' });
+  });
+
+  // ── Pre-Proposal TNA (Training Needs Assessment for proposal crafting) ─────
+
+  // GET /events/:id/proposal-tna — fetch linked TNA with respondents
+  app.get('/:id/proposal-tna', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can view proposal TNA.');
+    }
+    const tna = await app.prisma.preProposalTna.findFirst({
+      where: { linkedEventId: id },
+      include: { respondents: { orderBy: { createdAt: 'asc' } } },
+    });
+    return reply.send({ success: true, data: tna ?? null });
+  });
+
+  // POST /events/:id/proposal-tna — create or update the TNA linked to this event
+  app.post('/:id/proposal-tna', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can manage proposal TNA.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const body = z.object({
+      title:              z.string().min(1).max(500),
+      sector:             z.string().min(1).max(300),
+      targetRegion:       z.string().max(300).optional().nullable(),
+      description:        z.string().max(5000).optional().nullable(),
+      conductedAt:        z.string().datetime().optional().nullable(),
+      summary:            z.string().max(10000).optional().nullable(),
+      recommendedTopics:  z.string().max(5000).optional().nullable(),
+      status:             z.enum(['DRAFT', 'FINALIZED']).optional(),
+      // Step 1 – Screening
+      screenQ1:           z.boolean().optional(),
+      screenQ2:           z.boolean().optional(),
+      screenQ3:           z.boolean().optional(),
+      screenQ4:           z.boolean().optional(),
+      screenQ5:           z.boolean().optional(),
+      // Step 2 – Scoring (1-5)
+      scorePerformanceGap:    z.number().int().min(1).max(5).optional().nullable(),
+      scoreSkillDeficiency:   z.number().int().min(1).max(5).optional().nullable(),
+      scoreBusinessRelevance: z.number().int().min(1).max(5).optional().nullable(),
+      scoreUrgency:           z.number().int().min(1).max(5).optional().nullable(),
+      scoreDemandMsmes:       z.number().int().min(1).max(5).optional().nullable(),
+    }).parse(request.body);
+
+    const existing = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
+
+    if (existing) {
+      const updated = await app.prisma.preProposalTna.update({
+        where: { id: existing.id },
+        data: {
+          ...body,
+          conductedAt: body.conductedAt ? new Date(body.conductedAt) : undefined,
+        },
+        include: { respondents: { orderBy: { createdAt: 'asc' } } },
+      });
+      return reply.send({ success: true, data: updated });
+    }
+
+    const created = await app.prisma.preProposalTna.create({
+      data: {
+        ...body,
+        conductedAt: body.conductedAt ? new Date(body.conductedAt) : null,
+        conductedBy: request.user.sub,
+        linkedEventId: id,
+        status: body.status ?? 'DRAFT',
+      },
+      include: { respondents: true },
+    });
+    return reply.code(201).send({ success: true, data: created });
+  });
+
+  // PATCH /events/:id/proposal-tna/status — finalize the TNA
+  app.patch('/:id/proposal-tna/status', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can manage proposal TNA.');
+    }
+    const body = z.object({ status: z.enum(['DRAFT', 'FINALIZED']) }).parse(request.body);
+    const tna = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
+    if (!tna) throw new NotFoundError('No TNA found for this event. Create one first.');
+
+    const updated = await app.prisma.preProposalTna.update({
+      where: { id: tna.id },
+      data: { status: body.status },
+      include: { respondents: { orderBy: { createdAt: 'asc' } } },
+    });
+    return reply.send({ success: true, data: updated });
+  });
+
+  // POST /events/:id/proposal-tna/respondents — add a respondent
+  app.post('/:id/proposal-tna/respondents', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can manage TNA respondents.');
+    }
+    const tna = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
+    if (!tna) throw new NotFoundError('Create the TNA header first before adding respondents.');
+    if (tna.status === 'FINALIZED') throw new BadRequestError('Cannot add respondents to a finalized TNA.', ErrorCode.VALIDATION_ERROR);
+
+    const body = z.object({
+      respondentType:   z.enum(['INDIVIDUAL', 'BUSINESS_OWNER', 'ORGANIZATION', 'GOVERNMENT']).default('INDIVIDUAL'),
+      name:             z.string().max(300).optional().nullable(),
+      organization:     z.string().max(300).optional().nullable(),
+      sector:           z.string().max(300).optional().nullable(),
+      region:           z.string().max(200).optional().nullable(),
+      needKnowledge:    z.number().int().min(1).max(5).default(3),
+      needSkills:       z.number().int().min(1).max(5).default(3),
+      needAttitude:     z.number().int().min(1).max(5).default(3),
+      preferredTopics:  z.string().max(2000).optional().nullable(),
+      preferredMode:    z.enum(['FACE_TO_FACE', 'ONLINE', 'HYBRID']).optional().nullable(),
+      preferredSchedule: z.enum(['WEEKDAY', 'WEEKEND', 'FLEXIBLE']).optional().nullable(),
+      currentChallenges: z.string().max(3000).optional().nullable(),
+      additionalNeeds:  z.string().max(3000).optional().nullable(),
+    }).parse(request.body);
+
+    const respondent = await app.prisma.tnaRespondent.create({
+      data: { ...body, tnaId: tna.id },
+    });
+    return reply.code(201).send({ success: true, data: respondent });
+  });
+
+  // DELETE /events/:id/proposal-tna/respondents/:respondentId
+  app.delete('/:id/proposal-tna/respondents/:respondentId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, respondentId } = z.object({ id: z.string(), respondentId: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can manage TNA respondents.');
+    }
+    const tna = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
+    if (!tna) throw new NotFoundError('TNA not found');
+    if (tna.status === 'FINALIZED') throw new BadRequestError('Cannot delete respondents from a finalized TNA.', ErrorCode.VALIDATION_ERROR);
+
+    const respondent = await app.prisma.tnaRespondent.findFirst({ where: { id: respondentId, tnaId: tna.id } });
+    if (!respondent) throw new NotFoundError('Respondent not found');
+
+    await app.prisma.tnaRespondent.delete({ where: { id: respondentId } });
+    return reply.send({ success: true, message: 'Respondent removed.' });
+  });
+
+  // ── Proposal Attachments ───────────────────────────────────────────────────
+
+  // GET /events/:id/attachments
+  app.get('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can view attachments.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const attachments = await app.prisma.proposalAttachment.findMany({
+      where: { eventId: id },
+      orderBy: { uploadedAt: 'desc' },
+    });
+    return reply.send({ success: true, data: attachments });
+  });
+
+  // POST /events/:id/attachments — register an uploaded file URL
+  app.post('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can add attachments.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const body = z.object({
+      fileName:    z.string().min(1).max(500),
+      fileUrl:     z.string().url(),
+      fileSize:    z.number().int().min(0).optional().nullable(),
+      mimeType:    z.string().max(200).optional().nullable(),
+      description: z.string().max(1000).optional().nullable(),
+    }).parse(request.body);
+
+    const attachment = await app.prisma.proposalAttachment.create({
+      data: { ...body, eventId: id, uploadedBy: request.user.sub },
+    });
+    return reply.code(201).send({ success: true, data: attachment });
+  });
+
+  // DELETE /events/:id/attachments/:attachmentId
+  app.delete('/:id/attachments/:attachmentId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, attachmentId } = z.object({ id: z.string(), attachmentId: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can delete attachments.');
+    }
+    const attachment = await app.prisma.proposalAttachment.findFirst({ where: { id: attachmentId, eventId: id } });
+    if (!attachment) throw new NotFoundError('Attachment not found');
+
+    await app.prisma.proposalAttachment.delete({ where: { id: attachmentId } });
+    return reply.send({ success: true, message: 'Attachment deleted.' });
+  });
+
+  // ── Event Staff Management ────────────────────────────────────────────────
+
+  // GET /events/:id/staff
+  app.get('/:id/staff', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can view event staff.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const staff = await app.prisma.eventStaff.findMany({
+      where: { eventId: id },
+      orderBy: [{ role: 'asc' }, { assignedAt: 'asc' }],
+    });
+    return reply.send({ success: true, data: staff });
+  });
+
+  // POST /events/:id/staff — assign a staff member with a role
+  app.post('/:id/staff', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can assign event staff.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const STAFF_ROLES = ['FACILITATOR', 'CO_FACILITATOR', 'RESOURCE_PERSON', 'REGISTRATION_OFFICER', 'LOGISTICS', 'DOCUMENTATION', 'SECRETARIAT', 'IT_SUPPORT', 'FINANCE', 'OTHER'] as const;
+
+    const body = z.object({
+      userId:    z.string().min(1),
+      userName:  z.string().min(1).max(300),
+      userEmail: z.string().email().optional().nullable(),
+      role:      z.enum(STAFF_ROLES).default('FACILITATOR'),
+      notes:     z.string().max(1000).optional().nullable(),
+    }).parse(request.body);
+
+    // Upsert: if same person already has this role, update notes
+    const staff = await app.prisma.eventStaff.upsert({
+      where: { eventId_userId_role: { eventId: id, userId: body.userId, role: body.role } },
+      create: { ...body, eventId: id, assignedBy: request.user.sub },
+      update: { userName: body.userName, userEmail: body.userEmail ?? null, notes: body.notes ?? null },
+    });
+    return reply.code(201).send({ success: true, data: staff });
+  });
+
+  // PATCH /events/:id/staff/:staffId — update staff role/notes
+  app.patch('/:id/staff/:staffId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, staffId } = z.object({ id: z.string(), staffId: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can update event staff.');
+    }
+    const existing = await app.prisma.eventStaff.findFirst({ where: { id: staffId, eventId: id } });
+    if (!existing) throw new NotFoundError('Staff assignment not found');
+
+    const STAFF_ROLES = ['FACILITATOR', 'CO_FACILITATOR', 'RESOURCE_PERSON', 'REGISTRATION_OFFICER', 'LOGISTICS', 'DOCUMENTATION', 'SECRETARIAT', 'IT_SUPPORT', 'FINANCE', 'OTHER'] as const;
+
+    const body = z.object({
+      role:  z.enum(STAFF_ROLES).optional(),
+      notes: z.string().max(1000).optional().nullable(),
+    }).parse(request.body);
+
+    const updated = await app.prisma.eventStaff.update({ where: { id: staffId }, data: body });
+    return reply.send({ success: true, data: updated });
+  });
+
+  // DELETE /events/:id/staff/:staffId
+  app.delete('/:id/staff/:staffId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, staffId } = z.object({ id: z.string(), staffId: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can remove event staff.');
+    }
+    const existing = await app.prisma.eventStaff.findFirst({ where: { id: staffId, eventId: id } });
+    if (!existing) throw new NotFoundError('Staff assignment not found');
+
+    await app.prisma.eventStaff.delete({ where: { id: staffId } });
+    return reply.send({ success: true, message: 'Staff member removed from event.' });
+  });
+
+  // ── Event Materials (Presentation Materials) ─────────────────────────────
+
+  // GET /events/:id/materials — list materials for an event
+  app.get('/:id/materials', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can view event materials.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const materials = await app.prisma.eventMaterial.findMany({
+      where: { eventId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    return reply.send({ success: true, data: materials });
+  });
+
+  // POST /events/:id/materials — add a Google Drive link as a shared material
+  app.post('/:id/materials', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can add event materials.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const body = z.object({
+      title:       z.string().min(1).max(300),
+      description: z.string().max(1000).optional().nullable(),
+      driveUrl:    z.string().url().min(1),
+    }).parse(request.body);
+
+    // Expiry: 15 days from event end date
+    const expiresAt = new Date(event.endDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+    const material = await app.prisma.eventMaterial.create({
+      data: {
+        eventId:     id,
+        title:       body.title,
+        description: body.description ?? null,
+        driveUrl:    body.driveUrl,
+        uploadedBy:  request.user.userId,
+        expiresAt,
+      },
+    });
+    return reply.code(201).send({ success: true, data: material });
+  });
+
+  // POST /events/:id/materials/notify — send material links to all registered participants
+  app.post('/:id/materials/notify', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can send material notifications.');
+    }
+    const event = await app.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundError('Event not found');
+
+    const activeMaterials = await app.prisma.eventMaterial.findMany({
+      where: { eventId: id, isExpired: false },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (activeMaterials.length === 0) {
+      throw new BadRequestError('No active materials to notify participants about.', ErrorCode.INVALID_EVENT_STATUS);
+    }
+
+    // Get all attended/registered participants with emails
+    const participants = await app.prisma.eventParticipation.findMany({
+      where: {
+        eventId: id,
+        status: { in: ['REGISTERED', 'TNA_PENDING', 'RSVP_CONFIRMED', 'ATTENDED', 'COMPLETED'] },
+        participantEmail: { not: null },
+      },
+      select: { participantEmail: true, participantName: true },
+    });
+
+    if (participants.length === 0) {
+      return reply.send({ success: true, message: 'No participants to notify.', count: 0 });
+    }
+
+    notifyMaterialsShared({
+      eventTitle: event.title,
+      eventDate: event.startDate.toISOString().split('T')[0],
+      materials: activeMaterials.map(m => ({
+        title:     m.title,
+        driveUrl:  m.driveUrl,
+        expiresAt: m.expiresAt.toISOString(),
+      })),
+      participants: participants
+        .filter(p => p.participantEmail)
+        .map(p => ({
+          to:              p.participantEmail!,
+          participantName: p.participantName ?? 'Participant',
+        })),
+    }).catch(() => { /* best effort */ });
+
+    return reply.send({ success: true, message: `Materials notification queued for ${participants.length} participants.`, count: participants.length });
+  });
+
+  // DELETE /events/:id/materials/:materialId
+  app.delete('/:id/materials/:materialId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, materialId } = z.object({ id: z.string(), materialId: z.string() }).parse(request.params);
+    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+      throw new ForbiddenError('Only organizers/admins can delete event materials.');
+    }
+    const material = await app.prisma.eventMaterial.findFirst({ where: { id: materialId, eventId: id } });
+    if (!material) throw new NotFoundError('Material not found');
+
+    await app.prisma.eventMaterial.delete({ where: { id: materialId } });
+    return reply.send({ success: true, message: 'Material removed.' });
   });
 };

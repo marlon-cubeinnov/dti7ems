@@ -2,21 +2,21 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { surveyApi } from '@/lib/api';
 import { ArrowLeft, Printer } from 'lucide-react';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 /* ── Official DTI ARTA Client Satisfaction Feedback (CSF) Report ─────────── */
 /* Based on FM-CSF-ACT — Anti-Red Tape Authority prescribed format            */
 
 const SQD_FULL_LABELS: Record<string, string> = {
-  sqd0OverallRating:   'SQD0 – I am satisfied with the service I availed.',
-  sqd1Responsiveness:  'SQD1 – I spent a reasonable amount of time for my transaction.',
-  sqd2Reliability:     'SQD2 – The office followed the transaction requirements and steps based on the information provided.',
-  sqd3AccessFacilities:'SQD3 – The steps (including payment) I needed to do for my transaction were easy and simple.',
-  sqd4Communication:   'SQD4 – I easily found information about my transaction from the office or its website.',
-  sqd5Costs:           'SQD5 – I paid a reasonable amount of fees for my transaction. (If applicable)',
-  sqd6Integrity:       'SQD6 – I feel the office was fair to everyone, or "walang palakasan", during my transaction.',
-  sqd7Assurance:       'SQD7 – I was treated courteously by the staff, and (if asked for help) the staff was helpful.',
-  sqd8Outcome:         'SQD8 – I got what I needed from the government office, or (if denied) it was of valid reason.',
+  sqd0OverallRating:    'SQD0 – In general, I am satisfied and I would recommend this session to colleagues.',
+  sqd1Responsiveness:   'SQD1 – The session was provided in a timely manner, aligned with my learning needs, and relevant to my role, making it useful for my work.',
+  sqd2Reliability:      'SQD2 – The session was consistent with what was promised and effectively covered all key topics.',
+  sqd3AccessFacilities: 'SQD3 – The venue/platform was conducive to learning, equipment were appropriate, with clear audio and effective presentation facilities.',
+  sqd4Communication:    'SQD4 – Information were clearly and effectively communicated, with well-structured instructions, and materials that were easy to understand.',
+  sqd5Costs:            'SQD5 – Costs (N/A — Skip if the service was free of charge)',
+  sqd6Integrity:        'SQD6 – The organizers and the resource speaker consistently provided clear and truthful information about the program. They demonstrated fairness, respect, and integrity in all interaction with participants.',
+  sqd7Assurance:        'SQD7 – The organizers and the resource speaker demonstrated competence and courtesy, instilling confidence and trust in the participants.',
+  sqd8Outcome:          'SQD8 – The session builds productivity and efficiency for the participants.',
 };
 
 const RATING_LABELS: Record<number, string> = {
@@ -130,13 +130,9 @@ export function OrganizerCsfReportPage() {
         {/* ── Header / Letterhead ── */}
         <div className="border-b-2 border-black px-6 pt-4 pb-3">
           <div className="flex items-start justify-between">
-            {/* Left: DTI Logo */}
-            <div className="flex items-center gap-2">
-              <img src={dtiLogo} alt="DTI Logo" className="w-14 h-14 object-contain" />
-              <div>
-                <p className="text-[8px] text-gray-400 italic">PHILIPPINES</p>
-                <p className="text-[8px] font-bold text-[#003087]">BAGONG PILIPINAS</p>
-              </div>
+            {/* Left: DTI + Bagong Pilipinas Logo */}
+            <div className="flex items-center">
+              <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-14 w-auto object-contain" />
             </div>
 
             {/* Center: Title */}
@@ -531,12 +527,19 @@ export function OrganizerCsfReportPage() {
         {/* ── Certification / Signature Block ── */}
         <div className="px-6 py-6">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-700 mb-4">Certification</h2>
-          <p className="text-[11px] text-gray-700 leading-relaxed mb-6">
+          <p className="text-[11px] text-gray-700 leading-relaxed mb-4">
             I hereby certify that the above data and information are true and correct based on the Client Satisfaction Feedback (CSF)
             forms collected from the participants of the above-mentioned activity. This report is generated in compliance with
             Republic Act No. 11032 (Ease of Doing Business and Efficient Government Service Delivery Act of 2018) and ARTA Memorandum Circular No. 2019-002.
           </p>
-          <div className="grid grid-cols-2 gap-8 mt-8">
+          <div className="bg-blue-50 border border-blue-200 rounded px-4 py-2.5 mb-5 flex items-start gap-2">
+            <span className="text-blue-600 text-sm mt-0.5">&#128203;</span>
+            <p className="text-[11px] text-blue-800">
+              <strong>Digital Report:</strong> This CSF report was generated electronically by the DTI Region VII Event Management System.
+              No wet signature is required for digital submissions. Print this report and affix signatures only when a physical copy is required.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-8 mt-6">
             <div className="text-center">
               <div className="border-b border-gray-400 mb-1 h-8" />
               <p className="text-[11px] font-bold text-gray-700">Prepared by</p>

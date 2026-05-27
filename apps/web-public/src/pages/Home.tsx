@@ -15,10 +15,10 @@ export function HomePage() {
   return (
     <>
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-br from-dti-blue to-dti-blue-light text-white py-20">
+      <section className="bg-gradient-to-br from-dti-blue to-dti-navy text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-dti-orange font-semibold text-sm tracking-widest uppercase mb-3">
+            <p className="text-dti-yellow font-semibold text-sm tracking-widest uppercase mb-3">
               DTI Region 7 — Central Visayas
             </p>
             <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight mb-6">
@@ -80,14 +80,14 @@ export function HomePage() {
       </section>
 
       {/* ── CTA ────────────────────────────────────────────────────────────── */}
-      <section className="bg-dti-orange text-white">
+      <section className="bg-[#29296E] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to grow your business?</h2>
-          <p className="text-orange-100 mb-8 max-w-xl mx-auto">
+          <p className="text-blue-200 mb-8 max-w-xl mx-auto">
             Register once and get pre-filled for all future events. Track your attendance,
             earn certificates, and access 6-month impact reports.
           </p>
-          <Link to="/register" className="btn bg-white text-dti-orange hover:bg-orange-50 px-8 py-3 text-base font-bold">
+          <Link to="/register" style={{ backgroundColor: '#FFE500', color: '#172187' }} className="btn hover:opacity-90 px-8 py-3 text-base font-bold shadow-md">
             Get Started — It's Free
           </Link>
         </div>

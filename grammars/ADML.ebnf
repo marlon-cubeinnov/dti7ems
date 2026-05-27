@@ -1,0 +1,304 @@
+(* ===================================================================== *)
+(* ADML v2.0 -- Algorithm and Machine Learning Design Modeling Language   *)
+(* Standardized ISO-style EBNF                                            *)
+(* Purpose: Canonical, grammar-constrained modeling of algorithmic and    *)
+(*          executable ML workflows, contracts, orchestration steps, and  *)
+(*          cross-DSL processing pipelines across the Composable Stack.   *)
+(* ===================================================================== *)
+
+(* ============================== *)
+(* LEXICAL                        *)
+(* ============================== *)
+
+identifier        = letter , { letter | digit | "_" | "-" } ;
+qualified-name    = identifier , { "." , identifier } ;
+
+string            = '"' , { string-character } , '"' ;
+multi-line-string = '"""' , { multi-line-character } , '"""' ;
+integer           = [ "-" ] , digit , { digit } ;
+number            = [ "-" ] , digit , { digit } , [ "." , { digit } ] ;
+boolean           = "true" | "false" ;
+
+scalar            = string | multi-line-string | integer | number | boolean ;
+
+letter            = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                                                               | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                                                               | "U" | "V" | "W" | "X" | "Y" | "Z"
+                                                               | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                                                               | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                                                               | "u" | "v" | "w" | "x" | "y" | "z" ;
+digit             = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+string-character  = ? any valid character except quotation mark and line break ? ;
+multi-line-character = ? any valid character except triple quotation mark sequence ? ;
+
+(* ============================== *)
+(* ROOT MODEL                     *)
+(* ============================== *)
+
+adml-model        = "adml" , "model" , identifier , "{" ,
+                                                                             { import-def } ,
+                                                                             { adml-element } ,
+                                                                      "}" ;
+
+import-def        = "import" , string , [ "as" , identifier ] , ";" ;
+
+adml-element      =
+                     algorithm-def
+              | pipeline-def
+              | security-ref
+              | annotation-def ;
+
+security-ref      = "security" , "use" , qualified-name , ";" ;
+
+(* ============================== *)
+(* ALGORITHMS                     *)
+(* ============================== *)
+
+algorithm-def     = "algorithm" , identifier , "{" ,
+                                                                             header-def ,
+                                                                             io-block-def ,
+                                                                             context-block-def ,
+                                                                             contracts-block-def ,
+                                                                             steps-block-def ,
+                                                                             metadata-block-def ,
+                                                                      "}" ;
+
+pipeline-def      = "pipeline" , identifier , "{" ,
+                                                                             header-def ,
+                                                                             io-block-def ,
+                                                                             pipeline-stages-def ,
+                                                                             contracts-block-def ,
+                                                                             pipeline-metadata-def ,
+                                                                      "}" ;
+
+header-def        = ( "description" | "purpose" ) , ":" , multi-line-string ;
+
+io-block-def      = "inputs" , ":" , "[" , [ io-item , { "," , io-item } ] , "]" ,
+                                                                      "outputs" , ":" , "[" , [ io-item , { "," , io-item } ] , "]" ;
+
+io-item           = identifier , [ ":" , type-ref ] , [ "from" , ":" , dsl-ref ] ;
+type-ref          = identifier | qualified-name ;
+dsl-ref           = "UXML" | "DBML" | "SDML" | "WDML" | "LRML" | "BLML" | "AIML" | "EIML" | qualified-name ;
+
+context-block-def = "context" , ":" , "{" ,
+                                                                             [ "uses" , ":" , "[" , [ context-ref , { "," , context-ref } ] , "]" ] ,
+                                                                             [ "assumptions" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                             [ "dependencies" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+context-ref       = identifier , [ ":" , dsl-ref ] ;
+
+contracts-block-def
+                                                               = "contracts" , ":" , "{" ,
+                                                                             [ "preconditions" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                             [ "postconditions" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                             [ "invariants" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* EXPRESSIONS                    *)
+(* ============================== *)
+
+condition-expr    = boolean-expr | comparison-expr | logic-expr | set-expr | expr ;
+boolean-expr      = "true" | "false" ;
+comparison-expr   = expr , comparator , expr ;
+logic-expr        = expr , logical-op , expr ;
+set-expr          = identifier , "in" , identifier ;
+
+expr              = identifier | integer | number | string | qualified-name ;
+comparator        = "==" | "!=" | "<" | ">" | "<=" | ">=" ;
+logical-op        = "and" | "or" | "xor" | "implies" ;
+
+(* ============================== *)
+(* EXECUTION STEPS                *)
+(* ============================== *)
+
+steps-block-def   = "steps" , ":" , "{" , { step-def } , "}" ;
+step-def          = step-index , ":" , step-body ;
+step-index        = integer ;
+
+step-body         = action-def
+                                                               | conditional-def
+                                                               | iteration-def
+                                                               | transform-def
+                                                               | validate-def
+                                                               | map-def
+                                                               | infer-def
+                                                               | emit-def
+                                                               | planning-step-def
+                                                               | scheduling-step-def
+                                                               | simulation-step-def
+                                                               | multi-agent-step-def
+                                                               | knowledge-reasoning-step-def
+                                                               | ml-stage-def ;
+
+action-def        = "action" , "(" , identifier , [ "," , action-args ] , ")" ;
+action-args       = "[" , [ action-arg , { "," , action-arg } ] , "]" ;
+action-arg        = identifier , ":" , expr ;
+
+conditional-def   = "if" , "(" , condition-expr , ")" , "then" , "{" , { step-body } , "}" ,
+                                                                      [ "else" , "{" , { step-body } , "}" ] ;
+
+iteration-def     = "for" , "(" , iterator-expr , ")" , "{" , { step-body } , "}" ;
+iterator-expr     = identifier , "in" , identifier ;
+
+transform-def     = "transform" , "(" , identifier , "->" , identifier , ")" , [ "using" , ":" , identifier ] ;
+validate-def      = "validate" , "(" , condition-expr , ")" , [ "onfail" , ":" , identifier ] ;
+map-def           = "map" , "(" , identifier , "." , identifier , "->" , identifier , "." , identifier , ")" , [ "where" , ":" , condition-expr ] ;
+infer-def         = "infer" , "(" , identifier , ":" , inference-rule , ")" ;
+inference-rule    = identifier | qualified-name ;
+
+emit-def          = "emit" , "(" , emit-type , ":" , emit-target , ")" ;
+emit-type         = "IR" | "SemanticMap" | "Alignment" | "Report" ;
+emit-target       = qualified-name | identifier ;
+
+planning-step-def = "plan" , "(" , identifier , ":" , planning-body , ")" ;
+planning-body     = "{" ,
+                                                                             [ "goal" , ":" , expr ] ,
+                                                                             [ "problem" , ":" , qualified-name ] ,
+                                                                             [ "constraints" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                             [ "outputs" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+scheduling-step-def
+                                                               = "schedule" , "(" , identifier , ":" , scheduling-body , ")" ;
+scheduling-body   = "{" ,
+                                                                             [ "problem" , ":" , qualified-name ] ,
+                                                                             [ "resources" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                             [ "horizon" , ":" , expr ] ,
+                                                                             [ "outputs" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+simulation-step-def
+                                                               = "simulate" , "(" , identifier , ":" , simulation-body , ")" ;
+simulation-body   = "{" ,
+                                                                             [ "twin" , ":" , qualified-name ] ,
+                                                                             [ "scenario" , ":" , expr ] ,
+                                                                             [ "steps" , ":" , expr ] ,
+                                                                             [ "outputs" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+multi-agent-step-def
+                                                               = "coordinate" , "(" , identifier , ":" , multi-agent-body , ")" ;
+multi-agent-body  = "{" ,
+                                                                             [ "system" , ":" , qualified-name ] ,
+                                                                             [ "objective" , ":" , expr ] ,
+                                                                             [ "messages" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                             [ "outputs" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+knowledge-reasoning-step-def
+                                                               = "reason" , "(" , identifier , ":" , knowledge-reasoning-body , ")" ;
+knowledge-reasoning-body
+                                                               = "{" ,
+                                                                             [ "knowledge" , ":" , qualified-name ] ,
+                                                                             [ "task" , ":" , expr ] ,
+                                                                             [ "rules" , ":" , "[" , [ qualified-name , { "," , qualified-name } ] , "]" ] ,
+                                                                             [ "outputs" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* ML STAGES                      *)
+(* ============================== *)
+
+ml-stage-def      = "ml" , "(" , ml-stage-type , ":" , ml-stage-body , ")" ;
+
+ml-stage-type     = "ingest"
+                                                               | "clean"
+                                                               | "transform"
+                                                               | "vectorize"
+                                                               | "embed"
+                                                               | "train"
+                                                               | "tune"
+                                                               | "evaluate"
+                                                               | "predict"
+                                                               | "forecast"
+                                                               | "deploy"
+                                                               | "monitor"
+                                                               | "drift_detect"
+                                                               | "rl_train"
+                                                               | "rl_rollout"
+                                                               | "rl_update"
+                                                               | "graph_infer"
+                                                               | "causal_infer" ;
+
+ml-stage-body     = "{" ,
+                                                                             [ "inputs" , ":" , "[" , [ ml-io-item , { "," , ml-io-item } ] , "]" ] ,
+                                                                             [ "outputs" , ":" , "[" , [ ml-io-item , { "," , ml-io-item } ] , "]" ] ,
+                                                                             [ "method" , ":" , identifier ] ,
+                                                                             [ "params" , ":" , "{" , [ param-item , { "," , param-item } ] , "}" ] ,
+                                                                             [ "metrics" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                             [ "constraints" , ":" , "[" , [ condition-expr , { "," , condition-expr } ] , "]" ] ,
+                                                                      "}" ;
+
+ml-io-item        = identifier , [ ":" , type-ref ] , [ "from" , ":" , dsl-ref ] ;
+param-item        = identifier , ":" , expr ;
+
+(* ============================== *)
+(* METADATA                       *)
+(* ============================== *)
+
+metadata-block-def
+                                                               = "metadata" , ":" , "{" ,
+                                                                             [ "complexity" , ":" , complexity-spec ] ,
+                                                                             [ "category" , ":" , category-spec ] ,
+                                                                             [ "ontology" , ":" , "[" , [ ontology-ref , { "," , ontology-ref } ] , "]" ] ,
+                                                                             [ "tags" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+complexity-spec   = "O(" , complexity-expr , ")" ;
+complexity-expr   = identifier | integer | number ;
+
+category-spec     = "normalization"
+                                                               | "validation"
+                                                               | "inference"
+                                                               | "mapping"
+                                                               | "transformation"
+                                                               | "repair"
+                                                               | "alignment"
+                                                               | "generation"
+                                                               | "ml_ingestion"
+                                                               | "ml_training"
+                                                               | "ml_eval"
+                                                               | "ml_pipeline"
+                                                               | "ml_inference" ;
+
+ontology-ref      = identifier | qualified-name ;
+
+pipeline-stages-def
+                                                               = "stages" , ":" , "{" , { pipeline-stage-def } , "}" ;
+pipeline-stage-def = stage-index , ":" , pipeline-stage-body ;
+stage-index       = integer ;
+
+pipeline-stage-body
+                                                               = ml-stage-def
+                                                               | action-def
+                                                               | transform-def
+                                                               | map-def
+                                                               | validate-def
+                                                               | infer-def
+                                                               | emit-def
+                                                               | planning-step-def
+                                                               | scheduling-step-def
+                                                               | simulation-step-def
+                                                               | multi-agent-step-def
+                                                               | knowledge-reasoning-step-def ;
+
+pipeline-metadata-def
+                                                               = "metadata" , ":" , "{" ,
+                                                                             [ "runtime" , ":" , identifier ] ,
+                                                                             [ "environment" , ":" , identifier ] ,
+                                                                             [ "hardware" , ":" , identifier ] ,
+                                                                             [ "metrics" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                             [ "tags" , ":" , "[" , [ identifier , { "," , identifier } ] , "]" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* ANNOTATIONS & PROPERTIES       *)
+(* ============================== *)
+
+annotation-def    = "@" , identifier , [ "(" , annotation-args , ")" ] , ";" ;
+annotation-args   = annotation-arg , { "," , annotation-arg } ;
+annotation-arg    = identifier , "=" , scalar ;
+
+property          = identifier , "=" , scalar , ";" ;

@@ -67,7 +67,7 @@ export function OrganizerProposalListPage() {
             <thead>
               <tr className="bg-gray-50 border-b text-left">
                 <th className="px-4 py-3 font-semibold text-gray-600">Title</th>
-                <th className="px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Training Date</th>
+                <th className="px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Event Date</th>
                 <th className="px-4 py-3 font-semibold text-gray-600 hidden lg:table-cell">Mode</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Proposal Status</th>
                 <th className="px-4 py-3 font-semibold text-gray-600">Actions</th>

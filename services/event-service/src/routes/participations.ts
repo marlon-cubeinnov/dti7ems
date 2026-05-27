@@ -37,10 +37,11 @@ function computeTNACompositeScore(knowledge: number, skill: number, motivation: 
   return Math.round((knowledge * 0.35 + skill * 0.40 + motivation * 0.25) * 100) / 100;
 }
 
+// ADML TNA_ScoringAlgorithm step 10: foundational < 40, growth < 70, advanced_export >= 70
 function recommendTrack(score: number): string {
-  if (score >= 80) return 'ADVANCED';
-  if (score >= 60) return 'INTERMEDIATE';
-  return 'FOUNDATION';
+  if (score >= 70) return 'advanced_export';
+  if (score >= 40) return 'growth';
+  return 'foundational';
 }
 
 export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {

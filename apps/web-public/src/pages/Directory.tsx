@@ -5,35 +5,35 @@ import { Search, Building2, MapPin, Users, Filter, ChevronLeft, ChevronRight, Ro
 import type { LucideIcon } from 'lucide-react';
 
 const STAGE_LABELS: Record<string, string> = {
-  PRE_STARTUP: 'Pre-Startup',
-  STARTUP:     'Startup',
-  GROWTH:      'Growth',
-  EXPANSION:   'Expansion',
-  MATURE:      'Mature',
+  IDEATION:     'Ideation',
+  VALIDATION:   'Validation',
+  GROWTH:       'Growth',
+  EXPANSION:    'Expansion',
+  MATURITY_EXIT: 'Maturity/Exit',
 };
 
 const STAGE_COLORS: Record<string, string> = {
-  PRE_STARTUP: 'bg-gray-100 text-gray-700',
-  STARTUP:     'bg-blue-100 text-blue-700',
-  GROWTH:      'bg-green-100 text-green-700',
-  EXPANSION:   'bg-purple-100 text-purple-700',
-  MATURE:      'bg-amber-100 text-amber-700',
+  IDEATION:     'bg-gray-100 text-gray-700',
+  VALIDATION:   'bg-blue-100 text-blue-700',
+  GROWTH:       'bg-green-100 text-green-700',
+  EXPANSION:    'bg-purple-100 text-purple-700',
+  MATURITY_EXIT: 'bg-amber-100 text-amber-700',
 };
 
 const STAGE_CARD_STYLES: Record<string, { bg: string; border: string; icon: string; active: string }> = {
-  PRE_STARTUP: { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-500', active: 'ring-2 ring-gray-400 border-gray-400' },
-  STARTUP:     { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-500', active: 'ring-2 ring-blue-400 border-blue-400' },
-  GROWTH:      { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-500', active: 'ring-2 ring-green-400 border-green-400' },
-  EXPANSION:   { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-500', active: 'ring-2 ring-purple-400 border-purple-400' },
-  MATURE:      { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'text-amber-500', active: 'ring-2 ring-amber-400 border-amber-400' },
+  IDEATION:     { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-500', active: 'ring-2 ring-gray-400 border-gray-400' },
+  VALIDATION:   { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-500', active: 'ring-2 ring-blue-400 border-blue-400' },
+  GROWTH:       { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-500', active: 'ring-2 ring-green-400 border-green-400' },
+  EXPANSION:    { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-500', active: 'ring-2 ring-purple-400 border-purple-400' },
+  MATURITY_EXIT: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'text-amber-500', active: 'ring-2 ring-amber-400 border-amber-400' },
 };
 
 const STAGE_ICONS: Record<string, LucideIcon> = {
-  PRE_STARTUP: Sprout,
-  STARTUP:     Rocket,
-  GROWTH:      TrendingUp,
-  EXPANSION:   Expand,
-  MATURE:      Award,
+  IDEATION:     Sprout,
+  VALIDATION:   Rocket,
+  GROWTH:       TrendingUp,
+  EXPANSION:    Expand,
+  MATURITY_EXIT: Award,
 };
 
 export function DirectoryPage() {
@@ -70,10 +70,10 @@ export function DirectoryPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-gradient-to-br from-dti-blue to-dti-blue-light text-white py-14">
+      <section className="bg-gradient-to-br from-dti-blue to-dti-navy text-white py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-dti-orange font-semibold text-sm tracking-widest uppercase mb-2">
+            <p className="text-dti-yellow font-semibold text-sm tracking-widest uppercase mb-2">
               Enterprise Directory
             </p>
             <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight mb-4">

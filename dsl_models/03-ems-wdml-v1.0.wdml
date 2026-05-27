@@ -1,16 +1,18 @@
 // ============================================================
 // WDML v3.3 — Web App & Design System Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Stack   : React 19 + TypeScript (Vite) · Tailwind CSS
 //           Vite dev server (dev) → GCP Cloud Run (Phase 3)
 //
 // STATUS  : Reflects Phase 1–2 implementation.
 //           All portals (public, participant, organizer) run in
 //           a single web-public SPA with role-based routing.
-//           Admin Console and Industry Dashboard are Phase 3.
+//           Admin Console is now ACTIVE (Phase 1–2 — apps/web-admin).
+//           Enterprise membership UI (join-request, manage-team) implemented.
+//           System Settings panel (Gmail SMTP) active in Admin Console.
 // ============================================================
 
 wdml model DTI_EMS_WebDesign {
@@ -437,11 +439,11 @@ wdml model DTI_EMS_WebDesign {
       pages : [
         ParticipantDashboard
         MyEventsPage
-        MyProfilePage
+        MyProfilePage     // includes EnterpriseMembershipSection
         MyQrCodePage
         MyCertificatesPage
         CsfSurveyPage
-        // Phase 3: MyEnterprisePage, SurveyPage (impact)
+        MyEnterprisePage  // enterprise profile + manage team (join requests, members)
       ]
     }
 
@@ -461,12 +463,12 @@ wdml model DTI_EMS_WebDesign {
       ]
     }
 
-    // Phase 3: AdminConsole channel
-    /*
+    // Admin Console — now ACTIVE (apps/web-admin, port 5174)
     channel AdminConsole {
       kind  : admin-console ;
       auth  : required ;
       roles : [ super_admin dti_staff ]
+      // Routes: /admin/*
       pages : [
         AdminDashboard
         UserManagementPage
@@ -474,10 +476,9 @@ wdml model DTI_EMS_WebDesign {
         ProgramManagementPage
         ReportsPage
         AuditLogPage
-        SystemSettingsPage
+        SystemSettingsPage   // includes Gmail SMTP configuration
       ]
     }
-    */
 
     // --- Public Portal Pages ---
 
@@ -576,6 +577,7 @@ wdml model DTI_EMS_WebDesign {
         ContactInfoForm
         PasswordChangeForm
         DPAConsentSection
+        EnterpriseMembershipSection  // find & join | pending banner | active membership + manage team
       ]
     }
 
@@ -717,8 +719,11 @@ wdml model DTI_EMS_WebDesign {
       layout   : ContentListLayout ;
       sections : [
         EnterpriseSearchBar
+        StageFilterDropdown       // ideation | startup | growth | maturity | export_ready
         VerificationStatusFilter
-        EnterpriseDataTable
+        EnterpriseDataTable       // columns: name, stage, region, verified, members, actions
+        EditEnterpriseModal       // inline edit modal (12 fields: name, trade, reg_no, TIN, sector, stage, employees, revenue, region, province, city, publicly_listed)
+        DeleteEnterpriseDialog    // confirmation dialog
         VerifyEnterpriseButton
         LinkToProfileButton
       ]
@@ -755,8 +760,10 @@ wdml model DTI_EMS_WebDesign {
     page SystemSettingsPage {
       layout   : FormCenteredLayout ;
       sections : [
-        SMTPConfigForm
-        SMSGatewayConfigForm
+        SMTPConfigForm            // Gmail SMTP preset picker + host/port/user/pass/from fields
+        SMTPPresetSelector        // Mailpit (dev) | Gmail STARTTLS :587 | Gmail SSL :465 | Custom
+        SMTPTestEmailButton       // POST /admin/settings/email/test
+        SMSSGatewayConfigForm
         NotificationTemplateEditor
         SurveyTemplateManager
       ]

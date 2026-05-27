@@ -38,8 +38,8 @@ export async function buildApp() {
   // Error handler
   app.setErrorHandler(errorHandler);
 
-  // HTTP trigger routes (called by other services)
-  await app.register(triggerRoutes, { prefix: '/notify' });
+  // HTTP trigger routes (called by other services) — EIML: /triggers/* namespace
+  await app.register(triggerRoutes, { prefix: '/triggers' });
 
   // Health check
   app.get('/health', async () => ({

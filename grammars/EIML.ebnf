@@ -1,0 +1,270 @@
+(* ===================================================================== *)
+(*  EIML v1.0 — Enterprise Integration Modeling Language                  *)
+(*  Purpose: Canonical integration, orchestration, and data-exchange     *)
+(*           layer aligned to DBML v3.1 Domain & Behavior Model           *)
+(* ===================================================================== *)
+
+(* ============================== *)
+(* LEXICAL                        *)
+(* ============================== *)
+
+identifier      = letter , { letter | digit | "_" | "-" } ;
+qualified-name  = identifier , { "." , identifier } ;
+string          = '"' , { character } , '"' ;
+integer         = [ "-" ] , digit , { digit } ;
+number          = [ "-" ] , digit , { digit } , [ "." , { digit } ] ;
+boolean         = "true" | "false" ;
+
+scalar          = string | integer | number | boolean ;
+
+letter          = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                | "U" | "V" | "W" | "X" | "Y" | "Z"
+                | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                | "u" | "v" | "w" | "x" | "y" | "z" ;
+digit           = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+character       = ? any valid character except " and line break ? ;
+
+(* ============================== *)
+(* ROOT MODEL                     *)
+(* ============================== *)
+
+eiml-model      = "eiml" , "model" , identifier , "{" ,
+                    { import-def } ,
+                    { eiml-element } ,
+                  "}" ;
+
+import-def      = "import" , string , [ "as" , identifier ] , ";" ;
+
+eiml-element    =
+      integration-context-def
+    | adapter-def
+    | endpoint-def
+    | contract-def
+    | message-schema-def
+    | transformation-def
+    | mapping-def
+    | routing-def
+    | workflow-def
+    | orchestration-def
+    | event-bridge-def
+    | error-policy-def
+    | security-ref
+    | annotation-def ;
+
+security-ref    = "security" , "use" , qualified-name , ";" ;
+
+(* ============================== *)
+(* CONTEXT                        *)
+(* ============================== *)
+
+integration-context-def
+                = "context" , identifier , "{" ,
+                    [ "label" , "=" , string , ";" ] ,
+                    [ "description" , "=" , string , ";" ] ,
+                    [ "domain" , "=" , qualified-name , ";" ] ,
+                    { context-binding } ,
+                  "}" ;
+
+context-binding = "bind" , identifier , "=" , qualified-name , ";" ;
+
+(* ============================== *)
+(* ADAPTERS                       *)
+(* ============================== *)
+
+adapter-def     = "adapter" , identifier , "{" ,
+                    [ "label" , "=" , string , ";" ] ,
+                    "protocol" , "=" , adapter-protocol , ";" ,
+                    [ "direction" , "=" , adapter-direction , ";" ] ,
+                    [ "auth" , "=" , auth-method , ";" ] ,
+                    [ "serialization" , "=" , serialization-kind , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+adapter-protocol
+                = "http" | "rest" | "soap" | "grpc"
+                | "queue" | "kafka" | "mqtt"
+                | "file" | "sftp" | identifier ;
+
+adapter-direction
+                = "inbound" | "outbound" | "bidirectional" ;
+
+auth-method     = "none" | "basic" | "oauth2" | "jwt" | "api-key" | identifier ;
+serialization-kind
+                = "json" | "xml" | "avro" | "protobuf" | identifier ;
+
+(* ============================== *)
+(* ENDPOINTS                      *)
+(* ============================== *)
+
+endpoint-def    = "endpoint" , identifier , "{" ,
+                    [ "label" , "=" , string , ";" ] ,
+                    "adapter" , "=" , qualified-name , ";" ,
+                    [ "url" , "=" , string , ";" ] ,
+                    [ "method" , "=" , http-method , ";" ] ,
+                    [ "timeout_ms" , "=" , integer , ";" ] ,
+                    [ "retry_policy" , "=" , qualified-name , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+http-method     = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | identifier ;
+
+(* ============================== *)
+(* CONTRACTS                      *)
+(* ============================== *)
+
+contract-def    = "contract" , identifier , "{" ,
+                    [ "entity" , "=" , qualified-name , ";" ] ,
+                    [ "action" , "=" , qualified-name , ";" ] ,
+                    [ "event"  , "=" , qualified-name , ";" ] ,
+                    "input"  , "=" , qualified-name , ";" ,
+                    "output" , "=" , qualified-name , ";" ,
+                    { contract-rule } ,
+                  "}" ;
+
+contract-rule   = "require" , condition-expr , ";" ;
+
+(* ============================== *)
+(* MESSAGE SCHEMAS                *)
+(* ============================== *)
+
+message-schema-def
+                = "message" , identifier , "{" ,
+                    [ "label" , "=" , string , ";" ] ,
+                    [ "based-on" , "=" , qualified-name , ";" ] ,
+                    { field-def } ,
+                  "}" ;
+
+field-def       = "field" , identifier , ":" , type-ref , ";" ;
+
+type-ref        = "string"
+                | "int"
+                | "float"
+                | "boolean"
+                | "datetime"
+                | "json"
+                | qualified-name ;
+
+(* ============================== *)
+(* TRANSFORMATIONS                *)
+(* ============================== *)
+
+transformation-def
+                = "transform" , identifier , "{" ,
+                    "from" , "=" , qualified-name , ";" ,
+                    "to"   , "=" , qualified-name , ";" ,
+                    [ "language" , "=" , transform-lang , ";" ] ,
+                    [ "script" , "=" , string , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+transform-lang  = "js" | "python" | "jq" | "sql" | identifier ;
+
+(* ============================== *)
+(* FIELD & ENTITY MAPPINGS        *)
+(* ============================== *)
+
+mapping-def     = "mapping" , identifier , "{" ,
+                    "from" , "=" , qualified-name , ";" ,
+                    "to"   , "=" , qualified-name , ";" ,
+                    { map-rule } ,
+                  "}" ;
+
+map-rule        = identifier , "->" , identifier , ";" ;
+
+(* ============================== *)
+(* ROUTING                        *)
+(* ============================== *)
+
+routing-def     = "route" , identifier , "{" ,
+                    "source" , "=" , qualified-name , ";" ,
+                    "target" , "=" , qualified-name , ";" ,
+                    [ "when" , "=" , condition-expr , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+(* ============================== *)
+(* WORKFLOWS (DBML-ALIGNED)       *)
+(* ============================== *)
+
+workflow-def    = "workflow" , identifier , "{" ,
+                    [ "entity" , "=" , qualified-name , ";" ] ,
+                    { workflow-step } ,
+                    { workflow-transition } ,
+                  "}" ;
+
+workflow-step   = "step" , identifier , "{" ,
+                    [ "invoke" , "=" , qualified-name , ";" ] ,
+                    [ "emit-event" , "=" , qualified-name , ";" ] ,
+                    [ "call-endpoint" , "=" , qualified-name , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+workflow-transition
+                = "transition" , identifier , "{" ,
+                    "from" , "=" , identifier , ";" ,
+                    "to"   , "=" , identifier , ";" ,
+                    [ "when" , "=" , condition-expr , ";" ] ,
+                  "}" ;
+
+(* ============================== *)
+(* ORCHESTRATION                  *)
+(* ============================== *)
+
+orchestration-def
+                = "orchestration" , identifier , "{" ,
+                    "workflow" , "=" , qualified-name , ";" ,
+                    { orchestration-hook } ,
+                  "}" ;
+
+orchestration-hook
+                = "on" , orchestration-event , "do" , qualified-name , ";" ;
+
+orchestration-event
+                = "start" | "complete" | "error" | identifier ;
+
+(* ============================== *)
+(* EVENT BRIDGES                  *)
+(* ============================== *)
+
+event-bridge-def
+                = "eventBridge" , identifier , "{" ,
+                    "from-event" , "=" , qualified-name , ";" ,
+                    "to-adapter" , "=" , qualified-name , ";" ,
+                    [ "mapping" , "=" , qualified-name , ";" ] ,
+                    { property } ,
+                  "}" ;
+
+(* ============================== *)
+(* ERROR & RETRY POLICIES         *)
+(* ============================== *)
+
+error-policy-def = "errorPolicy" , identifier , "{" ,
+                    [ "retry" , "=" , integer , ";" ] ,
+                    [ "backoff_ms" , "=" , integer , ";" ] ,
+                    [ "on-failure" , "=" , failure-action , ";" ] ,
+                  "}" ;
+
+failure-action  = "abort" | "compensate" | "notify" | identifier ;
+
+(* ============================== *)
+(* CONDITIONS                     *)
+(* ============================== *)
+
+condition-expr  = string ;
+
+(* ============================== *)
+(* ANNOTATIONS & PROPERTIES       *)
+(* ============================== *)
+
+annotation-def  = "@" , identifier , [ "(" , annotation-args , ")" ] , ";" ;
+
+annotation-args = annotation-arg , { "," , annotation-arg } ;
+annotation-arg  = identifier , "=" , scalar ;
+
+property        = identifier , "=" , scalar , ";" ;
+
+(* ============================== *)
+(* END                            *)
+(* ============================== *)

@@ -1,9 +1,9 @@
 // ============================================================
 // BLML v1.1 — Business Logic & Rules Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Purpose : Formalizes TNA scoring, participant eligibility,
 //           activity scores, impact metrics, and automation
 //           trigger conditions for the DTI EMS platform.
@@ -695,4 +695,194 @@ blml model DTI_BusinessLogic {
     description = "Only verified DTI beneficiaries may appear in the public enterprise directory." ;
   }
 
+  policy EnterpriseMembershipPolicy {
+    label = "Enterprise Membership Join-Request & Approval Policy" ;
+    rule  = BlockDuplicateMembership ;
+    rule  = RestrictJoinRequestToPublicEnterprises ;
+    rule  = SetJoinRequestAsPending ;
+    rule  = AllowOwnerAdminToRespondJoinRequest ;
+    rule  = OwnerDirectAddBypassesPending ;
+    rule  = DeactivateMemberOnRemoval ;
+    description = "Users must have at most one active/pending membership at a time. "
+                  "Join requests start as PENDING and require owner/admin approval. "
+                  "Direct owner-added members are set to ACTIVE immediately." ;
+  }
+
+  policy AdminSettingsPolicy {
+    label = "Admin SMTP Settings Management Policy" ;
+    rule  = RequireSuperAdminForSettings ;
+    rule  = ReloadMailerOnSave ;
+    rule  = MaskSmtpPassInResponse ;
+    description = "Only super_admin may update system settings. "
+                  "Saving SMTP settings triggers an immediate live mailer reload. "
+                  "smtp_pass is never returned in GET responses." ;
+  }
+
+}
+
+// ────────────────────────────────────────────────────
+// ENTERPRISE MEMBERSHIP LOGIC CONTEXT
+// ────────────────────────────────────────────────────
+
+context EnterpriseMembershipLogic {
+  label   = "Enterprise Membership Join-Request, Approval and Team Management" ;
+  version = "1.0" ;
+  source  = "services/identity-service/src/routes/enterprises.ts" ;
+
+  // ─────────────────────────────────────────────
+  // RULES
+  // ─────────────────────────────────────────────
+
+  rule BlockDuplicateMembership {
+    if existing_membership_status IN ["ACTIVE", "PENDING"] ;
+    then {
+      reject_join_request("You already have an active or pending membership in an enterprise.") ;
+    }
+    label = "Prevent a user from having more than one active/pending enterprise membership" ;
+  }
+
+  rule RestrictJoinRequestToPublicEnterprises {
+    if enterprise.is_publicly_listed == false ;
+    then {
+      reject_join_request("This enterprise is not publicly listed and does not accept open join requests.") ;
+    }
+    label = "Only publicly listed enterprises accept join requests from the directory" ;
+  }
+
+  rule SetJoinRequestAsPending {
+    if user_submits_join_request == true ;
+    if BlockDuplicateMembership passes ;
+    then {
+      create_membership(status = "PENDING", role = "MEMBER") ;
+    }
+    label = "New self-initiated join requests always start with status=PENDING" ;
+  }
+
+  rule AllowOwnerAdminToRespondJoinRequest {
+    if actor_role IN ["OWNER", "ADMIN"] ;
+    if membership.status == "PENDING" ;
+    if response IN ["approve", "reject"] ;
+    then {
+      if response == "approve" { set membership.status = "ACTIVE" ; }
+      if response == "reject"  { set membership.status = "REJECTED" ; }
+      log_audit(actor_id, action = response + "_join_request", target = membership.id) ;
+    }
+    label = "Enterprise owner/admin can approve (ACTIVE) or reject (REJECTED) pending requests" ;
+  }
+
+  rule OwnerDirectAddBypassesPending {
+    if actor_role IN ["OWNER", "ADMIN"] ;
+    if action == "add_member" ;
+    then {
+      create_membership(status = "ACTIVE", role = specified_role) ;
+    }
+    label = "Members directly added by owner/admin are immediately ACTIVE (no PENDING step)" ;
+  }
+
+  rule DeactivateMemberOnRemoval {
+    if actor_role IN ["OWNER", "ADMIN"] ;
+    if action == "remove_member" ;
+    then {
+      set membership.status = "INACTIVE" ;
+      set membership.is_active = false ;
+    }
+    label = "Removing a member sets status=INACTIVE and is_active=false (soft delete)" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DECISION TABLE
+  // ─────────────────────────────────────────────
+
+  decision-table MembershipStatusTransitionTable {
+    label = "Allowable enterprise membership status transitions by action and actor" ;
+
+    inputs : [
+      current_status
+      actor_role
+      action
+    ]
+
+    outputs : [
+      allowed
+      next_status
+    ]
+
+    row { current_status = "none"     ; actor_role = "any_user"     ; action = "join_request"    ; allowed = true  ; next_status = "PENDING" ; }
+    row { current_status = "PENDING"  ; actor_role = "OWNER|ADMIN"  ; action = "approve"         ; allowed = true  ; next_status = "ACTIVE"  ; }
+    row { current_status = "PENDING"  ; actor_role = "OWNER|ADMIN"  ; action = "reject"          ; allowed = true  ; next_status = "REJECTED" ; }
+    row { current_status = "ACTIVE"   ; actor_role = "OWNER|ADMIN"  ; action = "remove"          ; allowed = true  ; next_status = "INACTIVE" ; }
+    row { current_status = "INACTIVE" ; actor_role = "OWNER|ADMIN"  ; action = "re_add"          ; allowed = true  ; next_status = "ACTIVE"  ; }
+    row { current_status = "none"     ; actor_role = "OWNER|ADMIN"  ; action = "direct_add"      ; allowed = true  ; next_status = "ACTIVE"  ; }
+    row { current_status = "PENDING"  ; actor_role = "any_user"     ; action = "approve"         ; allowed = false ; next_status = "none"    ; }
+  }
+}
+
+// ────────────────────────────────────────────────────
+// ADMIN SETTINGS LOGIC CONTEXT
+// ────────────────────────────────────────────────────
+
+context AdminSettingsLogic {
+  label   = "Admin System Settings — SMTP Configuration and Reload" ;
+  version = "1.0" ;
+  source  = "services/identity-service/src/routes/admin.ts" ;
+
+  // ─────────────────────────────────────────────
+  // RULES
+  // ─────────────────────────────────────────────
+
+  rule RequireSuperAdminForSettings {
+    if actor_role != "super_admin" ;
+    then {
+      reject_with_403("Only super_admin may manage system settings.") ;
+    }
+    label = "System settings endpoints are restricted to super_admin role" ;
+  }
+
+  rule ReloadMailerOnSave {
+    if smtp_settings_updated == true ;
+    then {
+      persist_settings_to_db(SystemSetting) ;  // stores in system_settings table
+      call reloadMailer() ;                     // hot-reloads nodemailer transporter
+      if reload_fails {
+        return_error("SMTP settings saved but connection failed. Please verify credentials.") ;
+      }
+      else {
+        return_success("SMTP settings saved and mailer reconnected.") ;
+      }
+    }
+    label = "Saving SMTP settings immediately triggers a live mailer reload via reloadMailer()" ;
+  }
+
+  rule MaskSmtpPassInResponse {
+    if request_method == "GET" ;
+    if key == "smtp_pass" ;
+    then {
+      return_value = "***" ;
+    }
+    label = "smtp_pass is never returned in GET /admin/settings/email — replaced with ***" ;
+  }
+
+  // ─────────────────────────────────────────────
+  // DECISION TABLE
+  // ─────────────────────────────────────────────
+
+  decision-table SMTPPresetTable {
+    label = "SMTP preset configuration values by provider" ;
+
+    inputs : [
+      preset_name
+    ]
+
+    outputs : [
+      smtp_host
+      smtp_port
+      smtp_secure
+      notes
+    ]
+
+    row { preset_name = "Mailpit_Dev"         ; smtp_host = "localhost"      ; smtp_port = 1025 ; smtp_secure = false ; notes = "Local dev only — Mailpit Docker" ; }
+    row { preset_name = "Gmail_STARTTLS_587"  ; smtp_host = "smtp.gmail.com" ; smtp_port = 587  ; smtp_secure = false ; notes = "Google STARTTLS; requires App Password" ; }
+    row { preset_name = "Gmail_SSL_465"       ; smtp_host = "smtp.gmail.com" ; smtp_port = 465  ; smtp_secure = true  ; notes = "Google SSL; requires App Password" ; }
+    row { preset_name = "Custom"              ; smtp_host = "user-defined"   ; smtp_port = 0    ; smtp_secure = false ; notes = "Fully manual configuration" ; }
+  }
 }

@@ -1,9 +1,9 @@
 // ============================================================
 // SDML v2.0 — Security Design Model
 // System  : DTI Region 7 — EMS & Industry Dashboard
-// Version : 1.1
+// Version : 1.2
 // Date    : 2026-04-16
-// Updated : 2026-04-17
+// Updated : 2026-04-26
 // Compliance: Data Privacy Act (DPA) of 2012 (RA 10173)
 //             NIST Cybersecurity Framework (CSF)
 //             OWASP Top 10
@@ -124,6 +124,24 @@ model DTI_SecurityModel {
     description      : "Phase 3: Message broker for async inter-service communication. Currently HTTP fire-and-forget is used between event-service and notification-service."
   }
 
+  asset SmtpCredentials {
+    type             : identity
+    criticality      : high
+    confidentiality  : high
+    integrity        : high
+    availability     : moderate
+    description      : "Gmail App Password and SMTP settings stored in the system_settings DB table and env vars. Compromise enables sending phishing emails from the DTI domain."
+  }
+
+  asset SystemSettings {
+    type             : config
+    criticality      : medium
+    confidentiality  : high
+    integrity        : high
+    availability     : medium
+    description      : "Admin-configurable platform settings stored in system_settings table. Keys include SMTP credentials. Writable only by super_admin via Admin → Settings panel."
+  }
+
   asset PostgresDatabase {
     type             : infrastructure
     criticality      : high
@@ -205,6 +223,34 @@ model DTI_SecurityModel {
     description : "A participant-role user calls protected admin API endpoints by omitting role checks, gaining unauthorized access."
     targets     : [ UserPII EnterpriseData AttendanceRecords ]
     likelihood  : medium
+  }
+
+  threat SMTPCredentialLeak {
+    vector      : insider
+    description : "Gmail App Password stored in system_settings DB or .env is exposed via misconfigured admin API, log output, or version control, enabling the attacker to send emails as DTI."
+    targets     : [ SmtpCredentials UserPII ]
+    likelihood  : medium
+  }
+
+  threat UnauthorizedSettingsChange {
+    vector      : software
+    description : "A non-admin user exploits a missing role check on PUT /admin/settings/email to change SMTP credentials, hijacking email delivery."
+    targets     : [ SmtpCredentials SystemSettings ]
+    likelihood  : low
+  }
+
+  threat SMTPCredentialLeak {
+    vector      : insider
+    description : "Gmail App Password stored in system_settings DB or .env is exposed via misconfigured admin API, log output, or version control, enabling the attacker to send emails as DTI."
+    targets     : [ SmtpCredentials UserPII ]
+    likelihood  : medium
+  }
+
+  threat UnauthorizedSettingsChange {
+    vector      : software
+    description : "A non-admin user exploits a missing role check on PUT /admin/settings/email to change SMTP credentials, hijacking email delivery."
+    targets     : [ SmtpCredentials SystemSettings ]
+    likelihood  : low
   }
 
   // ─────────────────────────────────────────────
@@ -491,6 +537,30 @@ model DTI_SecurityModel {
     applies_to_entities : [ PostgresDatabase ]
     implementation : "Database service accounts use least-privilege roles (SELECT-only for Analytics, SELECT+INSERT+UPDATE for Event Service). Superuser access disabled for application accounts. DB admin access only via Vault-managed dynamic credentials."
     owner          : "ICT Division"
+  }
+
+  control CTRL_SmtpCredentialPolicy {
+    function     : protect
+    category     : data_security
+    subcategory  : PR_DS_1
+    applies_to_entities : [ IdentityService ]
+    implementation : "SMTP credentials (Gmail App Password) stored in system_settings DB and .env (never committed to VCS). Admin Settings API (PUT /admin/settings/email) guarded by super_admin RBAC. smtp_pass never returned in GET /admin/settings/email response. App Passwords scoped to Mail only; revocable independently of the Google account password."
+    owner          : "ICT Division"
+    backend_implications {
+      rule : "GET /admin/settings/email must mask smtp_pass (return empty string). DB value stored as-is; only transmitted over TLS."
+    }
+  }
+
+  control CTRL_SmtpCredentialPolicy {
+    function     : protect
+    category     : data_security
+    subcategory  : PR_DS_1
+    applies_to_entities : [ IdentityService ]
+    implementation : "SMTP credentials (Gmail App Password) stored only in system_settings DB (encrypted row-level) and .env (never committed to VCS). Admin Settings API (PUT /admin/settings/email) is guarded by super_admin RBAC. Passwords never returned in GET /admin/settings/email response. App Passwords scoped to Mail only; revocable independently of the Google account password."
+    owner          : "ICT Division"
+    backend_implications {
+      rule : "GET /admin/settings/email must mask smtp_pass (return empty string or '***'). DB value stored as-is; only transmitted over TLS."
+    }
   }
 
   // ─────────────────────────────────────────────

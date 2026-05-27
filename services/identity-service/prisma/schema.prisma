@@ -28,6 +28,7 @@ enum UserRole {
 
 enum UserStatus {
   PENDING_VERIFICATION
+  PENDING_APPROVAL
   ACTIVE
   SUSPENDED
   DEACTIVATED
@@ -35,12 +36,78 @@ enum UserStatus {
 }
 
 enum EnterpriseStage {
-  PRE_STARTUP
-  STARTUP
+  IDEATION
+  VALIDATION
   GROWTH
   EXPANSION
-  MATURE
+  MATURITY_EXIT
+}
 
+// MSME CPMS — Category / Level of Assistance
+enum MsmeLevel {
+  LEVEL_0       // Would be or Potential Entrepreneurs
+  LEVEL_1       // Nurturing Startup
+  LEVEL_1_1     // Unregistered
+  LEVEL_1_2     // Partially Registered
+  LEVEL_2       // Growing Enterprises (Registered)
+  LEVEL_3       // Expanding Enterprises (Registered)
+  LEVEL_4       // Sustaining Enterprises (Registered)
+  CEASED        // Ceased Operations
+}
+
+enum FormOfOrganization {
+  SOLE_PROPRIETORSHIP
+  PARTNERSHIP
+  ASSOCIATION
+  CORPORATION
+  COOPERATIVE
+  WORKERS_RURAL_ASSOCIATION
+  ONE_PERSON_CORPORATION
+  FRANCHISE
+}
+
+enum AssetSizeClassification {
+  MICRO   // Up to Php3,000,000
+  SMALL   // Php3,000,001 to Php15,000,000
+  MEDIUM  // Php15,000,001 to Php100,000,000
+  LARGE   // More than Php100,000,000
+}
+
+enum BusinessActivity {
+  MANUFACTURING_PRODUCING
+  WHOLESALING_TRADING
+  RETAILING_TRADING
+  EXPORTING
+  IMPORTING
+  SERVICE
+}
+
+enum EdtLevel {
+  LEVEL_0
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+  LEVEL_4
+}
+
+enum RipplesStage {
+  STAGE_5
+  STAGE_6
+  STAGE_7
+}
+
+enum SmeraStage {
+  STAGE_1
+  STAGE_2
+  STAGE_3
+  STAGE_4
+}
+
+enum DigitalizationLevel {
+  LEVEL_0  // No use of digital tools
+  LEVEL_1  // Basic
+  LEVEL_2  // Intermediate
+  LEVEL_3  // Advanced
 }
 
 enum MembershipRole {
@@ -73,6 +140,7 @@ model UserProfile {
   // DTI Demographics (FM-CT-2A, FM-CSF-ACT)
   nameSuffix             String? @map("name_suffix")
   sex                    String? // MALE, FEMALE
+  birthdate              DateTime? @map("birth_date")
   ageBracket             String? @map("age_bracket") // AGE_19_OR_LOWER, AGE_20_TO_34, AGE_35_TO_49, AGE_50_TO_64, AGE_65_OR_HIGHER
   employmentCategory     String? @map("employment_category") // SELF_EMPLOYED, EMPLOYED_GOVT, EMPLOYED_PRIVATE, GENERAL_PUBLIC
   socialClassification   String? @map("social_classification") // ABLED, PWD, FOUR_PS, YOUTH, SENIOR_CITIZEN, INDIGENOUS_PERSON, OFW, OTHERS
@@ -118,36 +186,195 @@ model EnterpriseProfile {
   id               String          @id @default(cuid())
   userId           String          @map("user_id")
 
-  businessName     String          @map("business_name")
-  tradeName        String?         @map("trade_name")
-  registrationNo   String?         @map("registration_no")
+  // ── Section 1: Client IDs ─────────────────────────────────────────────────
+  cpmsIdNumber     String?         @map("cpms_id_number")
+  oldCpmsIdNumber  String?         @map("old_cpms_id_number")
+  philsysNumber    String?         @map("philsys_number")
   tinNumber        String?         @map("tin_number")
+  dtiKonekIdNumber String?         @map("dti_konek_id_number")
 
-  industrySector   String          @map("industry_sector")
-  industryTags     String[]        @map("industry_tags")
-  stage            EnterpriseStage @default(STARTUP)
+  // ── Section 2: MSME Status / Level ───────────────────────────────────────
+  msmeLevel            MsmeLevel?  @map("msme_level")
+  levelZeroCategories  String[]    @map("level_zero_categories") // for LEVEL_0 multi-select
+  businessIsRegistered Boolean?    @map("business_is_registered")
 
-  employeeCount    Int?            @map("employee_count")
-  annualRevenue    Decimal?        @map("annual_revenue") @db.Decimal(15, 2)
+  // ── Section 3: Business Registration ─────────────────────────────────────
+  businessName           String          @map("business_name")
+  registeredBusinessName String?         @map("registered_business_name")
+  tradeName              String?         @map("trade_name")
+  dateOfRegistration     DateTime?       @map("date_of_registration")
+  registrationNo         String?         @map("registration_no")     // primary DTI/SEC reg no
+  ipoRegistrationNumber  String?         @map("ipo_registration_number")
 
-  // Address
-  region           String?
-  province         String?
-  cityMunicipality String?         @map("city_municipality")
+  // Registrations & Licenses (JSON arrays)
+  // businessRegistrations: [{ type: 'DTI'|'SEC'|'DOLE'|'CDA'|'OTHERS', registrationNo: string, expiry: string|null }]
+  businessRegistrations  Json?           @map("business_registrations")
+  // businessPermits: [{ type: 'BUSINESS_PERMIT'|'BIR'|'FDA'|'BMBE'|'OTHERS', permitNo: string, expiry: string|null }]
+  businessPermits        Json?           @map("business_permits")
+  // secondaryLicenses: [{ type: 'ICC'|'ISO'|'PRODUCT_STANDARD'|'OTHERS', licenseNo: string, expiry: string|null }]
+  secondaryLicenses      Json?           @map("secondary_licenses")
+
+  // ── Section 4: Business Address ───────────────────────────────────────────
+  houseNo          String?         @map("house_no")
+  streetName       String?         @map("street_name")
+  streetAddress    String?         @map("street_address")  // legacy combined field
   barangay         String?
+  district         String?
+  cityMunicipality String?         @map("city_municipality")
+  province         String?
+  region           String?
+  zipCode          String?         @map("zip_code")
   latitude         Decimal?        @db.Decimal(10, 7)
   longitude        Decimal?        @db.Decimal(10, 7)
 
+  // ── Section 5: Business Contact Details ──────────────────────────────────
+  businessEmail    String?         @map("business_email")
+  businessPhone    String?         @map("business_phone")
+  businessFax      String?         @map("business_fax")
+  websiteUrl       String?         @map("website_url")
+  socialMediaFacebook  String?     @map("social_media_facebook")
+  socialMediaInstagram String?     @map("social_media_instagram")
+  socialMediaLinkedIn  String?     @map("social_media_linkedin")
+  socialMediaOthers    String?     @map("social_media_others")
+  // ecommercePlatforms: [{ platform: 'SHOPEE'|'LAZADA'|'APEC'|'GO_LOKAL'|'OTHERS', url: string }]
+  ecommercePlatforms   Json?       @map("ecommerce_platforms")
+
+  // ── Section 6: Business Profile ───────────────────────────────────────────
+  description            String?              @db.Text
+  yearEstablished        Int?                 @map("year_established")
+  formOfOrganization     FormOfOrganization?  @map("form_of_organization")
+  assetSizeClassification AssetSizeClassification? @map("asset_size_classification")
+  primaryBusinessActivity   BusinessActivity? @map("primary_business_activity")
+  secondaryBusinessActivity BusinessActivity? @map("secondary_business_activity")
+
+  // PSIC
+  psicSection  String?  @map("psic_section")
+  psicDivision String?  @map("psic_division")
+  psicGroup    String?  @map("psic_group")
+
+  priorityIndustry            String?  @map("priority_industry")
+  industryClusterEnhancement  String?  @map("industry_cluster_enhancement")
+  industrySector              String   @map("industry_sector")
+  industryTags                String[] @map("industry_tags")
+  tradeAssociationAffiliations String[] @map("trade_association_affiliations")
+
+  // Legacy stage field (kept for backward compat)
+  stage            EnterpriseStage @default(VALIDATION)
+
+  // ── Section 7: Business Owner Information ─────────────────────────────────
+  ownerPrefix           String?    @map("owner_prefix")
+  ownerFirstName        String?    @map("owner_first_name")
+  ownerMiddleName       String?    @map("owner_middle_name")
+  ownerLastName         String?    @map("owner_last_name")
+  ownerSuffix           String?    @map("owner_suffix")
+  ownerBirthdate        DateTime?  @map("owner_birthdate")
+  ownerCitizenship      String?    @map("owner_citizenship")
+  ownerSex              String?    @map("owner_sex")              // MALE | FEMALE
+  ownerCivilStatus      String?    @map("owner_civil_status")     // SINGLE | MARRIED | WIDOWED | LEGALLY_SEPARATED
+  ownerSocialClassification String? @map("owner_social_classification")
+  ownerHouseNo          String?    @map("owner_house_no")
+  ownerStreetName       String?    @map("owner_street_name")
+  ownerBarangay         String?    @map("owner_barangay")
+  ownerDistrict         String?    @map("owner_district")
+  ownerCityMunicipality String?    @map("owner_city_municipality")
+  ownerProvince         String?    @map("owner_province")
+  ownerRegion           String?    @map("owner_region")
+  ownerZipCode          String?    @map("owner_zip_code")
+
+  // ── Section 8: Business Trackers ──────────────────────────────────────────
+  edtLevel            EdtLevel?           @map("edt_level")
+  ripplesStage        RipplesStage?       @map("ripples_stage")
+  smeraStage          SmeraStage?         @map("smera_stage")
+  digitalizationLevel DigitalizationLevel? @map("digitalization_level")
+  // digitalToolsUsed: [{ category: 'COLLABORATIVE_SUITES'|'COMMUNICATION'|'PROJECT_MGMT'|'ACCOUNTING_PAYROLL'|'CMS'|'CYBERSECURITY'|'CLOUD_STORAGE'|'FINTECH', toolName: string }]
+  digitalToolsUsed    Json?               @map("digital_tools_used")
+  hasEmail            Boolean?            @map("has_email")
+  hasFacebook         Boolean?            @map("has_facebook")
+
+  // ── Section 9: Business Financial Structure ───────────────────────────────
+  initialCapitalization      Decimal?  @map("initial_capitalization") @db.Decimal(18, 2)
+  initialCapitalizationYear  Int?      @map("initial_capitalization_year")
+  authorizedCapital          Decimal?  @map("authorized_capital") @db.Decimal(18, 2)
+  subscribedCapital          Decimal?  @map("subscribed_capital") @db.Decimal(18, 2)
+  paidUpCapital              Decimal?  @map("paid_up_capital") @db.Decimal(18, 2)
+  assetSizeRange             String?   @map("asset_size_range")
+  domesticSales              Decimal?  @map("domestic_sales") @db.Decimal(18, 2)
+  exportSales                Decimal?  @map("export_sales") @db.Decimal(18, 4)
+  annualRevenue              Decimal?  @map("annual_revenue") @db.Decimal(15, 2)
+
+  // ── Section 10: Market Access ──────────────────────────────────────────────
+  // domesticMarkets: [{ productService: string, region: string, province: string }]
+  domesticMarkets  Json?  @map("domestic_markets")
+  // exportMarkets: [{ dateStarted: string|null, productService: string, country: string, tradeBoc: string }]
+  exportMarkets    Json?  @map("export_markets")
+  // importMarkets: [{ dateStarted: string|null, productCommodity: string, country: string }]
+  importMarkets    Json?  @map("import_markets")
+
+  // ── Section 11: Product / Services Line ───────────────────────────────────
+  // productLines: [{ productService: string, description: string, majorRawMaterials: string, annualProductionCapacity: string, year: number|null, valueVolume: string, unitOfMeasure: string }]
+  productLines  Json?  @map("product_lines")
+
+  // ── Section 12: Product/Service Certifications ────────────────────────────
+  // productCertifications: [{ certificationType: string, certifyingBody: string, expiryDate: string|null }]
+  productCertifications  Json?  @map("product_certifications")
+
+  // ── Section 13: Employment Statistics ─────────────────────────────────────
+  ftAbledMale        Int?  @map("ft_abled_male")
+  ftAbledFemale      Int?  @map("ft_abled_female")
+  ftDiffAbledMale    Int?  @map("ft_diff_abled_male")
+  ftDiffAbledFemale  Int?  @map("ft_diff_abled_female")
+  ftIndigenousMale   Int?  @map("ft_indigenous_male")
+  ftIndigenousFemale Int?  @map("ft_indigenous_female")
+  ftSeniorMale       Int?  @map("ft_senior_male")
+  ftSeniorFemale     Int?  @map("ft_senior_female")
+  ptAbledMale        Int?  @map("pt_abled_male")
+  ptAbledFemale      Int?  @map("pt_abled_female")
+  ptDiffAbledMale    Int?  @map("pt_diff_abled_male")
+  ptDiffAbledFemale  Int?  @map("pt_diff_abled_female")
+  ptIndigenousMale   Int?  @map("pt_indigenous_male")
+  ptIndigenousFemale Int?  @map("pt_indigenous_female")
+  ptSeniorMale       Int?  @map("pt_senior_male")
+  ptSeniorFemale     Int?  @map("pt_senior_female")
+
+  // ── Tracking ───────────────────────────────────────────────────────────────
+  employeeCount    Int?            @map("employee_count")  // legacy; use ft/pt fields above
   isVerified       Boolean         @default(false) @map("is_verified")
   isPubliclyListed Boolean         @default(false) @map("is_publicly_listed")
+
+  profileUpdateDue       Boolean   @default(true)  @map("profile_update_due")
+  profileLastUpdatedAt   DateTime? @map("profile_last_updated_at")
+  profileLastUpdatedBy   String?   @map("profile_last_updated_by")
+  annualUpdateYear       Int?      @map("annual_update_year")
 
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
   user             UserProfile            @relation(fields: [userId], references: [id], onDelete: Cascade)
   memberships      EnterpriseMembership[]
+  updateLogs       EnterpriseUpdateLog[]
 
   @@map("enterprise_profiles")
+}
+
+model EnterpriseUpdateLog {
+  id           String   @id @default(cuid())
+  enterpriseId String   @map("enterprise_id")
+  updatedBy    String   @map("updated_by")      // userId
+  updatedAt    DateTime @default(now()) @map("updated_at")
+  updateYear   Int      @map("update_year")     // calendar year of this update
+  updateType   String   @map("update_type")     // FIRST_LOGIN | ANNUAL | VOLUNTARY
+  changedFields Json    @map("changed_fields")  // array of { field, oldValue, newValue }
+  snapshotAfter Json    @map("snapshot_after")  // full enterprise data after update
+  ipAddress    String?  @map("ip_address")
+  notes        String?  @db.Text
+
+  enterprise   EnterpriseProfile @relation(fields: [enterpriseId], references: [id], onDelete: Cascade)
+
+  @@index([enterpriseId])
+  @@index([updatedBy])
+  @@index([updateYear])
+  @@index([updatedAt])
+  @@map("enterprise_update_logs")
 }
 
 model EnterpriseMembership {

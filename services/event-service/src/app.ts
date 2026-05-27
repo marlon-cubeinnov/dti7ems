@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { dbPlugin } from './plugins/db.js';
 import { jwtPlugin } from './plugins/jwt.js';
 import { errorHandler } from './plugins/error-handler.js';
@@ -11,6 +12,7 @@ import { certificateRoutes } from './routes/certificates.js';
 import { surveyRoutes } from './routes/surveys.js';
 import { adminRoutes } from './routes/admin.js';
 import { checklistRoutes } from './routes/checklists.js';
+import tnaRoutes from './routes/tna.js';
 import { cronPlugin } from './plugins/cron.js';
 
 export async function buildApp() {
@@ -40,6 +42,7 @@ export async function buildApp() {
 
   await app.register(dbPlugin);
   await app.register(jwtPlugin);
+  await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 /* 20 MB */ } });
 
   app.setErrorHandler(errorHandler);
 
@@ -49,6 +52,7 @@ export async function buildApp() {
   await app.register(surveyRoutes,        { prefix: '/surveys' });
   await app.register(adminRoutes,         { prefix: '/admin' });
   await app.register(checklistRoutes,     { prefix: '/checklists' });
+  await app.register(tnaRoutes,            { prefix: '/tna' });
 
   // Scheduled background jobs
   await app.register(cronPlugin);

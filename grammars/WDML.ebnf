@@ -1,0 +1,533 @@
+(* ===================================================================== *)
+(* WDML v3.3 -- Web App and Site UI Modeling Language                     *)
+(* Standardized ISO-style EBNF                                            *)
+(* Purpose: Canonical, grammar-constrained modeling of web design         *)
+(*          systems, app shells, pages, forms, tables, interactions, and  *)
+(*          implementation mappings across the Composable Stack.           *)
+(* ===================================================================== *)
+
+(* ============================== *)
+(* LEXICAL                        *)
+(* ============================== *)
+
+identifier        = letter , { letter | digit | "_" | "-" } ;
+qualified-name    = identifier , { "." , identifier } ;
+
+string            = '"' , { string-char } , '"' ;
+integer           = [ "-" ] , digit , { digit } ;
+number            = [ "-" ] , digit , { digit } , [ "." , { digit } ] ;
+boolean           = "true" | "false" ;
+
+scalar            = string | integer | number | boolean ;
+
+letter            = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                                                               | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                                                               | "U" | "V" | "W" | "X" | "Y" | "Z"
+                                                               | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                                                               | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                                                               | "u" | "v" | "w" | "x" | "y" | "z" ;
+digit             = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+string-char       = ? any character except quotation mark and line break ? ;
+
+(* ============================== *)
+(* ROOT MODEL                     *)
+(* ============================== *)
+
+wdml-model        = "wdml" , "model" , identifier , "{" ,
+                                                                             { import-def } ,
+                                                                             { wdml-element } ,
+                                                                      "}" ;
+
+import-def        = "import" , string , [ "as" , identifier ] , ";" ;
+
+wdml-element      =
+                     context-def
+              | design-system-def
+              | site-def
+              | security-ref
+              | annotation-def ;
+
+security-ref      = "security" , "use" , qualified-name , ";" ;
+
+(* ============================== *)
+(* CONTEXT                        *)
+(* ============================== *)
+
+context-def       = "context" , identifier , "{" ,
+                                                                             [ "label" , ":" , string , ";" ] ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                             [ "domain" , ":" , qualified-name , ";" ] ,
+                                                                             { property } ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* DESIGN SYSTEM                  *)
+(* ============================== *)
+
+design-system-def = "designSystem" , identifier , "{" ,
+                                                                             [ design-system-meta-def ] ,
+                                                                             { design-system-element } ,
+                                                                      "}" ;
+
+design-system-element
+                                                               = color-token-def
+                                                               | space-token-def
+                                                               | radius-token-def
+                                                               | shadow-token-def
+                                                               | font-family-def
+                                                               | text-style-def
+                                                               | typography-scale-def
+                                                               | breakpoint-def
+                                                               | layout-pattern-def
+                                                               | density-profile-def
+                                                               | fluid-size-def
+                                                               | layout-constraint-def
+                                                               | safe-area-def
+                                                               | responsive-rule-def
+                                                               | component-theme-def
+                                                               | annotation-def ;
+
+design-system-meta-def
+                                                               = "meta" , "{" ,
+                                                                             [ "title" , ":" , string , ";" ] ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                             [ "brand" , ":" , string , ";" ] ,
+                                                                             [ "version" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+color-token-def   = "color" , identifier , "{" ,
+                                                                             "role" , ":" , color-role , ";" ,
+                                                                             [ "state" , ":" , state-role , ";" ] ,
+                                                                             "value" , ":" , string , ";" ,
+                                                                             [ "usage" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+color-role        = "primary" | "primarySoft" | "secondary" | "accent" | "neutral" | "danger" | "success" | "warning" | "info" | "background" | "surface" | "textPrimary" | "textSecondary" ;
+state-role        = "default" | "hover" | "active" | "focus" | "disabled" ;
+
+space-token-def   = "space" , identifier , "{" , "step" , ":" , number , ";" , "usage" , ":" , string , ";" , "}" ;
+radius-token-def  = "radius" , identifier , "{" , "value" , ":" , number , ";" , "usage" , ":" , string , ";" , "}" ;
+shadow-token-def  = "shadow" , identifier , "{" , "value" , ":" , string , ";" , "usage" , ":" , string , ";" , "}" ;
+
+font-family-def   = "fontFamily" , identifier , "{" ,
+                                                                             "stack" , ":" , string , ";" ,
+                                                                             [ "usage" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+typography-scale-def
+                                                               = "typeScale" , identifier , "{" ,
+                                                                             "baseSize" , ":" , number , ";" ,
+                                                                             "ratio" , ":" , number , ";" ,
+                                                                      "}" ;
+
+text-style-def    = "textStyle" , identifier , "{" ,
+                                                                             "role" , ":" , text-role , ";" ,
+                                                                             "font" , ":" , qualified-name , ";" ,
+                                                                             "size" , ":" , number , ";" ,
+                                                                             [ "weight" , ":" , number , ";" ] ,
+                                                                             [ "lineHeight" , ":" , number , ";" ] ,
+                                                                             [ "letterSpacing" , ":" , number , ";" ] ,
+                                                                      "}" ;
+
+text-role         = "display" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "body" | "bodyStrong" | "caption" | "label" | "code" ;
+
+breakpoint-def    = "breakpoint" , identifier , "{" ,
+                                                                             "alias" , ":" , string , ";" ,
+                                                                             "minWidth" , ":" , number , ";" ,
+                                                                      "}" ;
+
+layout-pattern-def
+                                                               = "layoutPattern" , identifier , "{" ,
+                                                                             "kind" , ":" , layout-kind , ";" ,
+                                                                             [ "columns" , ":" , number , ";" ] ,
+                                                                             [ "gap" , ":" , qualified-name , ";" ] ,
+                                                                             [ "maxWidth" , ":" , number , ";" ] ,
+                                                                             [ "align" , ":" , string , ";" ] ,
+                                                                             [ "notes" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+layout-kind       = "stack" | "columns" | "grid" | "hero" | "sidebar" | "split" | "cardGrid" | "gallery" | "formLayout" ;
+
+density-profile-def
+                                                               = "densityProfile" , identifier , "{" ,
+                                                                             "level" , ":" , density-level , ";" ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+density-level     = "compact" | "comfortable" | "spacious" ;
+
+fluid-size-def    = "fluidSize" , identifier , "{" ,
+                                                                             [ "role" , ":" , text-role , ";" ] ,
+                                                                             "min" , ":" , number , ";" ,
+                                                                             "max" , ":" , number , ";" ,
+                                                                             "scale" , ":" , string , ";" ,
+                                                                             [ "usage" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+layout-constraint-def
+                                                               = "layoutConstraint" , identifier , "{" ,
+                                                                             "target" , ":" , layout-constraint-target , ";" ,
+                                                                             "property" , ":" , string , ";" ,
+                                                                             "value" , ":" , string , ";" ,
+                                                                             [ "breakpoint" , ":" , qualified-name , ";" ] ,
+                                                                             [ "notes" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+layout-constraint-target
+                                                               = "page" | "content" | "sidebar" | "hero" | "section" | "nav" | "custom" ;
+
+safe-area-def     = "safeArea" , identifier , "{" ,
+                                                                             [ "platform" , ":" , string , ";" ] ,
+                                                                             [ "top" , ":" , boolean , ";" ] ,
+                                                                             [ "bottom" , ":" , boolean , ";" ] ,
+                                                                             [ "left" , ":" , boolean , ";" ] ,
+                                                                             [ "right" , ":" , boolean , ";" ] ,
+                                                                             [ "notes" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+responsive-rule-def
+                                                               = "responsiveRule" , identifier , "{" ,
+                                                                             [ "pattern" , ":" , qualified-name , ";" ] ,
+                                                                             [ "sectionKind" , ":" , section-kind , ";" ] ,
+                                                                             [ "breakpoint" , ":" , qualified-name , ";" ] ,
+                                                                             [ "transform" , ":" , string , ";" ] ,
+                                                                             [ "notes" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+component-theme-def
+                                                               = "componentTheme" , identifier , "{" ,
+                                                                             "target" , ":" , component-target , ";" ,
+                                                                             [ "variant" , ":" , string , ";" ] ,
+                                                                             [ "background" , ":" , qualified-name , ";" ] ,
+                                                                             [ "foreground" , ":" , qualified-name , ";" ] ,
+                                                                             [ "borderRadius" , ":" , qualified-name , ";" ] ,
+                                                                             [ "shadow" , ":" , qualified-name , ";" ] ,
+                                                                             [ "padding" , ":" , qualified-name , ";" ] ,
+                                                                             [ "textStyle" , ":" , qualified-name , ";" ] ,
+                                                                             { component-variant-def } ,
+                                                                             { component-state-style-def } ,
+                                                                      "}" ;
+
+component-target  = "button" | "card" | "badge" | "chip" | "navBar" | "navItem" | "sidebarItem" | "input" | "select" | "textarea" | "table" | "stat" | "avatar" | "listItem" | "tag" ;
+
+component-variant-def
+                                                               = "variant" , identifier , "{" , { variant-prop-def } , "}" ;
+
+variant-prop-def  = "prop" , identifier , ":" , variant-type , ";" ;
+variant-type      = string | "enum" , "{" , { string } , "}" ;
+
+component-state-style-def
+                                                               = "stateStyle" , state-role , "{" ,
+                                                                             [ "background" , ":" , qualified-name , ";" ] ,
+                                                                             [ "foreground" , ":" , qualified-name , ";" ] ,
+                                                                             [ "shadow" , ":" , qualified-name , ";" ] ,
+                                                                             [ "borderRadius" , ":" , qualified-name , ";" ] ,
+                                                                             [ "padding" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* SITES                          *)
+(* ============================== *)
+
+site-def          = "site" , identifier , "{" ,
+                                                                             site-meta-def ,
+                                                                             { site-member } ,
+                                                                      "}" ;
+
+site-member       = business-goal-def
+                                                               | design-system-ref
+                                                               | nav-item-def
+                                                               | app-layout-def
+                                                               | form-def
+                                                               | data-table-def
+                                                               | modal-def
+                                                               | drawer-def
+                                                               | interaction-def
+                                                               | page-design-def
+                                                               | annotation-def
+                                                               | property ;
+
+site-meta-def     = "meta" , "{" ,
+                                                                             [ "title" , ":" , string , ";" ] ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                             [ "brandTagline" , ":" , string , ";" ] ,
+                                                                             [ "baseUrl" , ":" , string , ";" ] ,
+                                                                             [ "favicon" , ":" , string , ";" ] ,
+                                                                             [ "audience" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+business-goal-def = "bizGoal" , identifier , "{" ,
+                                                                             "statement" , ":" , string , ";" ,
+                                                                             [ "metric" , ":" , string , ";" ] ,
+                                                                             [ "priority" , ":" , number , ";" ] ,
+                                                                      "}" ;
+
+design-system-ref = "designSystem" , ":" , qualified-name , ";" ;
+
+nav-item-def      = "navItem" , identifier , "{" ,
+                                                                             "label" , ":" , string , ";" ,
+                                                                             ( "href" , ":" , string , ";" | "view" , ":" , qualified-name , ";" ) ,
+                                                                             [ "kind" , ":" , nav-kind , ";" ] ,
+                                                                             [ "icon" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+nav-kind          = "primary" | "secondary" | "footer" | "utility" ;
+
+app-layout-def    = "appLayout" , identifier , "{" ,
+                                                                             "kind" , ":" , app-layout-kind , ";" ,
+                                                                             [ "routePrefix" , ":" , string , ";" ] ,
+                                                                             [ "layoutPattern" , ":" , qualified-name , ";" ] ,
+                                                                             { layout-region-def } ,
+                                                                      "}" ;
+
+app-layout-kind   = "sidebar" | "topNav" | "splitPane" | "blank" ;
+
+layout-region-def = "region" , identifier , "{" ,
+                                                                             "role" , ":" , layout-region-role , ";" ,
+                                                                             [ "navItems" , "{" , { qualified-name } , "}" , ";" ] ,
+                                                                             [ "mountFeatures" , "{" , { qualified-name } , "}" , ";" ] ,
+                                                                             [ "notes" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+layout-region-role
+                                                               = "sidebar" | "top" | "content" | "footer" | "custom" ;
+
+(* ============================== *)
+(* FORMS & TABLES                 *)
+(* ============================== *)
+
+form-def          = "form" , identifier , "{" ,
+                                                                             "title" , ":" , string , ";" ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                             [ "layoutPattern" , ":" , qualified-name , ";" ] ,
+                                                                             [ "bind-view" , ":" , qualified-name , ";" ] ,
+                                                                             [ "fields" , "{" , { form-field-def } , "}" ] ,
+                                                                             [ "submission" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+form-field-def    = "field" , identifier , "{" ,
+                                                                             "label" , ":" , string , ";" ,
+                                                                             "type" , ":" , field-type , ";" ,
+                                                                             [ "required" , ":" , boolean , ";" ] ,
+                                                                             [ "placeholder" , ":" , string , ";" ] ,
+                                                                             [ "helpText" , ":" , string , ";" ] ,
+                                                                             [ "options" , "{" , { string } , "}" , ";" ] ,
+                                                                      "}" ;
+
+field-type        = "text" | "textarea" | "email" | "password" | "number" | "select" | "multiSelect" | "checkbox" | "radio" | "date" | "datetime" | "switch" | "hidden" ;
+
+data-table-def    = "dataTable" , identifier , "{" ,
+                                                                             "title" , ":" , string , ";" ,
+                                                                             [ "bind-entity" , ":" , qualified-name , ";" ] ,
+                                                                             [ "bind-component" , ":" , qualified-name , ";" ] ,
+                                                                             [ "columns" , "{" , { table-column-def } , "}" ] ,
+                                                                             [ "pagination" , ":" , boolean , ";" ] ,
+                                                                             [ "rowInteraction" , ":" , qualified-name , ";" ] ,
+                                                                             "actions" , "{" , { table-action-def } , "}" ,
+                                                                      "}" ;
+
+table-column-def  = "column" , identifier , "{" ,
+                                                                             "header" , ":" , string , ";" ,
+                                                                             "field" , ":" , string , ";" ,
+                                                                             [ "type" , ":" , column-type , ";" ] ,
+                                                                             [ "width" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+column-type       = "string" | "number" | "boolean" | "date" | "badge" | "tag" | "icon" | "custom" ;
+
+table-action-def  = "tableAction" , identifier , "{" ,
+                                                                             "label" , ":" , string , ";" ,
+                                                                             "kind" , ":" , table-action-kind , ";" ,
+                                                                             [ "icon" , ":" , string , ";" ] ,
+                                                                             [ "interaction" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+table-action-kind = "primary" | "secondary" | "row" | "bulk" ;
+
+(* ============================== *)
+(* OVERLAYS & INTERACTIONS        *)
+(* ============================== *)
+
+modal-def         = "modal" , identifier , "{" ,
+                                                                             "title" , ":" , string , ";" ,
+                                                                             [ "size" , ":" , modal-size , ";" ] ,
+                                                                             [ "content-view" , ":" , qualified-name , ";" ] ,
+                                                                             [ "primaryAction" , ":" , qualified-name , ";" ] ,
+                                                                             [ "secondaryAction" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+modal-size        = "sm" | "md" | "lg" | "xl" ;
+
+drawer-def        = "drawer" , identifier , "{" ,
+                                                                             "title" , ":" , string , ";" ,
+                                                                             [ "position" , ":" , drawer-position , ";" ] ,
+                                                                             [ "content-view" , ":" , qualified-name , ";" ] ,
+                                                                             [ "primaryAction" , ":" , qualified-name , ";" ] ,
+                                                                             [ "secondaryAction" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+drawer-position   = "left" | "right" | "top" | "bottom" ;
+
+interaction-def   = "interaction" , identifier , "{" ,
+                                                                             "trigger" , ":" , trigger-event , ";" ,
+                                                                             { interaction-action-def } ,
+                                                                      "}" ;
+
+trigger-event     = string ;
+
+interaction-action-def
+                                                               = "action" , identifier , "{" ,
+                                                                             "kind" , ":" , action-kind , ";" ,
+                                                                             [ "invoke-uxml" , ":" , qualified-name , ";" ] ,
+                                                                             [ "navigateTo" , ":" , string , ";" ] ,
+                                                                             [ "modal" , ":" , qualified-name , ";" ] ,
+                                                                             [ "drawer" , ":" , qualified-name , ";" ] ,
+                                                                             [ "toast" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+action-kind       = "uxml" | "navigate" | "openModal" | "closeModal" | "openDrawer" | "closeDrawer" | "showToast" ;
+
+(* ============================== *)
+(* PAGE DESIGN                    *)
+(* ============================== *)
+
+page-design-def   = "pageDesign" , identifier , "{" ,
+                                                                             page-meta-def ,
+                                                                             "route" , ":" , string , ";" ,
+                                                                             [ "layoutPattern" , ":" , qualified-name , ";" ] ,
+                                                                             [ "bind-feature" , ":" , qualified-name , ";" ] ,
+                                                                             { section-def } ,
+                                                                             { implementation-hint-def } ,
+                                                                             { raw-implementation-def } ,
+                                                                      "}" ;
+
+page-meta-def     = "meta" , "{" ,
+                                                                             [ "title" , ":" , string , ";" ] ,
+                                                                             [ "description" , ":" , string , ";" ] ,
+                                                                             [ "seoIndex" , ":" , boolean , ";" ] ,
+                                                                             [ "audience" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+section-def       = "section" , identifier , "{" ,
+                                                                             "kind" , ":" , section-kind , ";" ,
+                                                                             [ "layoutPattern" , ":" , qualified-name , ";" ] ,
+                                                                             [ "theme" , ":" , qualified-name , ";" ] ,
+                                                                             [ "background" , ":" , background-spec , ";" ] ,
+                                                                             [ "copyTone" , ":" , string , ";" ] ,
+                                                                             [ attribute-bag-def ] ,
+                                                                             { section-content-def } ,
+                                                                             { section-slot-def } ,
+                                                                             [ "formRef" , ":" , qualified-name , ";" ] ,
+                                                                             [ "dataTableRef" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+section-kind      = "hero" | "featureList" | "valueProposition" | "stats" | "testimonial" | "logoWall" | "pricing" | "faq" | "cta" | "blogList" | "blogPost" | "gallery" | "timeline" | "team" | "contact" | "formSection" | "dataTable" | "dashboard" | "custom" ;
+
+background-spec   = "solid" , ":" , qualified-name
+                                                               | "gradient" , ":" , string
+                                                               | "image" , ":" , string
+                                                               | "mixed" , ":" , string ;
+
+attribute-bag-def = "attrs" , "{" , { attribute-def } , "}" ;
+attribute-def     = identifier , ":" , string , ";" ;
+
+section-content-def
+                                                               = heading-content-def
+                                                               | body-content-def
+                                                               | list-content-def
+                                                               | media-content-def
+                                                               | cta-content-def
+                                                               | data-content-def ;
+
+heading-content-def
+                                                               = "heading" , identifier , "{" ,
+                                                                             "text" , ":" , string , ";" ,
+                                                                             [ "style" , ":" , qualified-name , ";" ] ,
+                                                                             [ "level" , ":" , number , ";" ] ,
+                                                                      "}" ;
+
+body-content-def  = "body" , identifier , "{" ,
+                                                                             "text" , ":" , string , ";" ,
+                                                                             [ "style" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+list-content-def  = "list" , identifier , "{" ,
+                                                                             [ "variant" , ":" , string , ";" ] ,
+                                                                             { "item" , string , ";" } ,
+                                                                      "}" ;
+
+media-content-def = "media" , identifier , "{" ,
+                                                                             "kind" , ":" , media-kind , ";" ,
+                                                                             "src" , ":" , string , ";" ,
+                                                                             [ "alt" , ":" , string , ";" ] ,
+                                                                             [ "align" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+media-kind        = "image" | "illustration" | "icon" | "video" | "lottie" ;
+
+cta-content-def   = "cta" , identifier , "{" ,
+                                                                             "label" , ":" , string , ";" ,
+                                                                             "intent" , ":" , string , ";" ,
+                                                                             [ "interaction" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+data-content-def  = "data" , identifier , "{" ,
+                                                                             "kind" , ":" , data-block-kind , ";" ,
+                                                                             { data-item-def } ,
+                                                                      "}" ;
+
+data-block-kind   = "statBlock" | "metricRow" | "kpiGrid" ;
+
+data-item-def     = "item" , identifier , "{" ,
+                                                                             "label" , ":" , string , ";" ,
+                                                                             "value" , ":" , string , ";" ,
+                                                                             [ "icon" , ":" , string , ";" ] ,
+                                                                      "}" ;
+
+section-slot-def  = "slot" , identifier , "{" ,
+                                                                             "role" , ":" , slot-role , ";" ,
+                                                                             [ "component" , ":" , qualified-name , ";" ] ,
+                                                                             [ "interaction" , ":" , qualified-name , ";" ] ,
+                                                                      "}" ;
+
+slot-role         = "primaryCta" | "secondaryCta" | "card" | "feature" | "form" | "custom" ;
+
+(* ============================== *)
+(* IMPLEMENTATION                 *)
+(* ============================== *)
+
+implementation-hint-def
+                                                               = "implementation" , identifier , "{" ,
+                                                                             [ "framework" , ":" , framework-kind , ";" ] ,
+                                                                             [ "css" , ":" , css-strategy , ";" ] ,
+                                                                             { mapping-rule-def } ,
+                                                                      "}" ;
+
+framework-kind    = "react" | "nextjs" | "vue" | "nuxt" | "sveltekit" ;
+css-strategy      = "tailwind" | "cssModules" | "styledComponents" | "plainCss" ;
+
+mapping-rule-def  = "map" , identifier , "{" ,
+                                                                             "from" , ":" , mapping-source , ";" ,
+                                                                             "to" , ":" , string , ";" ,
+                                                                      "}" ;
+
+mapping-source    = "sectionKind" , ":" , section-kind
+                                                               | "slotRole" , ":" , slot-role
+                                                               | "componentTarget" , ":" , component-target
+                                                               | "textRole" , ":" , text-role ;
+
+raw-implementation-def
+                                                               = "implRaw" , "{" ,
+                                                                             "language" , ":" , string , ";" ,
+                                                                             "content" , ":" , string , ";" ,
+                                                                      "}" ;
+
+(* ============================== *)
+(* ANNOTATIONS & PROPERTIES       *)
+(* ============================== *)
+
+annotation-def    = "@" , identifier , [ "(" , annotation-args , ")" ] , ";" ;
+annotation-args   = annotation-arg , { "," , annotation-arg } ;
+annotation-arg    = identifier , "=" , scalar ;
+
+property          = identifier , ":" , scalar , ";" ;

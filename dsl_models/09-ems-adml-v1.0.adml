@@ -1,0 +1,794 @@
+// ============================================================
+// ADML v2.0 — Algorithm & ML Pipeline Design Model
+// System  : DTI Region 7 — EMS & Industry Dashboard
+// Version : 1.0
+// Date    : 2026-05-09
+// Purpose : Define executable algorithms for TNA scoring,
+//           module recommendation, QR token validation,
+//           certificate eligibility, and ML training pipelines.
+//           Cross-references AIML, BLML, DBML, and LRML models.
+//
+// STATUS  : Phase 3 — NOT IMPLEMENTED.
+//           All algorithms and pipelines defined here are
+//           planned for deployment on GCP Vertex AI.
+//           Scoring algorithms (TNA, QR) are implemented in
+//           event-service TypeScript code; these ADML definitions
+//           are the canonical specification. ML pipelines are
+//           entirely future work.
+// ============================================================
+
+adml model DTI_EMS_Algorithms {
+
+  import "./01-ems-dbml-v1.0.dbml" as domain ;
+  import "./05-ems-blml-v1.0.blml" as logic ;
+  import "./08-ems-aiml-v1.0.aiml" as ml ;
+  import "./07-ems-lrml-v1.0.lrml" as reporting ;
+
+  security use domain.DTI_SecurityModel ;
+
+  // ─────────────────────────────────────────────
+  // ALGORITHMS — Core Business Logic
+  // ─────────────────────────────────────────────
+
+  algorithm TNA_ScoringAlgorithm {
+    description : """
+      Computes the weighted TNA composite score from raw participant answers.
+      Applies BLML formulas: TNA_KnowledgeScore, TNA_SkillScore, TNA_MotivationScore,
+      and TNA_CompositeScore. Outputs the composite score (0-100) and the recommended
+      training track (foundational | growth | advanced_export).
+    """ ;
+
+    inputs : [
+      answers_json : json from : DBML ,
+      participation_id : uuid from : DBML ,
+      enterprise_stage : string from : DBML
+    ]
+    outputs : [
+      composite_score : float ,
+      knowledge_score : float ,
+      skill_score : float ,
+      motivation_score : float ,
+      recommended_track : string
+    ]
+
+    context : {
+      uses : [
+        TNALogic : BLML ,
+        EventContext : DBML
+      ]
+      assumptions : [
+        "answers_json contains keys: knowledge_answers, skill_answers, motivation_answers" ,
+        "All answer values are integers in range 0-5"
+      ]
+      dependencies : [
+        TNA_KnowledgeScore ,
+        TNA_SkillScore ,
+        TNA_MotivationScore ,
+        TNA_CompositeScore
+      ]
+    }
+
+    contracts : {
+      preconditions : [
+        "participation_id != null" ,
+        "answers_json != null"
+      ]
+      postconditions : [
+        "composite_score >= 0" ,
+        "composite_score <= 100" ,
+        "recommended_track in foundational growth advanced_export"
+      ]
+      invariants : [
+        "knowledge_score + skill_score + motivation_score weights sum to 1.0"
+      ]
+    }
+
+    steps : {
+      1 : action ( ParseAnswers , [
+        input : answers_json ,
+        schema : TNA_AnswerSchema
+      ])
+      2 : validate ( answers_json != null , onfail : RejectTNASubmission )
+      3 : transform ( answers_json -> knowledge_answers ) using : ExtractKnowledgeAnswers
+      4 : transform ( answers_json -> skill_answers ) using : ExtractSkillAnswers
+      5 : transform ( answers_json -> motivation_answers ) using : ExtractMotivationAnswers
+      6 : action ( ComputeKnowledgeScore , [
+        input : knowledge_answers ,
+        formula : TNA_KnowledgeScore
+      ])
+      7 : action ( ComputeSkillScore , [
+        input : skill_answers ,
+        formula : TNA_SkillScore
+      ])
+      8 : action ( ComputeMotivationScore , [
+        input : motivation_answers ,
+        formula : TNA_MotivationScore
+      ])
+      9 : action ( ComputeCompositeScore , [
+        knowledge_score : knowledge_score ,
+        skill_score : skill_score ,
+        motivation_score : motivation_score ,
+        formula : TNA_CompositeScore
+      ])
+      10 : if ( composite_score < 40 ) then {
+        action ( AssignTrack , [ track : foundational ])
+      } else {
+        if ( composite_score < 70 ) then {
+          action ( AssignTrack , [ track : growth ])
+        } else {
+          action ( AssignTrack , [ track : advanced_export ])
+        }
+      }
+      11 : action ( PersistTNAResult , [
+        participation_id : participation_id ,
+        composite_score : composite_score ,
+        recommended_track : recommended_track
+      ])
+      12 : emit ( Report : reporting.TNAScoreReport )
+    }
+
+    metadata : {
+      complexity : O(n)
+      category : validation
+      tags : [ tna , scoring , phase2 , implemented ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  algorithm QRToken_ValidationAlgorithm {
+    description : """
+      Validates a permanent HMAC-SHA256 QR token, extracts userId, finds the
+      participant's registration for the scanned session's event, and records
+      attendance. Implements the permanent-QR architecture: one token per user
+      system-wide, verified against the HMAC secret.
+    """ ;
+
+    inputs : [
+      qr_token : string from : DBML ,
+      session_id : uuid from : DBML
+    ]
+    outputs : [
+      attendance_record_id : uuid ,
+      participant_status : string ,
+      scan_result : string
+    ]
+
+    context : {
+      uses : [
+        AttendanceLogic : BLML ,
+        EventContext : DBML
+      ]
+      assumptions : [
+        "qr_token is HMAC-SHA256 of userId encoded as hex string" ,
+        "HMAC secret is stored in environment variable QR_HMAC_SECRET" ,
+        "session_id belongs to an existing event"
+      ]
+      dependencies : [
+        ValidateHMACToken ,
+        FindParticipation ,
+        RecordAttendance
+      ]
+    }
+
+    contracts : {
+      preconditions : [
+        "qr_token != null" ,
+        "session_id != null"
+      ]
+      postconditions : [
+        "attendance_record_id != null" ,
+        "scan_result in success already_scanned not_registered invalid_token"
+      ]
+      invariants : [
+        "one AttendanceRecord per (userId, sessionId) at most"
+      ]
+    }
+
+    steps : {
+      1 : validate ( qr_token != null , onfail : RejectInvalidQR )
+      2 : action ( VerifyHMACSignature , [
+        token : qr_token ,
+        secret : QR_HMAC_SECRET
+      ])
+      3 : if ( hmac_valid == false ) then {
+        emit ( Report : InvalidTokenReport )
+        action ( ReturnResult , [ result : invalid_token ])
+      }
+      4 : action ( ExtractUserId , [ token : qr_token ])
+      5 : action ( LookupSession , [ session_id : session_id ])
+      6 : action ( FindParticipation , [
+        user_id : extracted_user_id ,
+        event_id : session.event_id
+      ])
+      7 : if ( participation == null ) then {
+        action ( ReturnResult , [ result : not_registered ])
+      }
+      8 : action ( CheckExistingAttendance , [
+        participation_id : participation.id ,
+        session_id : session_id
+      ])
+      9 : if ( attendance_exists == true ) then {
+        action ( ReturnResult , [ result : already_scanned ])
+      }
+      10 : action ( CreateAttendanceRecord , [
+        participation_id : participation.id ,
+        session_id : session_id ,
+        scan_method : qr
+      ])
+      11 : action ( CheckFullAttendanceCompletion , [
+        participation_id : participation.id
+      ])
+      12 : if ( all_sessions_attended == true ) then {
+        action ( CreateCertificatePlaceholder , [ participation_id : participation.id ])
+      }
+      13 : emit ( Report : AttendanceReport )
+      14 : action ( ReturnResult , [ result : success ])
+    }
+
+    metadata : {
+      complexity : O(1)
+      category : validation
+      tags : [ qr , attendance , phase2 , implemented ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  algorithm CertificateEligibility_Algorithm {
+    description : """
+      Determines whether a participant is eligible for certificate issuance.
+      Checks attendance completion rate against the event threshold (default 100%
+      unless organizer override), participation status, and prior certificate state.
+    """ ;
+
+    inputs : [
+      participation_id : uuid from : DBML ,
+      attendance_threshold : float
+    ]
+    outputs : [
+      is_eligible : boolean ,
+      reason : string ,
+      certificate_id : uuid
+    ]
+
+    context : {
+      uses : [
+        CertificateLogic : BLML ,
+        EventContext : DBML
+      ]
+      assumptions : [
+        "attendance_threshold defaults to 1.0 (100%) if not specified" ,
+        "Participation must have status ATTENDED or CONFIRMED"
+      ]
+      dependencies : [
+        AttendanceCompletionRate ,
+        IssueCertificate
+      ]
+    }
+
+    contracts : {
+      preconditions : [
+        "participation_id != null"
+      ]
+      postconditions : [
+        "if is_eligible == true then certificate_id != null"
+      ]
+      invariants : [
+        "one Certificate per participation at most"
+      ]
+    }
+
+    steps : {
+      1 : action ( LoadParticipation , [ participation_id : participation_id ])
+      2 : action ( LoadAttendanceRecords , [ participation_id : participation_id ])
+      3 : action ( ComputeAttendanceRate , [
+        formula : AttendanceCompletionRate ,
+        sessions_attended : sessions_attended ,
+        total_sessions : total_event_sessions
+      ])
+      4 : validate ( participation.status != cancelled , onfail : RejectCancelled )
+      5 : if ( attendance_rate >= attendance_threshold ) then {
+        action ( IssueCertificate , [
+          participation_id : participation_id ,
+          issue_method : auto
+        ])
+        action ( EnqueueNotification , [
+          trigger : certificate-issued ,
+          participation_id : participation_id
+        ])
+      } else {
+        action ( ReturnResult , [
+          is_eligible : false ,
+          reason : attendance_below_threshold
+        ])
+      }
+      6 : emit ( Report : reporting.CertificateIssuanceReport )
+    }
+
+    metadata : {
+      complexity : O(1)
+      category : validation
+      tags : [ certificate , attendance , phase2 , implemented ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  algorithm TNA_ModuleRecommendationAlgorithm {
+    description : """
+      Recommends a training track for a participant based on TNA features,
+      enterprise stage, and prior event history. Uses ML model when confidence
+      is high; falls back to BLML Bayesian prior when insufficient history or
+      confidence < 0.65.
+    """ ;
+
+    inputs : [
+      tna_features : json from : AIML ,
+      enterprise_stage : string from : DBML ,
+      events_attended_count : int from : DBML ,
+      prediction_confidence_threshold : float
+    ]
+    outputs : [
+      recommended_track : string ,
+      confidence : float ,
+      explanation : string ,
+      used_fallback : boolean
+    ]
+
+    context : {
+      uses : [
+        TNARecommendationContext : AIML ,
+        TNALogic : BLML
+      ]
+      assumptions : [
+        "TNA_ModuleRecommender model is deployed and available on Vertex AI" ,
+        "BLML Bayesian prior is always available as fallback" ,
+        "prediction_confidence_threshold defaults to 0.65"
+      ]
+      dependencies : [
+        TNA_ModuleRecommender ,
+        TNABayesianPrior ,
+        EnterpriseStageEncoder ,
+        TNA_ScoreNormalizer
+      ]
+    }
+
+    contracts : {
+      preconditions : [
+        "tna_features != null"
+      ]
+      postconditions : [
+        "recommended_track in foundational growth advanced_export" ,
+        "confidence >= 0"
+      ]
+      invariants : [
+        "if used_fallback == true then confidence < prediction_confidence_threshold"
+      ]
+    }
+
+    steps : {
+      1 : transform ( enterprise_stage -> enterprise_stage_encoded ) using : EnterpriseStageEncoder
+      2 : transform ( tna_features -> normalized_features ) using : TNA_ScoreNormalizer
+      3 : ml ( predict : {
+        inputs : [ normalized_features : json , enterprise_stage_encoded : int ]
+        outputs : [ recommended_track : string , confidence : float ]
+        method : TNA_ModuleRecommender
+        metrics : [ accuracy , macro_f1 ]
+      })
+      4 : if ( confidence < prediction_confidence_threshold ) then {
+        infer ( bayesian_recommendation : TNABayesianPrior )
+        action ( UseFallback , [
+          track : bayesian_recommendation ,
+          used_fallback : true
+        ])
+      }
+      5 : action ( BuildExplanation , [
+        track : recommended_track ,
+        confidence : confidence ,
+        top_features : tna_features
+      ])
+      6 : emit ( SemanticMap : reporting.TNA_RecommendationAuditLog )
+    }
+
+    metadata : {
+      complexity : O(1)
+      category : ml_inference
+      tags : [ tna , recommendation , phase3 , vertex-ai ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // PIPELINES — ML Training & Inference
+  // ─────────────────────────────────────────────
+
+  pipeline TNA_TrainingPipeline {
+    description : """
+      End-to-end training pipeline for the TNA Module Recommender model.
+      Ingests from PostgreSQL, applies feature engineering, trains a
+      GradientBoostedTrees classifier, evaluates accuracy and macro-F1,
+      and registers the model to Vertex AI Model Registry on success.
+    """ ;
+
+    inputs : [
+      tna_training_dataset : dataset from : AIML ,
+      enterprise_features : dataset from : AIML
+    ]
+    outputs : [
+      trained_model_artifact : model ,
+      eval_report : json from : LRML
+    ]
+
+    stages : {
+      1 : ml ( ingest : {
+        inputs : [ tna_training_dataset : dataset ]
+        outputs : [ raw_records : json ]
+        method : PostgreSQLBatchExtract
+        params : { batch_size : 5000 , schema : event_schema }
+      })
+      2 : ml ( clean : {
+        inputs : [ raw_records : json ]
+        outputs : [ clean_records : json ]
+        method : DropNullsAndDedup
+        params : { null_threshold : 0.1 }
+        metrics : [ rows_dropped , null_rate ]
+      })
+      3 : ml ( transform : {
+        inputs : [ clean_records : json ]
+        outputs : [ feature_vectors : json ]
+        method : FeatureEngineeringPipeline
+        params : {
+          encoders : EnterpriseStageEncoder ,
+          scalers : TNA_ScoreNormalizer ,
+          vectorizers : IndustryTagVectorizer
+        }
+      })
+      4 : ml ( train : {
+        inputs : [ feature_vectors : json ]
+        outputs : [ model_artifact : model ]
+        method : GradientBoostedTrees
+        params : {
+          n_estimators : 300 ,
+          max_depth : 6 ,
+          learning_rate : 0.05 ,
+          class_weight : balanced
+        }
+        metrics : [ accuracy , macro_f1 , precision , recall ]
+        constraints : [ "macro_f1 >= 0.78" ]
+      })
+      5 : ml ( evaluate : {
+        inputs : [ model_artifact : model ]
+        outputs : [ eval_report : json ]
+        method : CrossValidation
+        params : { folds : 5 , metric : macro_f1 }
+        metrics : [ macro_f1 , per_class_precision , per_class_recall ]
+        constraints : [ "macro_f1 >= 0.80" ]
+      })
+      6 : ml ( deploy : {
+        inputs : [ model_artifact : model , eval_report : json ]
+        outputs : [ deployed_endpoint : string ]
+        method : VertexAIModelRegistry
+        params : {
+          registry : DTI_EMS_ModelRegistry ,
+          model_name : TNA_ModuleRecommender ,
+          canary_traffic : 10
+        }
+        constraints : [ "eval_report.macro_f1 >= 0.80" ]
+      })
+      7 : emit ( Report : reporting.ModelTrainingReport )
+    }
+
+    contracts : {
+      preconditions : [
+        "tna_training_dataset.size >= 5000" ,
+        "eval_report.macro_f1 >= 0.80"
+      ]
+      postconditions : [
+        "trained_model_artifact is registered in VertexAI model registry"
+      ]
+      invariants : [
+        "canary_traffic <= 10 until 7-day health check passes"
+      ]
+    }
+
+    metadata : {
+      runtime : vertex-ai-custom-job
+      environment : gcp-asia-southeast1
+      hardware : n1-standard-8
+      metrics : [ macro_f1 , accuracy , training_time_seconds ]
+      tags : [ ml_training , tna , phase3 , vertex-ai ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  pipeline OutcomePrediction_TrainingPipeline {
+    description : """
+      Training pipeline for the Business Outcome Predictor. Runs after
+      sufficient impact survey data is collected (>3000 labeled samples).
+      Falls back to BLML OutcomeScore formula heuristic until then.
+    """ ;
+
+    inputs : [
+      outcome_dataset : dataset from : AIML ,
+      participation_history : dataset from : AIML
+    ]
+    outputs : [
+      trained_model_artifact : model ,
+      eval_report : json from : LRML
+    ]
+
+    stages : {
+      1 : ml ( ingest : {
+        inputs : [ outcome_dataset : dataset ]
+        outputs : [ raw_impact_records : json ]
+        method : PostgreSQLBatchExtract
+        params : { batch_size : 2000 , schema : event_schema }
+        constraints : [ "raw_impact_records.count >= 3000" ]
+      })
+      2 : ml ( clean : {
+        inputs : [ raw_impact_records : json ]
+        outputs : [ clean_records : json ]
+        method : DropNullsAndDedup
+        params : { null_threshold : 0.15 }
+        metrics : [ rows_dropped ]
+      })
+      3 : ml ( transform : {
+        inputs : [ clean_records : json ]
+        outputs : [ feature_vectors : json ]
+        method : FeatureEngineeringPipeline
+        params : {
+          encoders : EnterpriseStageEncoder ,
+          scalers : RevenueNormalizer ,
+          region_encoder : RegionEncoder
+        }
+      })
+      4 : ml ( train : {
+        inputs : [ feature_vectors : json ]
+        outputs : [ model_artifact : model ]
+        method : RandomForestClassifier
+        params : {
+          n_estimators : 200 ,
+          max_depth : 8 ,
+          class_weight : balanced
+        }
+        metrics : [ macro_auc , per_class_auc ]
+        constraints : [ "macro_auc >= 0.72" ]
+      })
+      5 : ml ( evaluate : {
+        inputs : [ model_artifact : model ]
+        outputs : [ eval_report : json ]
+        method : CrossValidation
+        params : { folds : 5 , metric : macro_auc }
+        metrics : [ macro_auc , confusion_matrix ]
+        constraints : [ "macro_auc >= 0.72" ]
+      })
+      6 : ml ( deploy : {
+        inputs : [ model_artifact : model , eval_report : json ]
+        outputs : [ deployed_endpoint : string ]
+        method : VertexAIModelRegistry
+        params : {
+          registry : DTI_EMS_ModelRegistry ,
+          model_name : BusinessOutcomePredictor ,
+          canary_traffic : 10
+        }
+        constraints : [ "eval_report.macro_auc >= 0.72" ]
+      })
+    }
+
+    contracts : {
+      preconditions : [
+        "outcome_dataset.size >= 3000" ,
+        "eval_report.macro_auc >= 0.72"
+      ]
+      postconditions : [
+        "trained_model_artifact is registered in VertexAI model registry"
+      ]
+      invariants : [
+        "if dataset.size < 3000 then use BLML.OutcomeScore heuristic"
+      ]
+    }
+
+    metadata : {
+      runtime : vertex-ai-custom-job
+      environment : gcp-asia-southeast1
+      hardware : n1-standard-8
+      metrics : [ macro_auc , training_time_seconds ]
+      tags : [ ml_training , outcome_prediction , phase3 , vertex-ai ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  pipeline EcosystemClustering_Pipeline {
+    description : """
+      Batch clustering pipeline for creative industry geographic cluster and
+      desert zone detection. Runs nightly via Cloud Run Job. Outputs cluster
+      labels and centroid coordinates for the policy planning heatmap.
+    """ ;
+
+    inputs : [
+      geo_enterprise_dataset : dataset from : AIML
+    ]
+    outputs : [
+      cluster_labels : json ,
+      centroid_map : json ,
+      heatmap_data : json from : LRML
+    ]
+
+    stages : {
+      1 : ml ( ingest : {
+        inputs : [ geo_enterprise_dataset : dataset ]
+        outputs : [ raw_geo_records : json ]
+        method : PostgreSQLPostGISExtract
+        params : { schema : identity_schema , include_geography : true }
+      })
+      2 : ml ( clean : {
+        inputs : [ raw_geo_records : json ]
+        outputs : [ clean_geo_records : json ]
+        method : FilterNullCoordinates
+        metrics : [ rows_dropped ]
+      })
+      3 : ml ( transform : {
+        inputs : [ clean_geo_records : json ]
+        outputs : [ scaled_features : json ]
+        method : GeoFeatureTransform
+        params : {
+          coordinate_scaler : GeoCoordinateScaler ,
+          industry_vectorizer : IndustryTagVectorizer ,
+          stage_encoder : EnterpriseStageEncoder
+        }
+      })
+      4 : ml ( train : {
+        inputs : [ scaled_features : json ]
+        outputs : [ cluster_model : model ]
+        method : KMeans
+        params : {
+          n_clusters : 10 ,
+          init : k-means-plus-plus ,
+          n_init : 10
+        }
+        metrics : [ silhouette_score , inertia ]
+        constraints : [ "silhouette_score >= 0.35" ]
+      })
+      5 : ml ( evaluate : {
+        inputs : [ cluster_model : model ]
+        outputs : [ eval_report : json ]
+        method : SilhouetteAnalysis
+        metrics : [ silhouette_score , per_cluster_size ]
+      })
+      6 : action ( AssignClusterLabels , [
+        model : cluster_model ,
+        records : clean_geo_records
+      ])
+      7 : action ( ComputeClusterZoneTypes , [
+        cluster_labels : cluster_labels ,
+        threshold_density : 5
+      ])
+      8 : emit ( SemanticMap : reporting.EcosystemHeatmapDashboard )
+    }
+
+    contracts : {
+      preconditions : [
+        "geo_enterprise_dataset.count >= 50"
+      ]
+      postconditions : [
+        "cluster_labels assigned for all records" ,
+        "centroid_map contains n_clusters entries"
+      ]
+      invariants : [
+        "cluster zones labeled as cluster or desert based on density threshold"
+      ]
+    }
+
+    metadata : {
+      runtime : vertex-ai-custom-job
+      environment : gcp-asia-southeast1
+      hardware : n1-standard-4
+      metrics : [ silhouette_score , cluster_count , pipeline_duration_seconds ]
+      tags : [ clustering , ecosystem_map , phase3 , nightly ]
+    }
+  }
+
+  // ─────────────────────────────────────────────
+
+  pipeline SurveyChurn_Pipeline {
+    description : """
+      Training and inference pipeline for the Impact Survey Non-Response
+      Predictor. Runs weekly retraining on new interaction data. At-risk
+      participants flagged for personalized follow-up notifications.
+    """ ;
+
+    inputs : [
+      churn_dataset : dataset from : AIML ,
+      notification_interactions : dataset from : AIML
+    ]
+    outputs : [
+      trained_model_artifact : model ,
+      at_risk_participant_ids : json
+    ]
+
+    stages : {
+      1 : ml ( ingest : {
+        inputs : [ churn_dataset : dataset ]
+        outputs : [ raw_churn_records : json ]
+        method : PostgreSQLBatchExtract
+        params : { batch_size : 5000 , schema : event_schema }
+      })
+      2 : ml ( clean : {
+        inputs : [ raw_churn_records : json ]
+        outputs : [ clean_records : json ]
+        method : DropNullsAndDedup
+        metrics : [ rows_dropped , class_balance ]
+      })
+      3 : ml ( transform : {
+        inputs : [ clean_records : json ]
+        outputs : [ feature_vectors : json ]
+        method : ChurnFeatureEngineering
+        params : { class_resampling : SMOTE }
+      })
+      4 : ml ( train : {
+        inputs : [ feature_vectors : json ]
+        outputs : [ model_artifact : model ]
+        method : LogisticRegression
+        params : {
+          class_weight : balanced ,
+          solver : lbfgs ,
+          max_iter : 500
+        }
+        metrics : [ recall , precision , f1 ]
+        constraints : [ "recall >= 0.75" ]
+      })
+      5 : ml ( evaluate : {
+        inputs : [ model_artifact : model ]
+        outputs : [ eval_report : json ]
+        method : CrossValidation
+        params : { folds : 5 , metric : recall }
+        metrics : [ recall , precision , auc_roc ]
+        constraints : [ "recall >= 0.75" ]
+      })
+      6 : ml ( predict : {
+        inputs : [ feature_vectors : json ]
+        outputs : [ churn_predictions : json ]
+        method : LogisticRegressionInference
+        params : { threshold : 0.40 }
+        metrics : [ prediction_count , at_risk_count ]
+      })
+      7 : action ( FilterAtRiskParticipants , [
+        predictions : churn_predictions ,
+        threshold : 0.40
+      ])
+      8 : action ( EnqueuePersonalizedFollowup , [
+        at_risk_ids : at_risk_participant_ids ,
+        channel : email
+      ])
+      9 : action ( EnqueuePersonalizedFollowup , [
+        at_risk_ids : at_risk_participant_ids ,
+        channel : sms
+      ])
+      10 : emit ( Report : reporting.SurveyChurnReport )
+    }
+
+    contracts : {
+      preconditions : [
+        "churn_dataset.count >= 500"
+      ]
+      postconditions : [
+        "eval_report.recall >= 0.75" ,
+        "at_risk_participant_ids dispatched to notification-service"
+      ]
+      invariants : [
+        "only participants with pending impact surveys are scored"
+      ]
+    }
+
+    metadata : {
+      runtime : vertex-ai-custom-job
+      environment : gcp-asia-southeast1
+      hardware : n1-standard-4
+      metrics : [ recall , precision , at_risk_count ]
+      tags : [ survey_churn , notification , phase3 , weekly ]
+    }
+  }
+
+}

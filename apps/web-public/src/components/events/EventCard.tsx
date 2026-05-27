@@ -44,7 +44,7 @@ export function EventCard({ event, participantCount }: EventCardProps) {
           style={{ width: 'calc(100% + 3rem)' }}
         />
       ) : (
-        <div className="w-full h-2 bg-gradient-to-r from-dti-blue to-dti-orange rounded-full mb-4" />
+        <div className="w-full h-2 bg-gradient-to-r from-dti-blue to-dti-red-light rounded-full mb-4" />
       )}
 
       {/* Status badge */}

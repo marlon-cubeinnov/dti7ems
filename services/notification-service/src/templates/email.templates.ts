@@ -117,7 +117,7 @@ export function csfSurveyInvite(data: CsfSurveyInviteData): { subject: string; h
       <p style="text-align:center;margin:24px 0">
         <a href="${FRONTEND_URL}/my-events/${data.participationId}/csf" class="btn">Complete Survey →</a>
       </p>
-      <p style="color:#999;font-size:12px">This survey will expire in 14 days.</p>
+      <p style="background:#f0f4ff;border-left:3px solid #1a3a6c;padding:8px 12px;font-size:12px;color:#333">📋 <strong>This is a digital form — no signature is required.</strong> Simply submit your responses online.</p>
     `),
   };
 }
@@ -142,6 +142,84 @@ export function certificateIssued(data: CertificateIssuedData): { subject: strin
         <a href="${FRONTEND_URL}/my-certificates" class="btn">View & Download Certificate</a>
       </p>
       <p style="color:#999;font-size:12px">Anyone can verify your certificate at ${FRONTEND_URL}/verify/${data.verificationCode}</p>
+    `),
+  };
+}
+
+export interface MaterialsSharedData {
+  participantName: string;
+  eventTitle: string;
+  eventDate: string;
+  materials: Array<{ title: string; driveUrl: string; expiresAt: string }>;
+}
+
+export function materialsShared(data: MaterialsSharedData): { subject: string; html: string } {
+  const materialRows = data.materials.map(m => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee">
+        <a href="${m.driveUrl}" style="color:#1a3a6c;font-weight:600;text-decoration:none">${m.title}</a>
+      </td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;font-size:12px;white-space:nowrap">
+        Available until ${new Date(m.expiresAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+      </td>
+    </tr>`).join('');
+
+  return {
+    subject: `Presentation Materials Available: ${data.eventTitle}`,
+    html: baseLayout(`
+      <h2>Presentation Materials Available 📎</h2>
+      <p>Hello <strong>${data.participantName}</strong>,</p>
+      <p>The presentation materials from <strong>${data.eventTitle}</strong> (${data.eventDate}) are now available for download via Google Drive.</p>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:6px;overflow:hidden;margin:16px 0">
+        <thead>
+          <tr style="background:#f8f9fa">
+            <th style="padding:8px 12px;text-align:left;font-size:12px;color:#1a3a6c;border-bottom:2px solid #eee">Material</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px;color:#1a3a6c;border-bottom:2px solid #eee">Availability</th>
+          </tr>
+        </thead>
+        <tbody>${materialRows}</tbody>
+      </table>
+      <p style="background:#fff8e1;border-left:3px solid #f59e0b;padding:8px 12px;font-size:12px;color:#333">⚠️ <strong>Note:</strong> Download links will expire 15 days after the event. Please save the materials to your device.</p>
+      <p style="text-align:center;margin-top:20px">
+        <a href="${FRONTEND_URL}/my-events" class="btn">View My Events</a>
+      </p>
+    `),
+  };
+}
+
+export interface EventStatusChangeData {
+  recipientName: string;
+  eventTitle: string;
+  eventDate: string;
+  eventVenue?: string;
+  newStatus: string;
+  message?: string;
+}
+
+export function eventStatusChange(data: EventStatusChangeData): { subject: string; html: string } {
+  const statusLabels: Record<string, { label: string; icon: string; color: string }> = {
+    REGISTRATION_OPEN:   { label: 'Registration is Now Open',  icon: '🎟️', color: '#16a34a' },
+    REGISTRATION_CLOSED: { label: 'Registration Closed',       icon: '🔒', color: '#dc2626' },
+    CANCELLED:           { label: 'Event Cancelled',           icon: '❌', color: '#dc2626' },
+    PUBLISHED:           { label: 'Event Published',           icon: '📢', color: '#1a3a6c' },
+    ONGOING:             { label: 'Event is Ongoing',          icon: '▶️', color: '#7c3aed' },
+    COMPLETED:           { label: 'Event Completed',           icon: '✅', color: '#16a34a' },
+  };
+  const s = statusLabels[data.newStatus] ?? { label: data.newStatus, icon: '📋', color: '#333' };
+
+  return {
+    subject: `${s.icon} ${s.label}: ${data.eventTitle}`,
+    html: baseLayout(`
+      <h2 style="color:${s.color}">${s.icon} ${s.label}</h2>
+      <p>Hello <strong>${data.recipientName}</strong>,</p>
+      <p>${data.message ?? `The status of the following event has been updated.`}</p>
+      <div class="detail">
+        <strong>${data.eventTitle}</strong><br>
+        📅 ${data.eventDate}${data.eventVenue ? `<br>📍 ${data.eventVenue}` : ''}
+      </div>
+      <p style="text-align:center;margin-top:20px">
+        <a href="${FRONTEND_URL}/my-events" class="btn">View My Events</a>
+      </p>
     `),
   };
 }
@@ -173,6 +251,42 @@ export function impactSurveyInvite(data: ImpactSurveyInviteData): { subject: str
         <li>Knowledge application and business impact ratings</li>
       </ul>
       <p style="color:#999;font-size:12px">This survey will expire in 30 days. Your responses are confidential and help DTI improve future training programs.</p>
+    `),
+  };
+}
+
+// ── Enterprise Annual Profile Update Reminder ─────────────────────────────────
+
+export interface EnterpriseUpdateReminderData {
+  name: string;
+  businessName: string;
+  enterpriseId: string;
+  year: number;
+}
+
+export function enterpriseUpdateReminder(data: EnterpriseUpdateReminderData): { subject: string; html: string } {
+  return {
+    subject: `Action Required: Annual Company Information Update for ${data.year} — ${data.businessName}`,
+    html: baseLayout(`
+      <h2 style="color:#172187">📋 Annual Company Information Update Required</h2>
+      <p>Hello <strong>${data.name}</strong>,</p>
+      <p>As the primary contact for <strong>${data.businessName}</strong>, you are required to review and update your company information in the DTI Region 7 Events Management System for <strong>${data.year}</strong>.</p>
+      <div class="detail">
+        <strong>Why is this needed?</strong><br>
+        DTI Region 7 maintains accurate enterprise records to ensure that training programs, assistance, and reports reflect the current state of your business. An annual update ensures your company continues to receive relevant support.
+      </div>
+      <p>Please log in and update the following details:</p>
+      <ul style="color:#555;font-size:13px">
+        <li>Business name and registration details</li>
+        <li>Contact information (email, phone, website)</li>
+        <li>Business address</li>
+        <li>Industry sector and business stage</li>
+        <li>Employee count and revenue range</li>
+      </ul>
+      <p style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/dashboard" class="btn">Update Company Information →</a>
+      </p>
+      <p style="color:#999;font-size:12px">This annual update is required by DTI Region 7. The update dialog will appear automatically when you log in. If you have questions, please contact your DTI Region 7 focal person.</p>
     `),
   };
 }
