@@ -18,17 +18,26 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResponse<
   const res = await fetch(url, {
     credentials: 'include',
     headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
     ...init,
   });
 
-  // Handle empty responses (204)
+  // Handle empty responses (204 or empty body)
   if (res.status === 204) return { success: true };
 
-  const data: ApiResponse<T> = await res.json();
+  const text = await res.text();
+  if (!text) return { success: res.ok };
+
+  let data: ApiResponse<T>;
+  try {
+    data = JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    if (!res.ok) throw new ApiError('SERVER_ERROR', `Server error ${res.status}`, res.status);
+    return { success: true } as ApiResponse<T>;
+  }
 
   if (!res.ok && data.error) {
     // Auto-refresh on 401
@@ -85,12 +94,32 @@ export const authApi = {
     email: string;
     password: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
+    nameSuffix?: string | null;
+    sex?: 'MALE' | 'FEMALE' | null;
+    birthdate?: string | null;
     mobileNumber?: string | null;
+    employmentCategory?: 'SELF_EMPLOYED' | 'EMPLOYED_GOVT' | 'EMPLOYED_PRIVATE' | 'GENERAL_PUBLIC' | null;
+    socialClassification?: 'ABLED' | 'PWD' | 'FOUR_PS' | 'YOUTH' | 'SENIOR_CITIZEN' | 'INDIGENOUS_PERSON' | 'OFW' | 'OTHERS' | null;
+    region?: string | null;
+    province?: string | null;
+    cityMunicipality?: string | null;
+    companyName?: string | null;
+    companyRegion?: string | null;
+    companyProvince?: string | null;
+    companyCityMunicipality?: string | null;
+    companyEmail?: string | null;
+    companyPhone?: string | null;
+    jobTitle?: string | null;
     dpaConsentGiven: true;
-    clientType?: 'CITIZEN' | 'GOVERNMENT' | 'BUSINESS' | null;
   }) =>
     request(`${BASE_IDENTITY}/auth/register`, { method: 'POST', body: JSON.stringify(body) }),
+
+  searchCompanies: (q: string) =>
+    request<Array<{ id: string; businessName: string; region: string | null; province: string | null; cityMunicipality: string | null }>>(
+      `${BASE_IDENTITY}/auth/search-companies?q=${encodeURIComponent(q)}`,
+    ),
 
   registerBusiness: (body: {
     email: string;
@@ -198,6 +227,41 @@ export const enterpriseApi = {
       method: 'PATCH',
       body: JSON.stringify({ stage }),
     }),
+
+  getUpdateStatus: (enterpriseId: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/update-status`),
+
+  updateFull: (enterpriseId: string, body: Record<string, unknown>) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  updateProfile: (enterpriseId: string, body: Record<string, unknown>) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/update-profile`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getUpdateLogs: (enterpriseId: string) =>
+    request(`${BASE_IDENTITY}/enterprises/${enterpriseId}/update-logs`),
+
+  // Admin
+  adminGetUpdateLogs: (params?: { year?: number; page?: number; limit?: number; search?: string }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+          Object.fromEntries(
+            Object.entries(params)
+              .filter(([, v]) => v !== undefined)
+              .map(([k, v]) => [k, String(v)])
+          )
+        ).toString()
+      : '';
+    return request(`${BASE_IDENTITY}/enterprises/admin/update-logs${qs}`);
+  },
+
+  adminGetUpdateSummary: () =>
+    request(`${BASE_IDENTITY}/enterprises/admin/update-summary`),
 };
 
 // ── Events API ────────────────────────────────────────────────────────────────
@@ -392,8 +456,15 @@ export const organizerApi = {
   approveProposal: (eventId: string, action: 'APPROVE' | 'REJECT', rejectionNote?: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/approve-proposal`, { method: 'PATCH', body: JSON.stringify({ action, rejectionNote }) }),
 
-  assignOrganizer: (eventId: string, organizerId: string, organizerName?: string) =>
-    request(`${BASE_EVENTS}/events/${eventId}/assign-organizer`, { method: 'POST', body: JSON.stringify({ organizerId, organizerName }) }),
+  assignOrganizer: (eventId: string, organizerId: string, organizerName?: string, organizerEmail?: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/assign-organizer`, { method: 'POST', body: JSON.stringify({ organizerId, organizerName, organizerEmail }) }),
+
+  // Upload scanned copy of signed/approved proposal to Google Drive
+  uploadApprovedProposal: (eventId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request(`${BASE_EVENTS}/events/${eventId}/upload-approved-proposal`, { method: 'POST', body: fd });
+  },
 
   // Step 3: Activate event after proposal approval (DRAFT → PUBLISHED + seeds DTI checklist)
   activateEvent: (eventId: string) =>
@@ -431,6 +502,36 @@ export const organizerApi = {
 
   deleteTargetGroup: (eventId: string, groupId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/target-groups/${groupId}`, { method: 'DELETE' }),
+};
+
+// ── Standalone TNA API ───────────────────────────────────────────────────────
+
+export const tnaApi = {
+  listTnas: (params?: { page?: number; limit?: number; status?: 'DRAFT' | 'FINALIZED'; linkedEventId?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])).toString() : '';
+    return request(`${BASE_EVENTS}/tna${qs}`);
+  },
+
+  createTna: (body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/tna`, { method: 'POST', body: JSON.stringify(body) }),
+
+  getTna: (id: string) =>
+    request(`${BASE_EVENTS}/tna/${id}`),
+
+  updateTna: (id: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/tna/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  setTnaStatus: (id: string, status: 'DRAFT' | 'FINALIZED') =>
+    request(`${BASE_EVENTS}/tna/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  deleteTna: (id: string) =>
+    request(`${BASE_EVENTS}/tna/${id}`, { method: 'DELETE' }),
+
+  addRespondent: (tnaId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/tna/${tnaId}/respondents`, { method: 'POST', body: JSON.stringify(body) }),
+
+  deleteRespondent: (tnaId: string, respondentId: string) =>
+    request(`${BASE_EVENTS}/tna/${tnaId}/respondents/${respondentId}`, { method: 'DELETE' }),
 };
 
 // ── Checklist API ────────────────────────────────────────────────────────────
@@ -597,6 +698,25 @@ export const certificatesApi = {
     const disposition = res.headers.get('Content-Disposition') ?? '';
     const match = disposition.match(/filename="?([^"]+)"?/);
     a.download = match?.[1] ?? 'certificate.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  downloadAppearanceCertificatePdf: async (participationId: string): Promise<void> => {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(`${BASE_EVENTS}/certificates/${participationId}/appearance/pdf`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error('Failed to download certificate of appearance PDF.');
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    a.download = match?.[1] ?? 'certificate-of-appearance.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

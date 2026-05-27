@@ -1,8 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, ApiError } from '@/lib/api';
 import { Html5Qrcode } from 'html5-qrcode';
+
+type EventParticipant = {
+  id: string;
+  participantName?: string | null;
+  participantEmail?: string | null;
+  status?: string;
+};
 
 export function OrganizerQrScannerPage() {
   const { id: eventId } = useParams<{ id: string }>();
@@ -15,6 +22,7 @@ export function OrganizerQrScannerPage() {
   const [cameraOn, setCameraOn]       = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [lastResult, setLastResult]   = useState<{ ok: boolean; message: string } | null>(null);
+  const [successNotice, setSuccessNotice] = useState<{ message: string; at: string } | null>(null);
   const [processing, setProcessing]   = useState(false);
   const processingRef = useRef(false);
 
@@ -27,12 +35,35 @@ export function OrganizerQrScannerPage() {
   const sessions: { id: string; title: string; startTime: string }[] =
     (sessionsData as { data?: typeof sessions })?.data ?? [];
 
+  // ── Participants for name-based manual lookup ────────────────────────────
+  const [manualQuery, setManualQuery] = useState('');
+  const [selectedParticipant, setSelectedParticipant] = useState<EventParticipant | null>(null);
+  const { data: participantsData, isFetching: participantsLoading } = useQuery({
+    queryKey: ['event-participants-for-scan', eventId],
+    queryFn: () => organizerApi.getParticipants(eventId!, { page: 1, limit: 200 }),
+    enabled: !!eventId,
+  });
+  const participants: EventParticipant[] = (participantsData as { data?: EventParticipant[] })?.data ?? [];
+  const manualMatches = useMemo(() => {
+    const q = manualQuery.trim().toLowerCase();
+    if (!q) return [];
+    return participants
+      .filter(p => p.status !== 'CANCELLED')
+      .filter((p) => {
+        const name = (p.participantName ?? '').toLowerCase();
+        const email = (p.participantEmail ?? '').toLowerCase();
+        return name.includes(q) || email.includes(q);
+      })
+      .slice(0, 8);
+  }, [manualQuery, participants]);
+
   // ── Scan mutation ─────────────────────────────────────────────────────────
   const scanMut = useMutation({
     mutationFn: (token: string) => organizerApi.scanQr(token, sessionId),
     onSuccess: (res) => {
       const r = res as { message?: string };
       setLastResult({ ok: true, message: r.message ?? 'Attendance recorded!' });
+      setSuccessNotice({ message: r.message ?? 'Attendance recorded!', at: new Date().toLocaleTimeString() });
       void qc.invalidateQueries({ queryKey: ['event-attendance', eventId] });
     },
     onError: (err) => {
@@ -46,13 +77,14 @@ export function OrganizerQrScannerPage() {
   });
 
   // ── Manual check-in mutation ──────────────────────────────────────────────
-  const [manualParticipationId, setManualParticipationId] = useState('');
   const manualMut = useMutation({
-    mutationFn: () => organizerApi.manualCheckin(manualParticipationId.trim(), sessionId),
+    mutationFn: () => organizerApi.manualCheckin(selectedParticipant!.id, sessionId),
     onSuccess: (res) => {
       const r = res as { message?: string };
       setLastResult({ ok: true, message: r.message ?? 'Manual check-in recorded!' });
-      setManualParticipationId('');
+      setSuccessNotice({ message: r.message ?? 'Manual check-in recorded!', at: new Date().toLocaleTimeString() });
+      setManualQuery('');
+      setSelectedParticipant(null);
     },
     onError: (err) => {
       const msg = err instanceof ApiError ? err.message : 'Check-in failed';
@@ -129,7 +161,11 @@ export function OrganizerQrScannerPage() {
         ) : (
           <select
             value={sessionId}
-            onChange={e => { setSessionId(e.target.value); setLastResult(null); }}
+            onChange={e => {
+              setSessionId(e.target.value);
+              setLastResult(null);
+              setSuccessNotice(null);
+            }}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">— select a session —</option>
@@ -193,25 +229,76 @@ export function OrganizerQrScannerPage() {
         </div>
       )}
 
+      {/* Explicit successful scan confirmation */}
+      {successNotice && (
+        <div className="rounded-xl border border-green-300 bg-green-100 p-4">
+          <p className="text-sm font-semibold text-green-900">Scan confirmed</p>
+          <p className="text-sm text-green-800">{successNotice.message}</p>
+          <p className="text-xs text-green-700 mt-1">Recorded at {successNotice.at}</p>
+        </div>
+      )}
+
       {/* Manual Check-in fallback */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-3">
         <h2 className="font-semibold text-gray-700">Manual Check-in</h2>
-        <p className="text-xs text-gray-500">Enter a participant's Participation ID to manually record attendance.</p>
-        <div className="flex gap-2">
+        <p className="text-xs text-gray-500">Type participant name or email, select a match, then check them in.</p>
+        <div className="space-y-2">
           <input
             type="text"
-            placeholder="Participation ID"
-            value={manualParticipationId}
-            onChange={e => setManualParticipationId(e.target.value)}
-            className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search participant name or email"
+            value={manualQuery}
+            onChange={e => {
+              const v = e.target.value;
+              setManualQuery(v);
+              setSelectedParticipant(null);
+            }}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
+          {participantsLoading && (
+            <p className="text-xs text-gray-500">Loading participant list…</p>
+          )}
+
+          {manualQuery.trim() && !participantsLoading && manualMatches.length === 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+              No matching participant found.
+            </p>
+          )}
+
+          {manualMatches.length > 0 && (
+            <div className="max-h-56 overflow-auto border border-gray-200 rounded-lg divide-y">
+              {manualMatches.map((p) => {
+                const isSelected = selectedParticipant?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedParticipant(p)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
+                  >
+                    <p className="font-medium text-gray-800">{p.participantName ?? p.participantEmail ?? 'Participant'}</p>
+                    <p className="text-xs text-gray-500">{p.participantEmail ?? 'No email'} • {p.status ?? 'UNKNOWN'}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedParticipant && (
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-2">
+              Selected: {selectedParticipant.participantName ?? selectedParticipant.participantEmail ?? 'Participant'}
+            </p>
+          )}
+
+          <div className="flex justify-end">
           <button
             onClick={() => manualMut.mutate()}
-            disabled={!manualParticipationId.trim() || !sessionId || manualMut.isPending}
+            disabled={!selectedParticipant || !sessionId || manualMut.isPending}
             className="btn-primary text-sm px-4 py-2 disabled:opacity-40"
           >
             {manualMut.isPending ? 'Checking in…' : 'Check In'}
           </button>
+          </div>
         </div>
       </div>
     </div>

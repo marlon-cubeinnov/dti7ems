@@ -70,6 +70,10 @@ export function OrganizerParticipantListPage() {
       })
     : rawList;
 
+  function isGovernmentParticipant(p: any) {
+    return p?.participantClientType === 'GOVERNMENT' || p?.participantEmployment === 'EMPLOYED_GOVT';
+  }
+
   async function handleExport() {
     const url = organizerApi.exportParticipants(id!);
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken ?? ''}` } });
@@ -169,7 +173,14 @@ export function OrganizerParticipantListPage() {
                 {participants.map((p: any) => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {p.participantName ?? '—'}
+                      <div className="flex items-center gap-2">
+                        <span>{p.participantName ?? '—'}</span>
+                        {isGovernmentParticipant(p) && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            Govt
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500">{p.participantEmail ?? '—'}</td>
                     <td className="px-4 py-3">
@@ -213,12 +224,24 @@ export function OrganizerParticipantListPage() {
                     <td className="px-4 py-3 text-gray-500">
                       {p.certificate?.status ? (
                         p.certificate.status === 'ISSUED' ? (
-                          <button
-                            onClick={() => certificatesApi.downloadCertificatePdf(p.id)}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer"
-                          >
-                            ISSUED <FileDown size={10} />
-                          </button>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              onClick={() => certificatesApi.downloadCertificatePdf(p.id)}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer"
+                              title="Download Certificate of Attendance"
+                            >
+                              Attendance <FileDown size={10} />
+                            </button>
+                            {isGovernmentParticipant(p) && (
+                              <button
+                                onClick={() => certificatesApi.downloadAppearanceCertificatePdf(p.id)}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
+                                title="Download Certificate of Appearance"
+                              >
+                                Appearance <FileDown size={10} />
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600`}>
                             {p.certificate.status}

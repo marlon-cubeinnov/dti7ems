@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { certificatesApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import dtiLogo from '@/assets/dti-logo.jpg';
+import dtiLogo from '@/assets/dti-bp-logo.png';
 
 interface Certificate {
   id: string;
@@ -10,6 +10,7 @@ interface Certificate {
   verificationCode: string;
   status: string;
   issuedAt: string | null;
+  appearanceEligible?: boolean;
   participation: {
     event: {
       id: string;
@@ -48,7 +49,7 @@ function CertificatePrintView({
     >
       {/* Header */}
       <div className="flex items-center justify-center gap-4 mb-6">
-        <img src={dtiLogo} alt="DTI Logo" className="h-16 w-auto object-contain" />
+        <img src={dtiLogo} alt="DTI Bagong Pilipinas" className="h-16 w-auto object-contain" />
         <div className="text-left">
           <p className="text-xs text-blue-800 font-semibold uppercase tracking-widest">Republic of the Philippines</p>
           <p className="text-sm font-bold text-blue-900">Department of Trade and Industry</p>
@@ -58,7 +59,7 @@ function CertificatePrintView({
 
       <div className="border-t border-b border-blue-200 py-4 mb-6">
         <h1 className="text-3xl font-bold text-blue-900 tracking-wide" style={{ fontVariant: 'small-caps' }}>
-          Certificate of Completion
+          Certificate of Attendance
         </h1>
       </div>
 
@@ -67,7 +68,7 @@ function CertificatePrintView({
         {userName}
       </p>
 
-      <p className="text-sm text-gray-600 mt-4 mb-2">has successfully completed the</p>
+      <p className="text-sm text-gray-600 mt-4 mb-2">has successfully attended the</p>
       <p className="text-xl font-semibold text-blue-800 mb-2">{event.title}</p>
       {event.venue && <p className="text-sm text-gray-500 mb-1">{event.venue}</p>}
       <p className="text-sm text-gray-500 mb-6">{dateRange}</p>
@@ -133,11 +134,22 @@ export function MyCertificatesPage() {
   }
 
   async function handleDownloadPdf(cert: Certificate) {
-    setDownloading(cert.id);
+    setDownloading(`${cert.id}:attendance`);
     try {
       await certificatesApi.downloadCertificatePdf(cert.participationId);
     } catch {
       alert('Failed to download PDF. Please try again.');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function handleDownloadAppearancePdf(cert: Certificate) {
+    setDownloading(`${cert.id}:appearance`);
+    try {
+      await certificatesApi.downloadAppearanceCertificatePdf(cert.participationId);
+    } catch {
+      alert('Failed to download Certificate of Appearance. Please try again.');
     } finally {
       setDownloading(null);
     }
@@ -172,11 +184,20 @@ export function MyCertificatesPage() {
                 </button>
                 <button
                   onClick={() => handleDownloadPdf(cert)}
-                  disabled={downloading === cert.id}
+                  disabled={downloading === `${cert.id}:attendance`}
                   className="btn-primary text-sm"
                 >
-                  {downloading === cert.id ? 'Downloading…' : '⬇️ Download PDF'}
+                  {downloading === `${cert.id}:attendance` ? 'Downloading…' : '⬇️ Download Attendance PDF'}
                 </button>
+                {cert.appearanceEligible && (
+                  <button
+                    onClick={() => handleDownloadAppearancePdf(cert)}
+                    disabled={downloading === `${cert.id}:appearance`}
+                    className="btn-secondary text-sm"
+                  >
+                    {downloading === `${cert.id}:appearance` ? 'Downloading…' : '⬇️ Download Appearance PDF'}
+                  </button>
+                )}
                 <a
                   href={`/verify/${cert.verificationCode}`}
                   target="_blank"
