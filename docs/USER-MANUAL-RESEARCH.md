@@ -88,6 +88,7 @@
 | `REGIONAL_DIRECTOR` | Provincial/Regional Director | Organizer Portal | Approve/reject proposals, approve PAR/TEM reports |
 | `PROVINCIAL_DIRECTOR` | Provincial Director | Organizer Portal | Same as Regional Director |
 | `SYSTEM_ADMIN` | System Admin | Organizer + Admin Portal | Full system access, all organizer capabilities + admin functions |
+| `DTI_EMPLOYEE` | DTI Employee | Organizer Portal | Same as Facilitator — manage assigned events, QR check-in, checklists; cannot create proposals/events |
 | `SUPER_ADMIN` | Super Admin | Organizer + Admin Portal | Same as System Admin (highest privilege) |
 
 ### Portal Routing Logic (ProtectedRoute.tsx)
@@ -96,7 +97,7 @@
 - If authenticated but **wrong role** for route:
   - Organizer roles → redirect to `/organizer/dashboard`
   - Participant roles → redirect to `/dashboard`
-- **Organizer roles** = PROGRAM_MANAGER, EVENT_ORGANIZER, DIVISION_CHIEF, REGIONAL_DIRECTOR, PROVINCIAL_DIRECTOR, SYSTEM_ADMIN, SUPER_ADMIN
+- **Organizer roles** = PROGRAM_MANAGER, EVENT_ORGANIZER, DTI_EMPLOYEE, DIVISION_CHIEF, REGIONAL_DIRECTOR, PROVINCIAL_DIRECTOR, SYSTEM_ADMIN, SUPER_ADMIN
 - **Participant roles** = PARTICIPANT, ENTERPRISE_REPRESENTATIVE
 - **Admin roles** = SYSTEM_ADMIN, SUPER_ADMIN
 
@@ -139,8 +140,12 @@ ORGANIZER ROUTES (ProtectedRoute → OrganizerLayout):
   /organizer/events/:id/par          → Post-Activity Report
   /organizer/events/:id/effectiveness → Effectiveness Report
   /organizer/events/:id/proposal     → Proposal View
+  /organizer/tna             → TNA List
+  /organizer/tna/new         → New TNA
+  /organizer/tna/:tnaId      → TNA Detail
   /organizer/reports         → Reports & Analytics
   /organizer/profile         → Staff Profile
+  /organizer/company-profile → Company Profile (staff)
 
 ADMIN ROUTES (within Organizer, admin roles only):
   /admin/dashboard           → Admin Dashboard
@@ -150,6 +155,7 @@ ADMIN ROUTES (within Organizer, admin roles only):
   /admin/audit-logs          → Audit Logs
   /admin/reports             → System Reports
   /admin/roles               → Roles & Permissions
+  /admin/enterprise-updates  → Company Updates
   /admin/settings            → System Settings
 
 PARTICIPANT ROUTES (ProtectedRoute → ParticipantLayout):
@@ -161,6 +167,7 @@ PARTICIPANT ROUTES (ProtectedRoute → ParticipantLayout):
   /my-events/:participationId/impact → Impact Survey
   /my-certificates           → My Certificates
   /profile                   → Profile
+  /company-profile           → Company Profile (Enterprise Reps only)
 ```
 
 ### Standalone Admin Console (web-admin App.tsx)
@@ -222,10 +229,11 @@ AdminGuard (SYSTEM_ADMIN or SUPER_ADMIN only):
 - Dashboard
 - My Proposals
 - New Proposal (+ icon)
+- TNA
 - My Events
 - Reports
 
-**EVENT_ORGANIZER (Facilitator):**
+**EVENT_ORGANIZER (Facilitator) / DTI_EMPLOYEE:**
 - Dashboard
 - My Events
 - Reports
@@ -247,6 +255,7 @@ AdminGuard (SYSTEM_ADMIN or SUPER_ADMIN only):
   - Admin Dashboard
   - Users
   - Enterprises
+  - Company Updates
   - All Events
   - Audit Logs
   - Reports
@@ -374,7 +383,7 @@ AdminGuard (SYSTEM_ADMIN or SUPER_ADMIN only):
 - Trade Name
 - Registration Number
 - TIN
-- Stage (dropdown: Pre-Startup, Startup, Growth, Expansion, Mature)
+- Stage (dropdown: Ideation, Validation, Growth, Expansion, Maturity/Exit)
 - Employee Count
 
 **Employee Invitations (Business tab only):**
@@ -560,8 +569,8 @@ Displays email verification status message. Instructions to check inbox.
 
 **Certificate display** with full DTI certificate rendering:
 - Header: "Republic of the Philippines"
-- DTI logo
-- "Certificate of Completion"
+- DTI logo (Bagong Pilipinas)
+- "Certificate of Attendance"
 - Participant's full name
 - Event title
 - Venue
@@ -573,6 +582,8 @@ Displays email verification status message. Instructions to check inbox.
 - "🖨️ Print / Preview" button
 - "⬇️ Download PDF" button
 - "Verify Certificate" link → `/verify/:code`
+
+**Certificate of Appearance:** Government participants (client type GOVERNMENT or EMPLOYED_GOVT) receive an additional Certificate of Appearance alongside the standard Certificate of Attendance, available as a separate download.
 
 ### 7.8 Profile (`/profile`)
 
@@ -648,7 +659,7 @@ Displays email verification status message. Instructions to check inbox.
 **Section 1: Training Information**
 - Title (text)
 - Description (textarea)
-- Training Type (dropdown): Business, Managerial, Organizational, Entrepreneurial, Inter-Agency
+- Training Type / Event Type (dropdown): Business, Managerial, Organizational, Entrepreneurial, Inter-Agency, Seminar, Forum/Panel Discussion, Conference, Trade Fair/Exhibit, Trade Mission, Consultation/Meeting
 - Partner Institution (text, e.g., "DOST-7, TESDA")
 
 **Section 2: Schedule & Logistics**
@@ -700,6 +711,12 @@ Displays email verification status message. Instructions to check inbox.
 - Staff search autocomplete → filters by EVENT_ORGANIZER role
 - "Assign Facilitator" button
 - Shows assigned facilitator name when set
+
+**Staff Assignment (Event Management Hub, all staff with access):**
+- Multi-person event team assignment with role selection
+- Staff roles: Facilitator, Co-Facilitator, Resource Person, Registration Officer, Logistics, Documentation, Secretariat, IT Support, Finance, Other
+- Staff search by name, assign with role dropdown
+- Display of all assigned staff members on the event hub
 
 ### 8.5 Event Management Hub (`/organizer/events/:id`)
 
@@ -771,10 +788,12 @@ ONGOING → [COMPLETED, CANCELLED]
 - QR code auto-detection via html5-qrcode library
 - Scan result display: green (success) or red (error)
 
-**Manual Fallback:**
+**Manual Fallback (Name-Based Search):**
 - "Manual Check-in" section
-- Text input: "Enter Participation ID"
-- "Check In" button
+- Text input: search by participant name or email
+- Dropdown shows up to 8 matching participants (excluding cancelled)
+- Select participant → "Check In" button
+- Real-time success notice with timestamp after each check-in
 
 ### 8.8 Participant List (`/organizer/events/:id/participants`)
 
@@ -785,6 +804,8 @@ ONGOING → [COMPLETED, CANCELLED]
 **"Export CSV" button** — downloads participant list as CSV file
 
 **Table columns:** Name | Email | Status | TNA Score | Sessions | Certificate | Registered
+- Government participants show a "Govt" badge next to their name
+- Certificate column shows "Attendance" download button; government participants also get an "Appearance" download button
 
 **Participation Statuses (color-coded):**
 - REGISTERED (blue)
@@ -993,13 +1014,14 @@ Row 2: Certificates Issued | CSF Response Rate | Attendance Records | Pending Us
 
 ### 9.2 User Management (`/admin/users`)
 
-**Filters:** Search (name/email) | Status (Active/Pending/Suspended/Deactivated) | Role (all 9 roles)
+**Filters:** Search (name/email) | Status (Active/Pending/Pending Approval/Suspended/Deactivated) | Role (all 10 roles)
 
 **Table columns:** Name | Email | Role | Status | Joined | Actions
 
-**Role Display Labels:** Participant, Enterprise Rep, Technical Staff, Facilitator, Division Chief, Regional Director, Provincial Director, System Admin, Super Admin
+**Role Display Labels:** Participant, Enterprise Rep, Technical Staff, Facilitator, Division Chief, Regional Director, Provincial Director, System Admin, Super Admin, DTI Employee
 
 **Actions:**
+- Approve (UserCheck icon) — for PENDING_APPROVAL accounts
 - Change Role (UserCog icon) → modal with role dropdown
 - Verify Email (MailCheck icon) — for unverified users
 - Suspend/Reactivate (ShieldOff/ShieldCheck) → requires reason text
@@ -1053,7 +1075,24 @@ Row 2: Certificates Issued | CSF Response Rate | Attendance Records | Pending Us
 | Registration Trends | Bar chart, last 12 months |
 | DPA Compliance | Total registrations, recent 90 days count |
 
-### 9.7 Roles & Permissions (`/admin/roles`)
+### 9.7 Company Updates (`/admin/enterprise-updates`)
+
+Year-selectable enterprise profile update compliance dashboard.
+
+**Summary metrics:**
+- Total Enterprises
+- Updated This Year
+- Pending Update
+- First Login Pending
+- Compliance Rate
+
+**Update types:** FIRST_LOGIN (purple), ANNUAL (navy), VOLUNTARY (green)
+
+**Log details:** Changed fields with old/new values, full snapshot after update, updated by, timestamp, IP address, notes.
+
+**Filters:** Year, search by enterprise name.
+
+### 9.8 Roles & Permissions (`/admin/roles`)
 
 **Header:** "Roles & Permissions" with Shield icon + role count
 
@@ -1072,7 +1111,7 @@ Users, Events, Participants, Attendance, Certificates, Surveys, Checklists, Ente
 - Delete role (non-system roles only; system roles show Lock icon)
 - Create custom role: Name (auto-uppercased), Label, Description
 
-### 9.8 System Settings (`/admin/settings`)
+### 9.9 System Settings (`/admin/settings`)
 
 **Read-only system health dashboard (8 sections):**
 
@@ -1143,7 +1182,44 @@ REGISTERED → (TNA if required) → RSVP_CONFIRMED → ATTENDED → (surveys) �
 
 ---
 
-## 12. Proposal Workflow
+## 12. Staff-Led TNA Module
+
+Separate route at `/organizer/tna` for Technical Staff to conduct Pre-Proposal TNAs independently.
+
+### TNA List (`/organizer/tna`)
+- Page title: "Training Needs Assessment (TNA)"
+- Description: "TNA is conducted independently to justify or reference a proposal. Not all events require one."
+- "New TNA" button → `/organizer/tna/new`
+- List of TNA records showing: title, sector, conducted date, respondent count, status (Draft/Finalized)
+
+### TNA Form (`/organizer/tna/:tnaId` or `/organizer/tna/new`)
+- Title, Sector, Respondent Type (MSME Owner, Manager, Employee, DTI Officer, Partner Agency, Other)
+- Preferred Delivery Mode (Face-to-Face, Online/Webinar, Blended/Hybrid, On-the-Job/Coaching, No Preference)
+- Schedule Preference (Weekday Mornings, Weekday Afternoons, Saturday, Full-Day Saturday, Flexible)
+- Respondent management: add/edit/remove individual respondents
+- Finalization to lock the TNA
+
+---
+
+## 12A. Company Profile (Enterprise Representatives)
+
+### Route: `/company-profile` (Participant) and `/organizer/company-profile` (Staff)
+
+Full CPMS (Centralized Product Management System)-compliant enterprise information form with 7 tabs:
+1. **Registration & Status** — CPMS ID, TIN, DTI Konek ID, MSME level, registration details, stage
+2. **Address & Contact** — Business address, email, phone, website, social media, e-commerce platforms
+3. **Business Profile** — Description, year established, form of organization, asset size, PSIC codes, industry sector
+4. **Owner Info** — Owner's personal details, address, social classification
+5. **Business Trackers** — EDT level, RIPPLES stage, SMERA stage, digitalization level
+6. **Financial & Markets** — Capitalization, asset size range, sales, domestic/export/import markets
+7. **Products & Employment** — Product lines, certifications, full-time/part-time employee breakdown
+
+### Auto-prompt on Login
+Enterprise Representatives are prompted to update their company profile when an update is due (FIRST_LOGIN, ANNUAL, or VOLUNTARY update type).
+
+---
+
+## 13. Proposal Workflow
 
 ### Step-by-Step Process
 
@@ -1214,7 +1290,7 @@ REGISTERED → (TNA if required) → RSVP_CONFIRMED → ATTENDED → (surveys) �
 
 - "Republic of the Philippines" header
 - DTI logo
-- "Certificate of Completion"
+- "Certificate of Attendance"
 - Participant's full name
 - Event title
 - Venue
@@ -1327,19 +1403,28 @@ Used in registration, event targeting, and enterprise directory:
 
 ## Appendix: Enterprise Stages
 
-1. PRE_STARTUP — Pre-Startup
-2. STARTUP — Startup
-3. GROWTH — Growth
-4. EXPANSION — Expansion
-5. MATURE — Mature
+1. IDEATION — Ideation (Concept/Idea Stage)
+2. VALIDATION — Validation (Testing the Market)
+3. GROWTH — Growth (Scaling Up)
+4. EXPANSION — Expansion (New Markets/Products)
+5. MATURITY_EXIT — Maturity/Exit (Established Business)
 
-## Appendix: Training Types
+## Appendix: Training Types & Event Types
 
+### Training Types (QMS Training Programs)
 1. BUSINESS — Business
 2. MANAGERIAL — Managerial
 3. ORGANIZATIONAL — Organizational
 4. ENTREPRENEURIAL — Entrepreneurial
 5. INTER_AGENCY — Inter-Agency
+
+### Event Types (Non-Training Programs)
+6. SEMINAR — Seminar
+7. FORUM — Forum / Panel Discussion
+8. CONFERENCE — Conference
+9. TRADE_FAIR — Trade Fair / Exhibit
+10. TRADE_MISSION — Trade Mission
+11. CONSULTATION — Consultation / Meeting
 
 ## Appendix: DTI Form References
 

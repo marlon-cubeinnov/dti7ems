@@ -210,10 +210,12 @@
     <a href="#part-certs">My Certificates</a>
     <a href="#part-enterprise">Enterprise Membership</a>
     <a href="#part-profile">Profile Management</a>
+    <a href="#part-company-profile">Company Profile</a>
 
     <span class="section-label">Staff Guide</span>
     <a href="#staff-dashboard">Staff Dashboard</a>
     <a href="#staff-proposal">Creating Proposals</a>
+    <a href="#staff-tna">Staff TNA Module</a>
     <a href="#staff-approval">Proposal Approval Flow</a>
     <a href="#staff-activate">Activating Events</a>
     <a href="#staff-manage">Managing Events</a>
@@ -229,6 +231,7 @@
     <a href="#admin-dashboard">Admin Dashboard</a>
     <a href="#admin-users">User Management</a>
     <a href="#admin-enterprises">Enterprise Management</a>
+    <a href="#admin-company-updates">Company Updates</a>
     <a href="#admin-audit">Audit Logs</a>
     <a href="#admin-settings">System Settings</a>
 
@@ -255,7 +258,7 @@
   <p class="subtitle">User Manual</p>
   <p class="region">Region VII — Central Visayas<br>Cebu City, Philippines</p>
   <div class="version">
-    Version 1.2 &nbsp;·&nbsp; April 2026<br>
+    Version 1.3 &nbsp;·&nbsp; June 2026<br>
     Document Code: DTI-EMS-UM-001
   </div>
 </div>
@@ -276,7 +279,7 @@
   <li><strong>Participant Registration</strong> — Online registration with RSVP confirmation and Training Needs Assessment (TNA)</li>
   <li><strong>QR Code Attendance</strong> — Digital check-in via QR code scanning for real-time attendance tracking</li>
   <li><strong>Client Satisfaction Feedback (CSF)</strong> — ARTA-prescribed survey format with SQD dimensions and official reporting</li>
-  <li><strong>Certificate Issuance</strong> — Digital certificates with unique verification codes</li>
+  <li><strong>Certificate Issuance</strong> — Digital certificates of attendance with unique verification codes, plus optional certificates of appearance for government participants</li>
   <li><strong>Post-Activity Reporting</strong> — PAR (FM-CT-6) and Training Effectiveness Monitoring (FM-CT-5)</li>
   <li><strong>Enterprise Directory</strong> — Searchable public directory of registered MSMEs</li>
   <li><strong>Audit Trail</strong> — Comprehensive logging of all administrative actions</li>
@@ -347,6 +350,12 @@
     <td>Full system access, user management, enterprise management, audit logs</td>
   </tr>
   <tr>
+    <td><span class="badge badge-teal">DTI_EMPLOYEE</span></td>
+    <td>DTI Employee</td>
+    <td>Staff Portal</td>
+    <td>Same as Facilitator — manage assigned events, QR scanning, checklists</td>
+  </tr>
+  <tr>
     <td><span class="badge badge-red">SUPER_ADMIN</span></td>
     <td>Super Admin</td>
     <td>Staff + Admin</td>
@@ -410,7 +419,7 @@
   <span class="step-num">3</span>
   <h5>Fill in your details</h5>
   <p><strong>Individual / Organization / Government:</strong> First Name, Last Name, Email, Mobile Number, Region, Password (minimum 10 characters, must include uppercase and number).</p>
-  <p><strong>Business Owner / Enterprise Rep (additional fields):</strong> Business Name, Industry Sector, Trade Name, Registration Number, TIN, Business Stage (Pre-Startup / Startup / Growth / Expansion / Mature), Employee Count.</p>
+  <p><strong>Business Owner / Enterprise Rep (additional fields):</strong> Business Name, Industry Sector, Trade Name, Registration Number, TIN, Business Stage (Ideation / Validation / Growth / Expansion / Maturity/Exit), Employee Count.</p>
   <div class="info-box">Each enterprise is registered as a <strong>unique profile</strong> independent of the events attended or the representative signing up. If your enterprise is already registered, you can request to join it instead of creating a duplicate — see Section 12 (Enterprise Membership).</div>
 </div>
 
@@ -457,6 +466,7 @@
   <tr><td>My Events</td><td>All events you've registered for with action buttons</td></tr>
   <tr><td>My Certificates</td><td>Digital certificates you've earned</td></tr>
   <tr><td>Profile</td><td>Update your personal information</td></tr>
+  <tr><td>Company Profile</td><td>[Enterprise Reps only] Full CPMS-compliant business information form</td></tr>
 </table>
 
 <!-- ── BROWSING EVENTS ── -->
@@ -520,7 +530,7 @@
   <span class="step-num">4</span>
   <h5>Click "Register for this Event"</h5>
   <p>Your registration status will be set to <span class="badge badge-blue">REGISTERED</span>. If the event requires a Training Needs Assessment (TNA), you will be prompted to complete it.</p>
-  <p>If you registered as a <strong>Business Owner / Enterprise Rep</strong>, the system will also prompt you to <strong>confirm or update your current business stage</strong> (e.g., Pre-Startup → Startup). This allows DTI to track enterprise growth over time across multiple training participations.</p>
+  <p>If you registered as a <strong>Business Owner / Enterprise Rep</strong>, the system will also prompt you to <strong>confirm or update your current business stage</strong> (e.g., Ideation → Growth). This allows DTI to track enterprise growth over time across multiple training participations.</p>
 </div>
 
 <div class="info-box">
@@ -734,6 +744,10 @@
   <p>Use the <strong>"Verify Certificate"</strong> link or navigate to the public verification page at <code>/verify/[code]</code>. Enter the verification code to confirm authenticity.</p>
 </div>
 
+<div class="info-box">
+  <strong>Government Participants:</strong> If you registered under the Government category, you will receive both a <strong>Certificate of Attendance</strong> and a <strong>Certificate of Appearance</strong> for qualifying events. Both are available for download from your My Certificates page.
+</div>
+
 <!-- ── ENTERPRISE MEMBERSHIP ── -->
 <h2 id="part-enterprise">12. Enterprise Membership</h2>
 
@@ -795,10 +809,44 @@
   Keep your profile complete and up-to-date. Your demographic information is used in CSF reports and training effectiveness evaluations.
 </div>
 
+<!-- ── COMPANY PROFILE ── -->
+<h2 id="part-company-profile">13.5 Company Profile (Enterprise Representatives)</h2>
+
+<p>Enterprise Representatives have access to a <strong>Company Profile</strong> page at <code>/company-profile</code> — a comprehensive CPMS (Centralized Product Management System)-compliant form for managing detailed enterprise information.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Access the Company Profile</h5>
+  <p>Click <strong>"Company Profile"</strong> in the participant sidebar. This page is only visible to users with the Enterprise Representative role.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Update enterprise information</h5>
+  <p>The form is organized into 7 tabs:</p>
+  <ul>
+    <li><strong>Registration &amp; Status</strong> — CPMS ID, TIN, DTI Konek ID, MSME level, registration details</li>
+    <li><strong>Address &amp; Contact</strong> — Business address, email, phone, website, social media, e-commerce platforms</li>
+    <li><strong>Business Profile</strong> — Description, year established, form of organization, asset size, business activity, PSIC codes, industry sector</li>
+    <li><strong>Owner Info</strong> — Owner's personal details, address, social classification</li>
+    <li><strong>Business Trackers</strong> — EDT level, RIPPLES stage, SMERA stage, digitalization level, digital tools used</li>
+    <li><strong>Financial &amp; Markets</strong> — Capitalization, authorized capital, asset size range, sales, domestic/export/import markets</li>
+    <li><strong>Products &amp; Employment</strong> — Product lines, certifications, full-time/part-time employee breakdown</li>
+  </ul>
+</div>
+
+<div class="info-box">
+  <strong>Profile Update Reminder:</strong> Enterprise Representatives are prompted to update their company profile upon login when an update is due. A modal appears automatically to guide you through the update process.
+</div>
+
+<div class="tip-box">
+  Keeping your Company Profile up-to-date helps DTI track enterprise growth over time and ensures accurate CPMS data for program targeting and impact evaluation.
+</div>
+
 <!-- ════════════════════════════════════════════════════════════════
      STAFF GUIDE
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="staff-dashboard">14. Staff Dashboard</h2>
+<h2 id="staff-dashboard">14. Staff Portal Overview</h2>
 
 <p>Staff users (Technical Staff, Facilitators, Division Chiefs, Directors) are directed to the organizer portal upon login.</p>
 
@@ -812,15 +860,15 @@
 <h4>Sidebar Navigation (varies by role)</h4>
 <table>
   <tr><th>Role</th><th>Menu Items</th></tr>
-  <tr><td>Technical Staff</td><td>Dashboard, My Proposals, New Proposal, My Events, Reports</td></tr>
-  <tr><td>Facilitator</td><td>Dashboard, My Events, Reports</td></tr>
+  <tr><td>Technical Staff</td><td>Dashboard, My Proposals, New Proposal, TNA, My Events, Reports</td></tr>
+  <tr><td>Facilitator / DTI Employee</td><td>Dashboard, My Events, Reports</td></tr>
   <tr><td>Division Chief</td><td>Dashboard, Proposals Queue</td></tr>
   <tr><td>Regional/Provincial Director</td><td>Dashboard, For Approval</td></tr>
-  <tr><td>System Admin / Super Admin</td><td>All of the above + Admin section (Users, Enterprises, All Events, Audit Logs)</td></tr>
+  <tr><td>System Admin / Super Admin</td><td>All of the above + Admin section (Users, Enterprises, Company Updates, All Events, Audit Logs, Roles, Settings)</td></tr>
 </table>
 
 <!-- ── CREATING PROPOSALS ── -->
-<h2 id="staff-proposal">14. Creating Event Proposals</h2>
+<h2 id="staff-proposal">15. Creating Event Proposals</h2>
 
 <p>The proposal workflow follows the <strong>DTI QMS 5-Step Process</strong>. Only Technical Staff (Program Managers) and Admin roles can create proposals.</p>
 
@@ -886,8 +934,59 @@
   <tr><td>Target Groups</td><td>Expected participants</td><td>EDT Level, Sector Group, Estimated Participants</td></tr>
 </table>
 
+<h4>Proposal Types Available</h4>
+<p>In addition to the standard training types (Business, Managerial, Organizational, Entrepreneurial, Inter-Agency), the following event types are available for non-training activities:</p>
+<ul>
+  <li><strong>Seminar</strong> — One-day knowledge-sharing sessions</li>
+  <li><strong>Forum / Panel Discussion</strong> — Multi-speaker discussion events</li>
+  <li><strong>Conference</strong> — Large-scale multi-track events</li>
+  <li><strong>Trade Fair / Exhibit</strong> — Product display and networking events</li>
+  <li><strong>Trade Mission</strong> — Business matching and delegation events</li>
+  <li><strong>Consultation / Meeting</strong> — Stakeholder consultations and coordination meetings</li>
+</ul>
+
+<!-- ── STAFF TNA MODULE ── -->
+<h2 id="staff-tna">16. Staff-Led TNA Module</h2>
+
+<p>Technical Staff (and Admin roles) can create and manage <strong>Pre-Proposal TNAs</strong> independently — separate from the participant TNA flow. This module is accessed at <code>/organizer/tna</code> and allows staff to conduct Training Needs Assessments at the sector or group level to justify and inform future proposals.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Navigate to TNA</h5>
+  <p>Click <strong>"TNA"</strong> in the staff sidebar. The TNA list page shows all existing TNA records with their status (Draft or Finalized).</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Create a new TNA</h5>
+  <p>Click <strong>"New TNA"</strong>. Fill in the details:</p>
+  <ul>
+    <li><strong>Title</strong> — Name of the TNA exercise</li>
+    <li><strong>Sector</strong> — Target industry sector</li>
+    <li><strong>Respondent Type</strong> — MSME Owner, Manager, Employee, DTI Officer, Partner Agency, Other</li>
+    <li><strong>Preferred Delivery Mode</strong> — Face-to-Face, Online/Webinar, Blended/Hybrid, On-the-Job/Coaching, No Preference</li>
+    <li><strong>Schedule Preference</strong> — Weekday Mornings, Weekday Afternoons, Saturday, Full-Day Saturday, Flexible</li>
+  </ul>
+</div>
+
+<div class="step-box">
+  <span class="step-num">3</span>
+  <h5>Add respondent entries</h5>
+  <p>Add individual respondents with their name, contact details, and responses. The TNA can track multiple respondents and aggregate their input.</p>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">4</span>
+  <h5>Finalize the TNA</h5>
+  <p>Once all data is collected, click <strong>"Finalize"</strong> to lock the TNA. Finalized TNAs can be referenced in proposals to justify training needs.</p>
+</div>
+
+<div class="info-box">
+  Unlike the Participant TNA (completed by individual registrants), the Staff-Led TNA is conducted by DTI personnel to assess sector-wide training needs before designing a program.
+</div>
+
 <!-- ── PROPOSAL APPROVAL ── -->
-<h2 id="staff-approval">15. Proposal Approval Workflow</h2>
+<h2 id="staff-approval">17. Proposal Approval Workflow</h2>
 
 <p>Proposals follow a structured approval chain mapped to the DTI QMS process.</p>
 
@@ -930,7 +1029,7 @@
 </div>
 
 <!-- ── ACTIVATING EVENTS ── -->
-<h2 id="staff-activate">16. Activating Events</h2>
+<h2 id="staff-activate">18. Activating Events</h2>
 
 <p>After a proposal is approved, the Technical Staff must activate the event to make it visible to the public.</p>
 
@@ -956,9 +1055,9 @@
 </div>
 
 <!-- ── MANAGING EVENTS ── -->
-<h2 id="staff-manage">17. Managing Events</h2>
+<h2 id="staff-manage">19. Managing Events</h2>
 
-<h3>17.1 Event Management Hub</h3>
+<h3>19.1 Event Management Hub</h3>
 <p>Click on any event from <strong>My Events</strong> to access the management hub. This central page provides quick action cards:</p>
 
 <table>
@@ -975,7 +1074,40 @@
   <tr><td>Effectiveness</td><td>TEM (FM-CT-5)</td><td>COMPLETED only</td></tr>
 </table>
 
-<h3>17.2 DTI QMS Progress Banner</h3>
+<h3>19.2 Staff Assignment</h3>
+<p>Staff users with appropriate permissions can assign multiple team members to an event with specific roles. This replaces the single-facilitator model with a flexible team structure.</p>
+
+<div class="step-box">
+  <span class="step-num">1</span>
+  <h5>Open the event management hub</h5>
+  <p>From the event detail page, locate the <strong>Staff Assignment</strong> section.</p>
+</div>
+
+<div class="step-box">
+  <span class="step-num">2</span>
+  <h5>Search and add staff</h5>
+  <p>Use the staff search field to find a DTI employee by name. Select a role for the assignment:</p>
+  <ul>
+    <li><strong>Facilitator</strong> — Primary event facilitator</li>
+    <li><strong>Co-Facilitator</strong> — Secondary facilitator</li>
+    <li><strong>Resource Person</strong> — Subject matter expert</li>
+    <li><strong>Registration Officer</strong> — Handles participant registration</li>
+    <li><strong>Logistics</strong> — Event logistics coordination</li>
+    <li><strong>Documentation</strong> — Event documentation and photography</li>
+    <li><strong>Secretariat</strong> — Administrative support</li>
+    <li><strong>IT Support</strong> — Technical and AV support</li>
+    <li><strong>Finance</strong> — Financial and budget management</li>
+    <li><strong>Other</strong> — Custom role</li>
+  </ul>
+</div>
+
+<div class="step-box action">
+  <span class="step-num">3</span>
+  <h5>Confirm assignment</h5>
+  <p>Click <strong>"Assign"</strong>. The staff member appears in the event's staff list with their assigned role. Multiple staff members can be assigned to the same event.</p>
+</div>
+
+<h3>19.3 DTI QMS Progress Banner</h3>
 <p>A 5-step progress indicator shows the current stage of the event:</p>
 <div class="flow">
   <div class="flow-step active">1. Prepare Proposal</div>
@@ -989,7 +1121,7 @@
   <div class="flow-step">5. Post-Training</div>
 </div>
 
-<h3>17.3 Event Status Transitions</h3>
+<h3>19.4 Event Status Transitions</h3>
 <p>Use the status transition buttons to advance the event through its lifecycle:</p>
 
 <table>
@@ -1002,7 +1134,7 @@
   <tr><td><span class="badge badge-teal">COMPLETED</span></td><td>—</td><td>Final status</td></tr>
 </table>
 
-<h3>17.4 Session Management</h3>
+<h3>19.5 Session Management</h3>
 <p>Add training sessions from the event detail page:</p>
 <ul>
   <li>Click <strong>"Add Session"</strong></li>
@@ -1010,7 +1142,7 @@
   <li>Sessions appear in the event detail and participant views</li>
 </ul>
 
-<h3>17.5 Speaker Management</h3>
+<h3>19.6 Speaker Management</h3>
 <p>Add speakers from the event detail page:</p>
 <ul>
   <li>Click <strong>"Add Speaker"</strong></li>
@@ -1019,7 +1151,7 @@
 </ul>
 
 <!-- ── ATTENDANCE ── -->
-<h2 id="staff-attendance">18. QR Code Attendance Scanning</h2>
+<h2 id="staff-attendance">20. QR Code Attendance Scanning</h2>
 
 <div class="warning-box">
   The QR scanner is only available when the event status is <span class="badge badge-orange">ONGOING</span>.
@@ -1044,15 +1176,20 @@
 </div>
 
 <h4>Manual Check-in (Fallback)</h4>
-<p>If QR scanning is not possible:</p>
+<p>If QR scanning is not possible, use the name-based manual check-in:</p>
 <ul>
   <li>Scroll to the <strong>"Manual Check-in"</strong> section</li>
-  <li>Enter the participant's Participation ID</li>
+  <li>Type the participant's <strong>name or email</strong> in the search field</li>
+  <li>Select the matching participant from the dropdown results</li>
   <li>Click <strong>"Check In"</strong></li>
 </ul>
+<p>The system searches across all registered participants (excluding cancelled ones) and shows up to 8 matching results.</p>
+
+<h4>Real-time Success Notifications</h4>
+<p>Each successful scan or manual check-in displays a <strong>real-time success notice</strong> at the top of the scanner page, showing the confirmation message and timestamp. This provides immediate feedback to the facilitator without disrupting the scanning flow.</p>
 
 <!-- ── CHECKLISTS ── -->
-<h2 id="staff-checklist">19. Checklists (FM-CT-7)</h2>
+<h2 id="staff-checklist">21. Checklists (FM-CT-7)</h2>
 
 <p>When an event is activated, the system auto-generates a DTI Training Monitoring Checklist (FM-CT-7) with standard checklist items.</p>
 
@@ -1092,7 +1229,7 @@
 </div>
 
 <!-- ── ISSUING CERTIFICATES ── -->
-<h2 id="staff-certs">20. Issuing Certificates</h2>
+<h2 id="staff-certs">22. Issuing Certificates</h2>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -1112,8 +1249,11 @@
   <p>Each certificate receives a unique verification code. Participants can view and download their certificates from their <strong>My Certificates</strong> page. Certificate authenticity can be verified via the public verification page.</p>
 </div>
 
+<h4>Certificate of Appearance (Government Participants)</h4>
+<p>Participants classified as <strong>Government</strong> (client type <code>GOVERNMENT</code> or employment <code>EMPLOYED_GOVT</code>) receive an additional <strong>Certificate of Appearance</strong> alongside the standard Certificate of Attendance. This appears on the participant list and in the participant's My Certificates page as a separate downloadable PDF.</p>
+
 <!-- ── CSF REPORT ── -->
-<h2 id="staff-csf">21. CSF Report (ARTA Format)</h2>
+<h2 id="staff-csf">23. CSF Report (ARTA Format)</h2>
 
 <p>The CSF Report generates the official ARTA-prescribed Client Satisfaction Feedback report (FM-CSF-ACT-RPT).</p>
 
@@ -1146,7 +1286,7 @@
 </div>
 
 <!-- ── PAR ── -->
-<h2 id="staff-par">22. Post-Activity Report (PAR) — FM-CT-6</h2>
+<h2 id="staff-par">24. Post-Activity Report (PAR) — FM-CT-6</h2>
 
 <p>The PAR documents what happened during the training event and follows a review/approval workflow.</p>
 
@@ -1185,7 +1325,7 @@
 </table>
 
 <!-- ── TEM ── -->
-<h2 id="staff-tem">23. Training Effectiveness Report (TEM) — FM-CT-5</h2>
+<h2 id="staff-tem">25. Training Effectiveness Report (TEM) — FM-CT-5</h2>
 
 <p>The TEM monitors the long-term effectiveness of training programs, collected 6 months after the event.</p>
 
@@ -1234,7 +1374,7 @@
 </div>
 
 <!-- ── REPORTS ── -->
-<h2 id="staff-reports">24. Reports &amp; Analytics</h2>
+<h2 id="staff-reports">26. Reports &amp; Analytics</h2>
 
 <p>Click <strong>"Reports"</strong> in the sidebar to access system-wide analytics.</p>
 
@@ -1260,7 +1400,7 @@
 <!-- ════════════════════════════════════════════════════════════════
      ADMIN GUIDE
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="admin-dashboard">25. Admin Dashboard</h2>
+<h2 id="admin-dashboard">27. Admin Dashboard</h2>
 
 <p>Accessible to System Admin and Super Admin roles. Navigate to <strong>"Admin Dashboard"</strong> in the sidebar under the Admin section.</p>
 
@@ -1280,7 +1420,7 @@
 <p>Additional sections show <strong>Users by Role</strong> and <strong>Events by Status</strong> breakdowns.</p>
 
 <!-- ── USER MANAGEMENT ── -->
-<h2 id="admin-users">26. User Management</h2>
+<h2 id="admin-users">28. User Management</h2>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -1297,6 +1437,7 @@
 <h4>Available Actions</h4>
 <table>
   <tr><th>Action</th><th>Description</th></tr>
+  <tr><td>Approve</td><td>Approve a PENDING_APPROVAL account — activates the user</td></tr>
   <tr><td>Change Role</td><td>Open a modal to reassign the user's role</td></tr>
   <tr><td>Verify Email</td><td>Manually verify a user's email address (for unverified accounts)</td></tr>
   <tr><td>Suspend</td><td>Suspend a user account (requires a reason text)</td></tr>
@@ -1304,7 +1445,7 @@
 </table>
 
 <!-- ── ENTERPRISE MANAGEMENT ── -->
-<h2 id="admin-enterprises">27. Enterprise Management</h2>
+<h2 id="admin-enterprises">29. Enterprise Management</h2>
 
 <div class="step-box">
   <span class="step-num">1</span>
@@ -1315,7 +1456,7 @@
 <div class="step-box">
   <span class="step-num">2</span>
   <h5>Search and filter</h5>
-  <p>Search by business name or TIN. Filter by Stage (Pre-Startup/Startup/Growth/Expansion/Mature) or verification status.</p>
+  <p>Search by business name or TIN. Filter by Stage (Ideation/Validation/Growth/Expansion/Maturity/Exit) or verification status.</p>
 </div>
 
 <h4>Available Actions</h4>
@@ -1325,8 +1466,40 @@
   <tr><td>List / Unlist</td><td>Toggle the enterprise's visibility on the public Enterprise Directory</td></tr>
 </table>
 
+<!-- ── COMPANY UPDATES ── -->
+<h2 id="admin-company-updates">30. Company Updates</h2>
+
+<p>The Company Updates page tracks the history of enterprise profile updates across the system. Accessible via <strong>"Company Updates"</strong> in the Admin sidebar.</p>
+
+<h4>Dashboard Metrics</h4>
+<ul>
+  <li><strong>Year selector</strong> — View compliance data for a specific year</li>
+  <li><strong>Total Enterprises</strong> — Count of enterprises in the system</li>
+  <li><strong>Updated This Year</strong> — Enterprises that have submitted an update</li>
+  <li><strong>Pending Update</strong> — Enterprises due for an annual update</li>
+  <li><strong>First Login Pending</strong> — New enterprises that haven't completed their initial profile</li>
+  <li><strong>Compliance Rate</strong> — Percentage of enterprises up-to-date with their profile</li>
+</ul>
+
+<h4>Update Log Types</h4>
+<table>
+  <tr><th>Type</th><th>Description</th></tr>
+  <tr><td><span class="badge" style="background:#7c3aed">FIRST_LOGIN</span></td><td>Initial profile completion upon first login</td></tr>
+  <tr><td><span class="badge" style="background:#172187">ANNUAL</span></td><td>Mandatory yearly profile update</td></tr>
+  <tr><td><span class="badge badge-green">VOLUNTARY</span></td><td>Voluntary profile update by the enterprise</td></tr>
+</table>
+
+<h4>Log Details</h4>
+<p>Click on any log entry to view the full details of what changed, including:</p>
+<ul>
+  <li><strong>Changed Fields</strong> — Specific fields that were modified with old and new values</li>
+  <li><strong>Snapshot</strong> — Complete enterprise profile snapshot after the update</li>
+  <li><strong>Updated By</strong> — Name of the user who made the update</li>
+  <li><strong>Timestamp</strong> — Date and time of the update</li>
+</ul>
+
 <!-- ── AUDIT LOGS ── -->
-<h2 id="admin-audit">28. Audit Logs</h2>
+<h2 id="admin-audit">31. Audit Logs</h2>
 
 <p>The audit log provides a comprehensive trail of all administrative actions in the system.</p>
 
@@ -1358,7 +1531,7 @@
 </table>
 
 <!-- ── SYSTEM SETTINGS ── -->
-<h2 id="admin-settings">29. System Settings</h2>
+<h2 id="admin-settings">32. System Settings</h2>
 
 <p>The Settings page displays a read-only view of the system configuration and health status.</p>
 
@@ -1377,10 +1550,32 @@
 <!-- ════════════════════════════════════════════════════════════════
      CHANGELOG
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="ref-changelog">30. Changelog</h2>
+<h2 id="ref-changelog">33. Changelog</h2>
 
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr>
+    <td><strong>v1.3</strong></td>
+    <td>June 17, 2026</td>
+    <td>
+      <ul style="margin:0;padding-left:18px">
+        <li><strong>New Role:</strong> DTI_EMPLOYEE — light staff role with Facilitator-level access</li>
+        <li><strong>New User Status:</strong> PENDING_APPROVAL — new accounts require admin approval before activation</li>
+        <li><strong>New Module:</strong> Staff-led TNA module at <code>/organizer/tna</code> — create and manage pre-proposal TNAs independently</li>
+        <li><strong>New Page:</strong> Company Profile (<code>/company-profile</code>) — full CPMS-compliant enterprise information form for enterprise representatives</li>
+        <li><strong>New Admin Page:</strong> Company Updates (<code>/admin/enterprise-updates</code>) — track enterprise profile update history and compliance</li>
+        <li><strong>New Feature:</strong> Staff Assignment on event hub — assign Facilitators, Co-Facilitators, Resource Persons, and other roles to events</li>
+        <li><strong>New Proposal Types:</strong> Seminar, Forum/Panel Discussion, Conference, Trade Fair/Exhibit, Trade Mission, Consultation/Meeting</li>
+        <li><strong>Business Stages Renamed:</strong> Pre-Startup → Ideation, Startup → Validation, Mature → Maturity/Exit</li>
+        <li><strong>Certificate of Appearance:</strong> Government participants receive an additional Certificate of Appearance alongside the standard Certificate of Attendance</li>
+        <li><strong>Certificate Renamed:</strong> "Certificate of Completion" → "Certificate of Attendance"</li>
+        <li><strong>Manual Check-in Improved:</strong> Name-based participant search replaces Participation ID entry</li>
+        <li><strong>Success Notifications:</strong> Real-time toast for each successful QR scan or manual check-in</li>
+        <li><strong>UI Rebrand:</strong> Bagong Pilipinas logo, updated color scheme (navy #172187), white header background</li>
+        <li><strong>User Manual Link:</strong> Added "User Manual" link in navigation header for all authenticated users</li>
+      </ul>
+    </td>
+  </tr>
   <tr>
     <td><strong>v1.2</strong></td>
     <td>April 27, 2026</td>
@@ -1412,7 +1607,7 @@
 <!-- ════════════════════════════════════════════════════════════════
      REFERENCE SECTION
      ════════════════════════════════════════════════════════════════ -->
-<h2 id="ref-lifecycle">31. Event Lifecycle Reference</h2>
+<h2 id="ref-lifecycle">34. Event Lifecycle Reference</h2>
 
 <h4>Complete Status Flow</h4>
 <div class="flow">
@@ -1460,7 +1655,7 @@
 </table>
 
 <!-- ── STATUS REFERENCE ── -->
-<h2 id="ref-statuses">32. Status Reference</h2>
+<h2 id="ref-statuses">35. Status Reference</h2>
 
 <h4>Event Statuses</h4>
 <table>
@@ -1496,7 +1691,7 @@
 </table>
 
 <!-- ── FORMS REFERENCE ── -->
-<h2 id="ref-forms">33. DTI Forms Reference</h2>
+<h2 id="ref-forms">36. DTI Forms Reference</h2>
 
 <table>
   <tr><th>Form Code</th><th>Title</th><th>Purpose</th><th>System Location</th></tr>
@@ -1508,7 +1703,7 @@
 </table>
 
 <!-- ── FAQ ── -->
-<h2 id="ref-faq">34. Frequently Asked Questions</h2>
+<h2 id="ref-faq">37. Frequently Asked Questions</h2>
 
 <h4>General</h4>
 
@@ -1569,12 +1764,32 @@
 
 <div class="step-box">
   <h5>Q: The QR scanner isn't working. What can I do?</h5>
-  <p>Ensure the event status is <strong>ONGOING</strong>. Try switching to a different camera if available. Use the <strong>"Manual Check-in"</strong> fallback to enter the Participation ID directly.</p>
+  <p>Ensure the event status is <strong>ONGOING</strong>. Try switching to a different camera if available. Use the <strong>"Manual Check-in"</strong> fallback — type the participant's name or email in the search field and select them from the results.</p>
 </div>
 
 <div class="step-box">
   <h5>Q: How do I assign a facilitator to an event?</h5>
   <p>On the proposal page (after approval), use the staff search field to find and select the Facilitator. Click <strong>"Assign Facilitator"</strong>. This should be done before activating the event.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: Can I assign multiple staff members to one event?</h5>
+  <p>Yes. Open the event management hub and use the <strong>Staff Assignment</strong> section to add multiple team members with specific roles (Facilitator, Co-Facilitator, Resource Person, Logistics, etc.).</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: What is the difference between Certificate of Attendance and Certificate of Appearance?</h5>
+  <p><strong>Certificate of Attendance</strong> is the standard certificate issued to all participants who attended the event. <strong>Certificate of Appearance</strong> is an additional certificate issued only to Government participants (client type GOVERNMENT or EMPLOYED_GOVT).</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: When should I use the Staff TNA module vs. the Participant TNA?</h5>
+  <p>Use the <strong>Staff TNA</strong> module (at <code>/organizer/tna</code>) to conduct sector-wide or group-level training needs assessments before designing a proposal. The <strong>Participant TNA</strong> is a per-individual readiness check completed by participants during event registration.</p>
+</div>
+
+<div class="step-box">
+  <h5>Q: What does PENDING_APPROVAL status mean?</h5>
+  <p>Newly registered accounts may have a <strong>PENDING_APPROVAL</strong> status, meaning an administrator needs to review and approve the account before the user can log in. This replaces immediate activation for accounts requiring manual verification.</p>
 </div>
 
 <div class="step-box">
@@ -1587,7 +1802,7 @@
   <p><strong>Department of Trade and Industry — Region VII</strong></p>
   <p>3/F, WDC Bldg., Osmeña Blvd. cor. P. Burgos,<br>
   Cebu City, 6000, Cebu, Philippines</p>
-  <p style="margin-top: 12px;">DTI EMS User Manual v1.2 &nbsp;·&nbsp; Document Code: DTI-EMS-UM-001 &nbsp;·&nbsp; April 2026</p>
+  <p style="margin-top: 12px;">DTI EMS User Manual v1.3 &nbsp;·&nbsp; Document Code: DTI-EMS-UM-001 &nbsp;·&nbsp; June 2026</p>
   <p style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
     This document is for internal use by DTI Region VII staff and authorized training participants.
     <br>Data privacy is governed by RA 10173 (Data Privacy Act of 2012).
