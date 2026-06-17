@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { BadRequestError, NotFoundError, ForbiddenError, ConflictError, ErrorCode } from '@dti-ems/shared-errors';
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const normalizeRole = (role: unknown): string =>
+  String(role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
 export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.addHook('preHandler', app.verifyJwt);
@@ -114,7 +116,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/results — organizer/admin aggregated results
   app.get('/events/:eventId/csf/results', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
       throw new ForbiddenError('Only organizers can view survey results.');
     }
@@ -375,7 +377,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/impact/results — aggregated results (admin/organizer)
   app.get('/events/:eventId/impact/results', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
       throw new ForbiddenError('Only organizers or admins can view impact results.');
     }
@@ -429,7 +431,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/report — FM-CSF-ACT-RPT full report
   app.get('/events/:eventId/csf/report', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
       throw new ForbiddenError('Only organizers can view CSF reports.');
     }
@@ -600,7 +602,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/impact/effectiveness — FM-CT-3 effectiveness report
   app.get('/events/:eventId/impact/effectiveness', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
       throw new ForbiddenError('Only organizers or admins can view effectiveness reports.');
     }
@@ -665,8 +667,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
   // POST /surveys/events/:eventId/csf/distribute — Step 5: Technical Staff distributes CSF forms
   // Creates CsfSurveyResponse records (PENDING) for all ATTENDED/COMPLETED participants
   app.post('/events/:eventId/csf/distribute', async (request, reply) => {
-    const role = request.user.role;
-    if (!['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    const role = normalizeRole(request.user.role);
+    if (!['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].includes(role)) {
       throw new ForbiddenError('Only Technical Staff or admins can distribute CSF forms.');
     }
 
@@ -674,9 +676,12 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
     const event = await app.prisma.event.findUnique({
       where: { id: eventId },
-      select: { id: true, status: true, endDate: true },
+      select: { id: true, status: true, endDate: true, assignedOrganizerId: true },
     });
     if (!event) throw new NotFoundError('Event not found');
+    if (role === 'DTI_EMPLOYEE' && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can distribute CSF forms.');
+    }
     if (!['ONGOING', 'COMPLETED'].includes(event.status)) {
       throw new BadRequestError('CSF forms can only be distributed for ongoing or completed events.', ErrorCode.VALIDATION_ERROR);
     }
@@ -716,7 +721,7 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/distribution-status — Step 5: get CSF distribution summary
   app.get('/events/:eventId/csf/distribution-status', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
       throw new ForbiddenError('Only Technical Staff or admins can view CSF distribution status.');
     }

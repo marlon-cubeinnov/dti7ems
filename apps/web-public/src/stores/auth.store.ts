@@ -6,6 +6,7 @@ interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  roles?: UserRole[];
   firstName: string;
   lastName: string;
 }

@@ -9,12 +9,13 @@ interface Props {
 
 export function ProtectedRoute({ roles, redirectTo = '/login' }: Props) {
   const { isAuthenticated, user } = useAuthStore();
+  const userRoles = user?.roles?.length ? user.roles : user ? [user.role] : [];
 
   if (!isAuthenticated) return <Navigate to={redirectTo} replace />;
 
-  if (roles && user && !roles.includes(user.role)) {
+  if (roles && user && !roles.some((role) => userRoles.includes(role))) {
     // Authenticated but wrong role — send to their home
-    const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user.role);
+    const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].some((role) => userRoles.includes(role as UserRole));
     return <Navigate to={isOrganizer ? '/organizer/dashboard' : '/dashboard'} replace />;
   }
 

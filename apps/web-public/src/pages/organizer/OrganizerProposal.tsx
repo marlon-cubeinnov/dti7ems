@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizerApi, staffApi, eventsApi, tnaApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { Link as RouterLink } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, UserCheck, Rocket, ClipboardList, Upload, FileCheck, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Pencil, Save, UserCheck, Rocket, ClipboardList, Upload, FileCheck, ExternalLink } from 'lucide-react';
 
 const PROPOSAL_TYPES = [
   { value: '', label: '— Select —', group: '' },
@@ -57,6 +57,7 @@ interface TargetGroup {
 
 export function OrganizerProposalPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { user } = useAuthStore();
   const [tab, setTab] = useState<Tab>('details');
@@ -70,7 +71,8 @@ export function OrganizerProposalPage() {
   const [staffSearch, setStaffSearch] = useState('');  
   const [selectedLeadId, setSelectedLeadId] = useState('');
 
-  // Proposal fields state
+  // Inline edit mode for proposal narrative fields — auto-activate when ?edit=1
+  const [isEditMode, setIsEditMode] = useState(() => searchParams.get('edit') === '1');
   const [trainingType, setTrainingType] = useState('');
   const [partnerInstitution, setPartnerInstitution] = useState('');
   const [background, setBackground] = useState('');
@@ -78,7 +80,6 @@ export function OrganizerProposalPage() {
   const [learningOutcomes, setLearningOutcomes] = useState('');
   const [methodology, setMethodology] = useState('');
   const [monitoringPlan, setMonitoringPlan] = useState('');
-
   const { data: eventData } = useQuery({
     queryKey: ['event', id],
     queryFn: () => eventsApi.get(id!),
@@ -133,25 +134,16 @@ export function OrganizerProposalPage() {
     }
   }, [proposal]);
 
+
+
   const proposalStatus = proposal?.proposalStatus ?? 'DRAFT';
   const isLocked = proposalStatus === 'APPROVED';
+  const canModifyItems = ['DRAFT', 'REJECTED'].includes(proposalStatus);
   const hasLead = !!proposal?.assignedOrganizerId;
   const canActivate = proposalStatus === 'APPROVED' && event?.status === 'DRAFT'
     && (user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN');
 
-  // Activate event (Step 3) — DRAFT → PUBLISHED + seeds DTI checklist
-  const activateMut = useMutation({
-    mutationFn: () => organizerApi.activateEvent(id!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['event', id] });
-      qc.invalidateQueries({ queryKey: ['proposal', id] });
-      setMsg('Event activated! The DTI Training Monitoring Checklist has been created. You can now manage pre-activity requirements.');
-      setErrMsg('');
-    },
-    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to activate event.'),
-  });
-
-  // Save proposal
+  // Save proposal narrative fields
   const saveMut = useMutation({
     mutationFn: () => organizerApi.saveProposal(id!, {
       trainingType: trainingType || null,
@@ -166,9 +158,25 @@ export function OrganizerProposalPage() {
       qc.invalidateQueries({ queryKey: ['proposal', id] });
       setMsg('Proposal saved.');
       setErrMsg('');
+      setIsEditMode(false);
+      setSearchParams({}, { replace: true });
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to save.'),
   });
+
+  // Activate event (Step 3) — DRAFT → PUBLISHED + seeds DTI checklist
+  const activateMut = useMutation({
+    mutationFn: () => organizerApi.activateEvent(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['event', id] });
+      qc.invalidateQueries({ queryKey: ['proposal', id] });
+      setMsg('Event activated! The DTI Training Monitoring Checklist has been created. You can now manage pre-activity requirements.');
+      setErrMsg('');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to activate event.'),
+  });
+
+
 
   // Submit proposal
   const submitMut = useMutation({
@@ -234,8 +242,30 @@ export function OrganizerProposalPage() {
   });
   const staffList: any[] = (staffData as any)?.data ?? [];
 
+  // Responsible person autocomplete (Risk Register)
+  const [riskPersonSearch, setRiskPersonSearch] = useState('');
+  const { data: riskPersonData } = useQuery({
+    queryKey: ['staff-risk', riskPersonSearch],
+    queryFn: () => staffApi.search(riskPersonSearch),
+    enabled: riskPersonSearch.length > 0,
+  });
+  const riskPersonList: any[] = (riskPersonData as any)?.data ?? [];
+
+  // Responsible person autocomplete for editing existing risk rows
+  const [editRiskPersonSearch, setEditRiskPersonSearch] = useState('');
+  const { data: editRiskPersonData } = useQuery({
+    queryKey: ['staff-risk-edit', editRiskPersonSearch],
+    queryFn: () => staffApi.search(editRiskPersonSearch),
+    enabled: editRiskPersonSearch.length > 0,
+  });
+  const editRiskPersonList: any[] = (editRiskPersonData as any)?.data ?? [];
+
   // Budget mutations
   const [newBudget, setNewBudget] = useState<BudgetItem>({ item: '', unitCost: 0, quantity: 1, estimatedAmount: 0, sourceOfFunds: '', actualSpent: null });
+
+  // Inline edit state for budget rows
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [editBudgetDraft, setEditBudgetDraft] = useState<BudgetItem>({ item: '', unitCost: 0, quantity: 1, estimatedAmount: 0, sourceOfFunds: '', actualSpent: null });
 
   const addBudgetMut = useMutation({
     mutationFn: () => organizerApi.addBudgetItem(id!, { ...newBudget, orderIndex: budgetItems.length }),
@@ -243,6 +273,17 @@ export function OrganizerProposalPage() {
       qc.invalidateQueries({ queryKey: ['budget', id] });
       setNewBudget({ item: '', unitCost: 0, quantity: 1, estimatedAmount: 0, sourceOfFunds: '', actualSpent: null });
       setMsg('Budget item added.');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
+  });
+
+  const updateBudgetMut = useMutation({
+    mutationFn: ({ itemId, data }: { itemId: string; data: Record<string, unknown> }) =>
+      organizerApi.updateBudgetItem(id!, itemId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['budget', id] });
+      setEditingBudgetId(null);
+      setMsg('Budget item updated.');
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
   });
@@ -259,12 +300,27 @@ export function OrganizerProposalPage() {
   // Risk mutations
   const [newRisk, setNewRisk] = useState<RiskItem>({ riskDescription: '', actionPlan: '', responsiblePerson: '' });
 
+  // Inline edit state for risk rows
+  const [editingRiskId, setEditingRiskId] = useState<string | null>(null);
+  const [editRiskDraft, setEditRiskDraft] = useState<RiskItem>({ riskDescription: '', actionPlan: '', responsiblePerson: '' });
+
   const addRiskMut = useMutation({
     mutationFn: () => organizerApi.addRisk(id!, { ...newRisk, orderIndex: riskItems.length }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['risks', id] });
       setNewRisk({ riskDescription: '', actionPlan: '', responsiblePerson: '' });
       setMsg('Risk item added.');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
+  });
+
+  const updateRiskMut = useMutation({
+    mutationFn: ({ riskId, data }: { riskId: string; data: Record<string, unknown> }) =>
+      organizerApi.updateRisk(id!, riskId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['risks', id] });
+      setEditingRiskId(null);
+      setMsg('Risk item updated.');
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
   });
@@ -281,12 +337,27 @@ export function OrganizerProposalPage() {
   // Target group mutations
   const [newTarget, setNewTarget] = useState<TargetGroup>({ edtLevel: '', sectorGroup: '', estimatedParticipants: 0 });
 
+  // Inline edit state for target rows
+  const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
+  const [editTargetDraft, setEditTargetDraft] = useState<TargetGroup>({ edtLevel: '', sectorGroup: '', estimatedParticipants: 0 });
+
   const addTargetMut = useMutation({
     mutationFn: () => organizerApi.addTargetGroup(id!, { ...newTarget, orderIndex: targetGroups.length }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['target-groups', id] });
       setNewTarget({ edtLevel: '', sectorGroup: '', estimatedParticipants: 0 });
       setMsg('Target group added.');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
+  });
+
+  const updateTargetMut = useMutation({
+    mutationFn: ({ groupId, data }: { groupId: string; data: Record<string, unknown> }) =>
+      organizerApi.updateTargetGroup(id!, groupId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['target-groups', id] });
+      setEditingTargetId(null);
+      setMsg('Target group updated.');
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed.'),
   });
@@ -353,98 +424,146 @@ export function OrganizerProposalPage() {
         <div className="card space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Event / Training Type</label>
-              <select className="input" value={trainingType} disabled={isLocked}
-                onChange={e => setTrainingType(e.target.value)}>
-                <option value="">— Select Type —</option>
-                <optgroup label="Training">
-                  {PROPOSAL_TYPES.filter(t => t.group === 'Training').map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Events">
-                  {PROPOSAL_TYPES.filter(t => t.group === 'Events').map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </optgroup>
-              </select>
+              <p className="label">Event / Training Type</p>
+              {isEditMode ? (
+                <select className="input" value={trainingType} onChange={e => setTrainingType(e.target.value)}>
+                  <option value="">— Select Type —</option>
+                  <optgroup label="Training">
+                    {PROPOSAL_TYPES.filter(t => t.group === 'Training').map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Events">
+                    {PROPOSAL_TYPES.filter(t => t.group === 'Events').map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              ) : (
+                <p className="text-sm text-gray-900 py-2">{PROPOSAL_TYPES.find(t => t.value === proposal?.trainingType)?.label ?? '—'}</p>
+              )}
             </div>
             <div>
-              <label className="label">Partner Institution</label>
-              <input className="input" value={partnerInstitution} disabled={isLocked}
-                onChange={e => setPartnerInstitution(e.target.value)} placeholder="e.g. DOST-7, TESDA" />
+              <p className="label">Partner Institution</p>
+              {isEditMode ? (
+                <input className="input" value={partnerInstitution} onChange={e => setPartnerInstitution(e.target.value)} placeholder="e.g. DOST-7, TESDA" />
+              ) : (
+                <p className="text-sm text-gray-900 py-2">{proposal?.partnerInstitution || '—'}</p>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="label">Background / Rationale</label>
-            <textarea className="input min-h-[80px]" value={background} disabled={isLocked}
-              onChange={e => setBackground(e.target.value)} placeholder="Background and justification for the training…" />
+            <p className="label">Background / Rationale</p>
+            {isEditMode ? (
+              <textarea className="input min-h-[80px]" value={background} onChange={e => setBackground(e.target.value)} placeholder="Background and justification…" />
+            ) : proposal?.background ? (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{proposal.background}</p>
+            ) : <p className="text-sm text-gray-400 italic">Not provided</p>}
           </div>
 
           <div>
-            <label className="label">Objectives</label>
-            <textarea className="input min-h-[80px]" value={objectives} disabled={isLocked}
-              onChange={e => setObjectives(e.target.value)} placeholder="General and specific objectives…" />
+            <p className="label">Objectives</p>
+            {isEditMode ? (
+              <textarea className="input min-h-[80px]" value={objectives} onChange={e => setObjectives(e.target.value)} placeholder="General and specific objectives…" />
+            ) : proposal?.objectives ? (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{proposal.objectives}</p>
+            ) : <p className="text-sm text-gray-400 italic">Not provided</p>}
           </div>
 
           <div>
-            <label className="label">Expected Learning Outcomes</label>
-            <textarea className="input min-h-[80px]" value={learningOutcomes} disabled={isLocked}
-              onChange={e => setLearningOutcomes(e.target.value)} placeholder="At the end of the training, participants should be able to…" />
+            <p className="label">Expected Learning Outcomes</p>
+            {isEditMode ? (
+              <textarea className="input min-h-[80px]" value={learningOutcomes} onChange={e => setLearningOutcomes(e.target.value)} placeholder="At the end of the training, participants should be able to…" />
+            ) : proposal?.learningOutcomes ? (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{proposal.learningOutcomes}</p>
+            ) : <p className="text-sm text-gray-400 italic">Not provided</p>}
           </div>
 
           <div>
-            <label className="label">Methodology</label>
-            <textarea className="input min-h-[80px]" value={methodology} disabled={isLocked}
-              onChange={e => setMethodology(e.target.value)} placeholder="Lecture, workshop, hands-on, group activity…" />
+            <p className="label">Methodology</p>
+            {isEditMode ? (
+              <textarea className="input min-h-[80px]" value={methodology} onChange={e => setMethodology(e.target.value)} placeholder="Lecture, workshop, hands-on…" />
+            ) : proposal?.methodology ? (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{proposal.methodology}</p>
+            ) : <p className="text-sm text-gray-400 italic">Not provided</p>}
           </div>
 
           <div>
-            <label className="label">Monitoring & Evaluation Plan</label>
-            <textarea className="input min-h-[80px]" value={monitoringPlan} disabled={isLocked}
-              onChange={e => setMonitoringPlan(e.target.value)} placeholder="How effectiveness will be measured post-training…" />
+            <p className="label">Monitoring &amp; Evaluation Plan</p>
+            {isEditMode ? (
+              <textarea className="input min-h-[80px]" value={monitoringPlan} onChange={e => setMonitoringPlan(e.target.value)} placeholder="How effectiveness will be measured post-training…" />
+            ) : proposal?.monitoringPlan ? (
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{proposal.monitoringPlan}</p>
+            ) : <p className="text-sm text-gray-400 italic">Not provided</p>}
           </div>
 
-          {!isLocked && (
-            <div className="flex flex-wrap gap-3 pt-2">
-              {/* Technical Staff: save + submit */}
-              {(user?.role === 'PROGRAM_MANAGER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && (
-                <>
-                  <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="btn-primary flex items-center gap-2">
-                    <Save size={16} /> {saveMut.isPending ? 'Saving…' : 'Save Proposal'}
-                  </button>
-                  {['DRAFT', 'REJECTED'].includes(proposalStatus) && (
-                    <button onClick={() => submitMut.mutate()} disabled={submitMut.isPending} className="btn-secondary">
-                      {submitMut.isPending ? 'Submitting…' : 'Submit for Review'}
+          {(() => {
+            const isTech = user?.role === 'PROGRAM_MANAGER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN';
+            const canEdit    = isTech && ['DRAFT', 'REJECTED'].includes(proposalStatus);
+            const canSubmit  = isTech && ['DRAFT', 'REJECTED'].includes(proposalStatus);
+            const canReview  = (user?.role === 'DIVISION_CHIEF' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && proposalStatus === 'SUBMITTED';
+            const canApprove = (user?.role === 'REGIONAL_DIRECTOR' || user?.role === 'PROVINCIAL_DIRECTOR' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && ['SUBMITTED', 'UNDER_REVIEW'].includes(proposalStatus);
+            if (!canEdit && !canSubmit && !canReview && !canApprove) return null;
+            return (
+              <div className="flex flex-wrap gap-3 pt-3 border-t">
+                {isEditMode ? (
+                  <>
+                    <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="btn-primary flex items-center gap-2">
+                      <Save size={16} /> {saveMut.isPending ? 'Saving…' : 'Save Changes'}
                     </button>
-                  )}
-                </>
-              )}
-
-              {/* Division Chief: mark under review */}
-              {(user?.role === 'DIVISION_CHIEF' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && proposalStatus === 'SUBMITTED' && (
-                <button onClick={() => reviewMut.mutate()} disabled={reviewMut.isPending}
-                  className="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600">
-                  {reviewMut.isPending ? 'Processing…' : 'Mark Under Review'}
-                </button>
-              )}
-
-              {/* Regional Director / PD: approve or reject */}
-              {(user?.role === 'REGIONAL_DIRECTOR' || user?.role === 'PROVINCIAL_DIRECTOR' || user?.role === 'SUPER_ADMIN') && ['SUBMITTED', 'UNDER_REVIEW'].includes(proposalStatus) && (
-                <>
-                  <button onClick={() => approveMut.mutate('APPROVE')} disabled={approveMut.isPending}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
-                    Approve
-                  </button>
-                  <button onClick={() => approveMut.mutate('REJECT')} disabled={approveMut.isPending}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700">
-                    Reject
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                    <button
+                      onClick={() => {
+                        setIsEditMode(false);
+                        setSearchParams({}, { replace: true });
+                        setTrainingType(proposal?.trainingType ?? '');
+                        setPartnerInstitution(proposal?.partnerInstitution ?? '');
+                        setBackground(proposal?.background ?? '');
+                        setObjectives(proposal?.objectives ?? '');
+                        setLearningOutcomes(proposal?.learningOutcomes ?? '');
+                        setMethodology(proposal?.methodology ?? '');
+                        setMonitoringPlan(proposal?.monitoringPlan ?? '');
+                      }}
+                      className="btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {canEdit && (
+                      <button onClick={() => setIsEditMode(true)} className="btn-primary flex items-center gap-2">
+                        <Pencil size={16} /> Edit Proposal
+                      </button>
+                    )}
+                    {canSubmit && (
+                      <button onClick={() => submitMut.mutate()} disabled={submitMut.isPending} className="btn-secondary">
+                        {submitMut.isPending ? 'Submitting…' : 'Submit for Review'}
+                      </button>
+                    )}
+                    {canReview && (
+                      <button onClick={() => reviewMut.mutate()} disabled={reviewMut.isPending}
+                        className="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600">
+                        {reviewMut.isPending ? 'Processing…' : 'Mark Under Review'}
+                      </button>
+                    )}
+                    {canApprove && (
+                      <>
+                        <button onClick={() => approveMut.mutate('APPROVE')} disabled={approveMut.isPending}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+                          Approve
+                        </button>
+                        <button onClick={() => approveMut.mutate('REJECT')} disabled={approveMut.isPending}
+                          className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700">
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Assign Event/Training Lead — shown when APPROVED, for PM/Admin */}
           {proposalStatus === 'APPROVED' && ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '') && (
@@ -619,7 +738,7 @@ export function OrganizerProposalPage() {
               </RouterLink>
             </div>
             {(() => {
-              const tnas = ((linkedTnaData as Record<string, unknown>)?.data as unknown[]) ?? [];
+              const tnas = ((linkedTnaData as unknown as Record<string, unknown>)?.data as unknown[]) ?? [];
               if (tnas.length === 0) {
                 return (
                   <p className="text-xs text-gray-500">
@@ -691,18 +810,41 @@ export function OrganizerProposalPage() {
                 </thead>
                 <tbody className="divide-y">
                   {budgetItems.map((b: any) => (
-                    <tr key={b.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-medium text-gray-900">{b.item}</td>
-                      <td className="px-3 py-2 text-right text-gray-600">₱{Number(b.unitCost).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-2 text-center text-gray-600">{b.quantity}</td>
-                      <td className="px-3 py-2 text-right font-medium">₱{Number(b.estimatedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-2 text-gray-600">{b.sourceOfFunds ?? '—'}</td>
-                      <td className="px-3 py-2 text-right text-gray-600">{b.actualSpent != null ? `₱${Number(b.actualSpent).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}</td>
-                      <td className="px-3 py-2">
-                        <button onClick={() => { if (confirm('Delete?')) deleteBudgetMut.mutate(b.id); }}
-                          className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
-                      </td>
-                    </tr>
+                    editingBudgetId === b.id ? (
+                      <tr key={b.id} className="bg-blue-50">
+                        <td className="px-2 py-1.5"><input className="input text-xs py-1" value={editBudgetDraft.item} onChange={e => setEditBudgetDraft(p => ({ ...p, item: e.target.value }))} /></td>
+                        <td className="px-2 py-1.5"><input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.unitCost || ''} onChange={e => { const uc = Number(e.target.value); setEditBudgetDraft(p => ({ ...p, unitCost: uc, estimatedAmount: uc * p.quantity })); }} /></td>
+                        <td className="px-2 py-1.5"><input type="number" min={1} className="input text-xs py-1 text-center" value={editBudgetDraft.quantity || ''} onChange={e => { const q = Number(e.target.value) || 1; setEditBudgetDraft(p => ({ ...p, quantity: q, estimatedAmount: p.unitCost * q })); }} /></td>
+                        <td className="px-2 py-1.5"><input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.estimatedAmount || ''} onChange={e => setEditBudgetDraft(p => ({ ...p, estimatedAmount: Number(e.target.value) }))} /></td>
+                        <td className="px-2 py-1.5"><input className="input text-xs py-1" value={editBudgetDraft.sourceOfFunds ?? ''} onChange={e => setEditBudgetDraft(p => ({ ...p, sourceOfFunds: e.target.value }))} /></td>
+                        <td className="px-2 py-1.5 text-right text-gray-400 text-xs">—</td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex gap-1">
+                            <button onClick={() => updateBudgetMut.mutate({ itemId: b.id, data: { ...editBudgetDraft } })} disabled={updateBudgetMut.isPending || !editBudgetDraft.item.trim()} className="text-blue-600 hover:text-blue-800"><Save size={14} /></button>
+                            <button onClick={() => setEditingBudgetId(null)} className="text-gray-400 hover:text-gray-600"><span className="text-xs">✕</span></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={b.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium text-gray-900">{b.item}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">₱{Number(b.unitCost).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 text-center text-gray-600">{b.quantity}</td>
+                        <td className="px-3 py-2 text-right font-medium">₱{Number(b.estimatedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 text-gray-600">{b.sourceOfFunds ?? '—'}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{b.actualSpent != null ? `₱${Number(b.actualSpent).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1.5">
+                            {canModifyItems && (
+                              <button onClick={() => { setEditingBudgetId(b.id); setEditBudgetDraft({ item: b.item, unitCost: Number(b.unitCost), quantity: b.quantity, estimatedAmount: Number(b.estimatedAmount), sourceOfFunds: b.sourceOfFunds ?? '', actualSpent: b.actualSpent }); }} className="text-gray-400 hover:text-blue-500"><Pencil size={13} /></button>
+                            )}
+                            {canModifyItems && (
+                              <button onClick={() => { if (confirm('Delete?')) deleteBudgetMut.mutate(b.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
                   ))}
                   {budgetItems.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-6 text-gray-400">No budget items yet.</td></tr>
@@ -713,6 +855,7 @@ export function OrganizerProposalPage() {
           </div>
 
           {/* Add budget item */}
+          {canModifyItems && (
           <div className="card space-y-3">
             <p className="text-sm font-semibold text-gray-700">Add Budget Item</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -741,6 +884,7 @@ export function OrganizerProposalPage() {
               <Plus size={14} /> {addBudgetMut.isPending ? 'Adding…' : 'Add Item'}
             </button>
           </div>
+          )}
         </div>
       )}
 
@@ -785,8 +929,41 @@ export function OrganizerProposalPage() {
                 onChange={e => setNewRisk(p => ({ ...p, riskDescription: e.target.value }))} className="input" />
               <input placeholder="Action plan" value={newRisk.actionPlan}
                 onChange={e => setNewRisk(p => ({ ...p, actionPlan: e.target.value }))} className="input" />
-              <input placeholder="Responsible person" value={newRisk.responsiblePerson}
-                onChange={e => setNewRisk(p => ({ ...p, responsiblePerson: e.target.value }))} className="input" />
+              <div className="relative">
+                <input
+                  placeholder="Search DTI employee…"
+                  value={newRisk.responsiblePerson}
+                  onChange={e => {
+                    setNewRisk(p => ({ ...p, responsiblePerson: e.target.value }));
+                    setRiskPersonSearch(e.target.value);
+                  }}
+                  className="input w-full"
+                  autoComplete="off"
+                />
+                {riskPersonSearch.length > 0 && riskPersonList.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto bg-white shadow-md">
+                    {riskPersonList.map((s: any) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setNewRisk(p => ({ ...p, responsiblePerson: `${s.firstName} ${s.lastName}` }));
+                          setRiskPersonSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="font-medium text-gray-900">{s.firstName} {s.lastName}</span>
+                        <span className="ml-2 text-xs text-gray-400">{s.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {riskPersonSearch.length > 0 && riskPersonList.length === 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 border border-gray-200 rounded-lg bg-white shadow-md px-3 py-2">
+                    <p className="text-xs text-gray-400">No DTI employees found.</p>
+                  </div>
+                )}
+              </div>
             </div>
             <button onClick={() => addRiskMut.mutate()} disabled={addRiskMut.isPending || !newRisk.riskDescription.trim()}
               className="btn-primary text-sm flex items-center gap-1.5">

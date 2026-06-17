@@ -8,7 +8,7 @@ import {
   NotFoundError,
   ErrorCode,
 } from '@dti-ems/shared-errors';
-import { KAFKA_TOPICS } from '@dti-ems/shared-types';
+import { KAFKA_TOPICS, derivePrimaryRole } from '@dti-ems/shared-types';
 
 const REFRESH_TOKEN_TTL = Number(process.env['JWT_REFRESH_TOKEN_EXPIRY_SECONDS'] ?? 604800);
 const REDIS_REFRESH_PREFIX = 'refresh:';
@@ -16,6 +16,29 @@ const REDIS_VERIFY_PREFIX = 'verify:';
 
 export class AuthService {
   constructor(private readonly app: FastifyInstance) {}
+
+  private async resolvePermissions(roleNames: readonly string[]) {
+    if (!roleNames.length) return [];
+
+    const roleConfigs = await this.app.prisma.roleConfig.findMany({
+      where: { name: { in: [...new Set(roleNames)] }, isActive: true },
+      include: {
+        permissions: {
+          include: {
+            permission: {
+              select: { code: true },
+            },
+          },
+        },
+      },
+    });
+
+    return [...new Set(
+      roleConfigs.flatMap((roleConfig) =>
+        roleConfig.permissions.map((rolePermission) => rolePermission.permission.code),
+      ),
+    )].sort();
+  }
 
   async register(data: {
     email: string;
@@ -90,6 +113,8 @@ export class AuthService {
         cityMunicipality: cityMunicipality ?? null,
         jobTitle: jobTitle ?? null,
         clientType: resolvedClientType,
+        role: 'PARTICIPANT',
+        roles: ['PARTICIPANT'],
         dpaConsentGiven: true,
         dpaConsentAt: new Date(),
         verifyToken,
@@ -194,6 +219,7 @@ export class AuthService {
           lastName,
           mobileNumber: mobileNumber ?? null,
           role: 'ENTERPRISE_REPRESENTATIVE',
+          roles: ['ENTERPRISE_REPRESENTATIVE'],
           dpaConsentGiven: true,
           dpaConsentAt: new Date(),
           verifyToken,
@@ -238,6 +264,7 @@ export class AuthService {
               lastName: emp.lastName,
               jobTitle: emp.jobTitle ?? null,
               role: 'PARTICIPANT',
+              roles: ['PARTICIPANT'],
               dpaConsentGiven: false,
               inviteToken: invToken,
               inviteTokenExp: invTokenExp,
@@ -299,6 +326,7 @@ export class AuthService {
           lastName: data.lastName,
           jobTitle: data.jobTitle ?? null,
           role: 'PARTICIPANT',
+          roles: ['PARTICIPANT'],
           dpaConsentGiven: false,
           inviteToken,
           inviteTokenExp,
@@ -382,11 +410,16 @@ export class AuthService {
       if (user.status === 'DEACTIVATED') throw new UnauthorizedError('This account has been deactivated.', ErrorCode.ACCOUNT_DEACTIVATED);
     }
 
+    const roles = user.roles?.length ? user.roles : [derivePrimaryRole([user.role])];
+    const permissions = await this.resolvePermissions(roles);
+
     // Issue tokens
     const accessToken = this.app.jwt.sign({
       sub: user.id,
       email: user.email,
       role: user.role,
+      roles,
+      permissions,
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
     });
@@ -420,6 +453,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
+        roles,
+        permissions,
         status: user.status,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -446,7 +481,17 @@ export class AuthService {
     const newRefreshToken = nanoid(64);
     await this.app.redis.setex(`${REDIS_REFRESH_PREFIX}${newRefreshToken}`, REFRESH_TOKEN_TTL, user.id);
 
-    const accessToken = this.app.jwt.sign({ sub: user.id, email: user.email, role: user.role, firstName: user.firstName ?? null, lastName: user.lastName ?? null });
+    const roles = user.roles?.length ? user.roles : [derivePrimaryRole([user.role])];
+    const permissions = await this.resolvePermissions(roles);
+    const accessToken = this.app.jwt.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      roles,
+      permissions,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+    });
 
     return { accessToken, refreshToken: newRefreshToken };
   }

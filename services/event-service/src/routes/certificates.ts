@@ -5,6 +5,9 @@ import PDFDocument from 'pdfkit';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
 import { notifyCertificateIssued } from '../lib/notify.js';
 
+const normalizeRole = (role: unknown): string =>
+  String(role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+
 export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   const isGovernmentParticipant = async (userId: string) => {
     const rows = await app.prisma.$queryRawUnsafe<Array<{ client_type: string | null; employment_category: string | null }>>(
@@ -101,7 +104,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
   // POST /certificates/:participationId/issue — organizer marks certificate issued
   app.post('/:participationId/issue', async (request, reply) => {
-    const role = request.user.role;
+    const role = normalizeRole(request.user.role);
     if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
       throw new ForbiddenError('Only organizers can issue certificates.');
     }
@@ -167,12 +170,19 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
   // POST /certificates/bulk-issue/:eventId — issue all eligible certs for an event
   app.post('/bulk-issue/:eventId', async (request, reply) => {
-    const role = request.user.role;
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    const role = normalizeRole(request.user.role);
+    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].includes(role)) {
       throw new ForbiddenError('Only organizers can issue certificates.');
     }
 
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+
+    if (role === 'DTI_EMPLOYEE') {
+      const evCheck = await app.prisma.event.findUnique({ where: { id: eventId }, select: { assignedOrganizerId: true } });
+      if (!evCheck || evCheck.assignedOrganizerId !== request.user.sub) {
+        throw new ForbiddenError('Only the assigned event lead can issue certificates.');
+      }
+    }
 
     // Get all attended participants without an ISSUED/GENERATED certificate
     const eligible = await app.prisma.eventParticipation.findMany({
@@ -261,7 +271,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
     if (!cert) throw new NotFoundError('Certificate not found');
 
     const isOwner  = cert.participation.userId === request.user.sub;
-    const isStaff  = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
+    const isStaff  = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
     if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
 
     return reply.send({ success: true, data: cert });
@@ -291,7 +301,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
     if (cert.status === 'REVOKED') throw new BadRequestError('This certificate has been revoked.', ErrorCode.VALIDATION_ERROR);
 
     const isOwner = cert.participation.userId === request.user.sub;
-    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
+    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
     if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
 
     const participantName = cert.participation.participantName ?? cert.participation.participantEmail ?? 'Participant';
@@ -419,7 +429,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
     if (cert.status === 'REVOKED') throw new BadRequestError('This certificate has been revoked.', ErrorCode.VALIDATION_ERROR);
 
     const isOwner = cert.participation.userId === request.user.sub;
-    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
+    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
     if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
 
     const appearanceEligible = await isGovernmentParticipant(cert.participation.userId);
@@ -570,7 +580,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
   // PATCH /certificates/:participationId/revoke — admin revoke
   app.patch('/:participationId/revoke', async (request, reply) => {
-    if (!['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role)) {
+    if (!['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role))) {
       throw new ForbiddenError('Only administrators can revoke certificates.');
     }
 

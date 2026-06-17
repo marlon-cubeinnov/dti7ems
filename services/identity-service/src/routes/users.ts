@@ -1,12 +1,17 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { ForbiddenError, NotFoundError } from '@dti-ems/shared-errors';
+import argon2 from 'argon2';
+import { ConflictError, ForbiddenError, NotFoundError } from '@dti-ems/shared-errors';
+import type { UserRole } from '@dti-ems/shared-types';
+import { ASSIGNABLE_USER_ROLE_VALUES, USER_ROLE_VALUES, derivePrimaryRole } from '@dti-ems/shared-types';
 
 const SEX_VALUES = ['MALE', 'FEMALE'] as const;
 const AGE_BRACKET_VALUES = ['AGE_19_OR_LOWER', 'AGE_20_TO_34', 'AGE_35_TO_49', 'AGE_50_TO_64', 'AGE_65_OR_HIGHER'] as const;
 const EMPLOYMENT_CATEGORY_VALUES = ['SELF_EMPLOYED', 'EMPLOYED_GOVT', 'EMPLOYED_PRIVATE', 'GENERAL_PUBLIC'] as const;
 const SOCIAL_CLASSIFICATION_VALUES = ['ABLED', 'PWD', 'FOUR_PS', 'YOUTH', 'SENIOR_CITIZEN', 'INDIGENOUS_PERSON', 'OFW', 'OTHERS'] as const;
 const CLIENT_TYPE_VALUES = ['CITIZEN', 'BUSINESS', 'GOVERNMENT'] as const;
+const USER_ROLE_SCHEMA = z.enum(USER_ROLE_VALUES);
+const ASSIGNABLE_USER_ROLE_SCHEMA = z.enum(ASSIGNABLE_USER_ROLE_VALUES);
 
 const updateProfileSchema = z.object({
   firstName:              z.string().min(1).max(100).optional(),
@@ -27,8 +32,33 @@ const updateProfileSchema = z.object({
   industryClassification: z.string().max(200).optional().nullable(),
 });
 
+const createUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  middleName: z.string().max(100).optional().nullable(),
+  mobileNumber: z.string().regex(/^(\+63|0)9\d{9}$/, 'Invalid PH mobile number').optional().nullable(),
+  role: ASSIGNABLE_USER_ROLE_SCHEMA.optional(),
+  roles: z.array(ASSIGNABLE_USER_ROLE_SCHEMA).min(1).optional(),
+  status: z.enum(['ACTIVE', 'PENDING_VERIFICATION', 'PENDING_APPROVAL', 'SUSPENDED', 'DEACTIVATED']).default('ACTIVE'),
+  region: z.string().max(100).optional().nullable(),
+  province: z.string().max(100).optional().nullable(),
+  cityMunicipality: z.string().max(100).optional().nullable(),
+  barangay: z.string().max(100).optional().nullable(),
+  jobTitle: z.string().max(200).optional().nullable(),
+  industryClassification: z.string().max(200).optional().nullable(),
+  employmentCategory: z.enum(EMPLOYMENT_CATEGORY_VALUES).optional().nullable(),
+  socialClassification: z.enum(SOCIAL_CLASSIFICATION_VALUES).optional().nullable(),
+  clientType: z.enum(CLIENT_TYPE_VALUES).optional().nullable(),
+});
+
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
-const STAFF_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const STAFF_ROLES = ['DTI_EMPLOYEE', 'PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+
+function normalizeRoles(role?: UserRole, roles?: UserRole[]): UserRole[] {
+  return Array.from(new Set(roles?.length ? roles : role ? [role] : ['PARTICIPANT']));
+}
 
 export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // All user routes require authentication
@@ -40,6 +70,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { id: request.user.sub },
       select: {
         id: true, email: true, role: true, status: true,
+        roles: true,
         firstName: true, lastName: true, middleName: true, nameSuffix: true, mobileNumber: true,
         sex: true, ageBracket: true, employmentCategory: true, socialClassification: true, clientType: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
@@ -63,6 +94,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       data: body,
       select: {
         id: true, email: true, role: true, status: true,
+        roles: true,
         firstName: true, lastName: true, middleName: true, nameSuffix: true, mobileNumber: true,
         sex: true, ageBracket: true, employmentCategory: true, socialClassification: true, clientType: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
@@ -132,13 +164,19 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const where: Record<string, unknown> = {};
     if (status) where['status'] = status;
-    if (role)   where['role']   = role;
+    if (role)   where['OR']     = [{ role }, { roles: { has: role as typeof USER_ROLE_VALUES[number] } }];
     if (search) {
-      where['OR'] = [
+      const searchOr = [
         { email:     { contains: search, mode: 'insensitive' } },
         { firstName: { contains: search, mode: 'insensitive' } },
         { lastName:  { contains: search, mode: 'insensitive' } },
       ];
+      if (where['OR']) {
+        where['AND'] = [{ OR: where['OR'] as Record<string, unknown>[] }, { OR: searchOr }];
+        delete where['OR'];
+      } else {
+        where['OR'] = searchOr;
+      }
     }
 
     const [total, users] = await Promise.all([
@@ -149,19 +187,111 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true, email: true, role: true, status: true,
+          id: true, email: true, role: true, roles: true, status: true,
           firstName: true, lastName: true, mobileNumber: true,
           region: true, emailVerified: true, lastLoginAt: true,
+          employmentCategory: true, socialClassification: true, clientType: true,
+          industryClassification: true,
+          enterpriseMemberships: {
+            where: { isActive: true, status: 'ACTIVE' },
+            take: 1,
+            select: {
+              enterprise: { select: { businessName: true } },
+            },
+          },
           createdAt: true,
         },
       }),
     ]);
 
+    const normalizedUsers = users.map((u) => {
+      const enterpriseName = u.enterpriseMemberships[0]?.enterprise?.businessName ?? null;
+      const companyOrOffice = enterpriseName ?? u.industryClassification ?? null;
+      return {
+        ...u,
+        companyOrOffice,
+        classificationCategory: u.socialClassification ?? u.clientType ?? u.employmentCategory ?? null,
+      };
+    });
+
     return reply.send({
       success: true,
-      data: users,
+      data: normalizedUsers,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
+  });
+
+  // POST /users — admin create user
+  app.post('/', async (request, reply) => {
+    if (!ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number])) {
+      throw new ForbiddenError('Only administrators can create users.');
+    }
+
+    const body = createUserSchema.parse(request.body);
+    const roles = normalizeRoles(body.role, body.roles);
+    const primaryRole = derivePrimaryRole(roles);
+
+    const existing = await app.prisma.userProfile.findUnique({ where: { email: body.email } });
+    if (existing) {
+      throw new ConflictError('A user with this email already exists.');
+    }
+
+    const passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
+
+    const created = await app.prisma.userProfile.create({
+      data: {
+        email: body.email,
+        passwordHash,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        middleName: body.middleName ?? null,
+        mobileNumber: body.mobileNumber ?? null,
+        role: primaryRole,
+        roles,
+        status: body.status,
+        region: body.region ?? null,
+        province: body.province ?? null,
+        cityMunicipality: body.cityMunicipality ?? null,
+        barangay: body.barangay ?? null,
+        jobTitle: body.jobTitle ?? null,
+        industryClassification: body.industryClassification ?? null,
+        employmentCategory: body.employmentCategory ?? null,
+        socialClassification: body.socialClassification ?? null,
+        clientType: body.clientType ?? null,
+        dpaConsentGiven: true,
+        dpaConsentAt: new Date(),
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        roles: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    await app.prisma.auditLog.create({
+      data: {
+        userId: request.user.sub,
+        action: 'USER_CREATED',
+        entityType: 'UserProfile',
+        entityId: created.id,
+        oldData: {},
+        newData: {
+          email: created.email,
+          role: created.role,
+          roles: created.roles,
+          status: created.status,
+        },
+      },
+    });
+
+    return reply.code(201).send({ success: true, data: created });
   });
 
   // GET /users/:id — admin only
@@ -174,7 +304,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const user = await app.prisma.userProfile.findUnique({
       where: { id },
       select: {
-        id: true, email: true, role: true, status: true,
+        id: true, email: true, role: true, roles: true, status: true,
         firstName: true, lastName: true, middleName: true, mobileNumber: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
         jobTitle: true, industryClassification: true,
@@ -249,7 +379,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       where: { id },
       data: body,
       select: {
-        id: true, email: true, role: true, status: true,
+        id: true, email: true, role: true, roles: true, status: true,
         firstName: true, lastName: true, middleName: true, mobileNumber: true,
         region: true, province: true, cityMunicipality: true, barangay: true,
         jobTitle: true, industryClassification: true,
@@ -301,7 +431,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         action: 'USER_DELETED',
         entityType: 'UserProfile',
         entityId: id,
-        oldData: { email: existing.email, firstName: existing.firstName, lastName: existing.lastName, role: existing.role },
+        oldData: { email: existing.email, firstName: existing.firstName, lastName: existing.lastName, role: existing.role, roles: existing.roles },
         newData: {},
       },
     });

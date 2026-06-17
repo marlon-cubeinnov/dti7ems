@@ -3,9 +3,18 @@ import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ConflictError, ErrorCode } from '@dti-ems/shared-errors';
 import { notifyBulkCsfInvite, notifyEventStatusChange, notifyMaterialsShared, notifyLeadAssigned } from '../lib/notify.js';
 import { uploadToGoogleDrive } from '../lib/google-drive.js';
+import { hasPermission, requireAnyPermission, requirePermission } from '../lib/rbac.js';
 
-const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'] as const;
 type OrganizerRole = typeof ORGANIZER_ROLES[number];
+
+const normalizeRole = (role: unknown): string =>
+  String(role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+
+const isDtiEmployeeRole = (role: unknown): boolean => normalizeRole(role) === 'DTI_EMPLOYEE';
+
+const isOrganizerRole = (role: unknown): boolean =>
+  ORGANIZER_ROLES.includes(normalizeRole(role) as OrganizerRole);
 
 const createEventSchema = z.object({
   programId:            z.string().optional().nullable(),
@@ -26,7 +35,7 @@ const createEventSchema = z.object({
   // Event type: training vs general event
   eventType:            z.enum(['TRAINING', 'EVENT']).default('TRAINING'),
   // Proposal fields (can be set during creation)
-  trainingType:         z.enum(['BUSINESS', 'MANAGERIAL', 'ORGANIZATIONAL', 'ENTREPRENEURIAL', 'INTER_AGENCY']).optional().nullable(),
+  trainingType:         z.enum(['BUSINESS', 'MANAGERIAL', 'ORGANIZATIONAL', 'ENTREPRENEURIAL', 'INTER_AGENCY', 'SEMINAR', 'FORUM', 'CONFERENCE', 'TRADE_FAIR', 'TRADE_MISSION', 'CONSULTATION']).optional().nullable(),
   partnerInstitution:   z.string().max(500).optional().nullable(),
   background:           z.string().max(10000).optional().nullable(),
   objectives:           z.string().max(10000).optional().nullable(),
@@ -127,47 +136,54 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   //   REGIONAL_DIRECTOR → proposals in UNDER_REVIEW status (queued for approval)
   //   SYSTEM_ADMIN / SUPER_ADMIN → all events
   app.get('/mine', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    const userRole = request.user.role as OrganizerRole;
-    if (!ORGANIZER_ROLES.includes(userRole)) {
-      throw new ForbiddenError('Only organizers and admins can access this endpoint.');
+    const normalizedRole = String(request.user.role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const isDtiEmployee = normalizedRole === 'DTI_EMPLOYEE';
+
+    if (!isDtiEmployee) {
+      requireAnyPermission(
+        request.user,
+        ['events.edit_own', 'events.manage_all', 'proposals.review', 'proposals.approve'],
+        'Only users with organizer permissions can access this endpoint.',
+      );
     }
 
     const q = z.object({
-      page:           z.coerce.number().min(1).default(1),
-      limit:          z.coerce.number().min(1).max(100).default(50),
-      status:         z.string().optional(),
+      page: z.coerce.number().min(1).default(1),
+      limit: z.coerce.number().min(1).max(100).default(50),
+      status: z.string().optional(),
       proposalStatus: z.string().optional(),
-      view:           z.enum(['proposals', 'events']).optional(),
+      view: z.enum(['proposals', 'events']).optional(),
     }).parse(request.query);
+
+    const canManageAllEvents = hasPermission(request.user, 'events.manage_all');
+    const canEditOwnEvents = hasPermission(request.user, 'events.edit_own');
+    const canReviewProposals = hasPermission(request.user, 'proposals.review');
+    const canApproveProposals = hasPermission(request.user, 'proposals.approve');
 
     const where: Record<string, unknown> = {};
     if (q.status) where['status'] = q.status.includes(',') ? { in: q.status.split(',') } : q.status;
     if (q.proposalStatus) where['proposalStatus'] = q.proposalStatus.includes(',') ? { in: q.proposalStatus.split(',') } : q.proposalStatus;
 
-    // View filter: "proposals" = all proposal items regardless of approval status, "events" = approved/active items
     if (q.view === 'proposals') {
       where['proposalStatus'] = { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'] };
     } else if (q.view === 'events') {
       where['proposalStatus'] = 'APPROVED';
-      // Only show events that have been activated (not still in DRAFT status)
       where['status'] = { not: 'DRAFT' };
     }
 
-    // Scope by role
-    if (userRole === 'EVENT_ORGANIZER') {
-      where['assignedOrganizerId'] = request.user.sub;
-      // Facilitators only see events that have been activated (not DRAFT)
-      where['status'] = { not: 'DRAFT' };
-    } else if (userRole === 'PROGRAM_MANAGER') {
-      where['organizerId'] = request.user.sub;
-    } else if (userRole === 'DIVISION_CHIEF') {
-      // Division Chief sees proposals submitted for review
-      where['proposalStatus'] = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
-    } else if (userRole === 'REGIONAL_DIRECTOR' || userRole === 'PROVINCIAL_DIRECTOR') {
-      // Regional Director sees proposals under review awaiting final decision
-      where['proposalStatus'] = { in: ['UNDER_REVIEW', 'APPROVED'] };
+    if (!canManageAllEvents) {
+      if (isDtiEmployee) {
+        // DTI employees see all approved/active events
+        where['proposalStatus'] = 'APPROVED';
+        where['status'] = { not: 'DRAFT' };
+      } else if (canReviewProposals) {
+        where['proposalStatus'] = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
+      } else if (canApproveProposals) {
+        where['proposalStatus'] = { in: ['UNDER_REVIEW', 'APPROVED'] };
+      } else if (canEditOwnEvents) {
+        where['organizerId'] = request.user.sub;
+      }
     }
-    // SYSTEM_ADMIN / SUPER_ADMIN see all — no extra filter
 
     const [total, events] = await Promise.all([
       app.prisma.event.count({ where }),
@@ -191,11 +207,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // POST /events — program managers and admins only (not EVENT_ORGANIZER)
   app.post('/', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    const userRole = request.user.role as OrganizerRole;
-    const PM_ADMIN_ROLES = ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
-    if (!PM_ADMIN_ROLES.includes(userRole as typeof PM_ADMIN_ROLES[number])) {
-      throw new ForbiddenError('Only Program Managers or admins can create proposals/events.');
-    }
+    requirePermission(
+      request.user,
+      'events.create',
+      'Only users with event creation permission can create proposals/events.',
+    );
 
     const body = createEventSchema.parse(request.body);
 
@@ -227,9 +243,15 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
-    if (!isOrganizer) {
-      throw new ForbiddenError('Only organizers or admins can update this event.');
+    requireAnyPermission(
+      request.user,
+      ['events.edit_own', 'events.manage_all'],
+      'Only users with event management permission can update this event.',
+    );
+
+    const canManageAllEvents = hasPermission(request.user, 'events.manage_all');
+    if (!canManageAllEvents && event.organizerId !== request.user.sub) {
+      throw new ForbiddenError('You can only update events that you created.');
     }
 
     if (event.status === 'COMPLETED' || event.status === 'CANCELLED') {
@@ -262,9 +284,18 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
-    if (!isOrganizer) {
-      throw new ForbiddenError('Only organizers or admins can change event status.');
+    const isDtiLead = isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId === request.user.sub;
+    if (!isDtiLead) {
+      requireAnyPermission(
+        request.user,
+        ['events.edit_own', 'events.manage_all'],
+        'Only users with event management permission can change event status.',
+      );
+    }
+
+    const canManageAllEvents = hasPermission(request.user, 'events.manage_all');
+    if (!isDtiLead && !canManageAllEvents && event.organizerId !== request.user.sub && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('You can only change the status of events that you created or are assigned to lead.');
     }
 
     // Workflow validation
@@ -385,9 +416,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can add sessions.');
+    }
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage sessions.');
     }
 
     const body = z.object({
@@ -417,9 +451,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can delete sessions.');
+    }
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage sessions.');
     }
 
     const hasAttendance = await app.prisma.attendanceRecord.count({ where: { sessionId } });
@@ -437,9 +474,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can update sessions.');
+    }
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage sessions.');
     }
 
     const session = await app.prisma.eventSession.findUnique({ where: { id: sessionId } });
@@ -472,7 +512,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can view participants.');
     }
@@ -515,7 +555,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id }, select: { id: true, organizerId: true, title: true } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can export participants.');
     }
@@ -556,7 +596,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can view attendance sheet.');
     }
@@ -625,7 +665,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/:id/report', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
 
-    const isOrganizer = ORGANIZER_ROLES.includes(request.user.role as OrganizerRole);
+    const isOrganizer = isOrganizerRole(request.user.role);
     if (!isOrganizer) {
       throw new ForbiddenError('Only organizers or admins can view event reports.');
     }
@@ -772,14 +812,21 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // GET /events/reports/my-summary — organizer's aggregate event metrics
   app.get('/reports/my-summary', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    const userRole = request.user.role as OrganizerRole;
-    if (!ORGANIZER_ROLES.includes(userRole)) {
-      throw new ForbiddenError('Only organizers and admins can access reports.');
+    const isDtiEmployee = isDtiEmployeeRole(request.user.role);
+
+    if (!isDtiEmployee) {
+      requireAnyPermission(
+        request.user,
+        ['events.edit_own', 'events.manage_all', 'proposals.review', 'proposals.approve'],
+        'Only users with organizer permissions can access reports.',
+      );
     }
 
     const where: Record<string, unknown> = {};
-    // EVENT_ORGANIZER only sees their own events; PROGRAM_MANAGER and admins see all
-    if (userRole === 'EVENT_ORGANIZER') {
+    if (isDtiEmployee) {
+      where['proposalStatus'] = 'APPROVED';
+      where['status'] = { not: 'DRAFT' };
+    } else if (!hasPermission(request.user, 'events.manage_all') && hasPermission(request.user, 'events.edit_own')) {
       where['organizerId'] = request.user.sub;
     }
 
@@ -873,11 +920,14 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/speakers
   app.post('/:id/speakers', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can add speakers.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage speakers.');
+    }
 
     const body = z.object({
       name:         z.string().min(1).max(200),
@@ -895,11 +945,15 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/speakers/:speakerId
   app.delete('/:id/speakers/:speakerId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, speakerId } = z.object({ id: z.string(), speakerId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can remove speakers.');
     }
     const speaker = await app.prisma.trainingSpeaker.findFirst({ where: { id: speakerId, eventId: id } });
     if (!speaker) throw new NotFoundError('Speaker not found');
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (evCheck?.assignedOrganizerId !== request.user.sub) throw new ForbiddenError('Only the assigned event lead can manage speakers.');
+    }
 
     await app.prisma.trainingSpeaker.delete({ where: { id: speakerId } });
     return reply.send({ success: true, message: 'Speaker removed.' });
@@ -910,7 +964,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/par
   app.get('/:id/par', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view PAR.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -948,7 +1002,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/par — create or update PAR
   app.post('/:id/par', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage PAR.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1032,7 +1086,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/par/demographics — auto-generate beneficiary demographics from participant profiles
   app.get('/:id/par/demographics', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view demographics.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1096,7 +1150,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/par/status — transition PAR status
   app.patch('/:id/par/status', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can update PAR status.');
     }
 
@@ -1130,7 +1184,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/tem
   app.get('/:id/tem', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view TEM report.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1164,7 +1218,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/tem — create or update TEM report
   app.post('/:id/tem', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage TEM report.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1197,7 +1251,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/tem/status — transition TEM report status
   app.patch('/:id/tem/status', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can update TEM status.');
     }
 
@@ -1233,7 +1287,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/proposal — get proposal data (event + budget + risks + targets)
   app.get('/:id/proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view proposals.');
     }
 
@@ -1274,7 +1328,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/proposal — save proposal fields
   app.patch('/:id/proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can edit proposals.');
     }
 
@@ -1308,7 +1362,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/submit-proposal — submit for review
   app.post('/:id/submit-proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can submit proposals.');
     }
 
@@ -1330,10 +1384,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/review-proposal — Technical Divisions Chief marks UNDER_REVIEW
   app.patch('/:id/review-proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const role = request.user.role;
-    if (!['DIVISION_CHIEF', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only the Technical Divisions Chief can mark proposals under review.');
-    }
+    requirePermission(
+      request.user,
+      'proposals.review',
+      'Only users with proposal review permission can mark proposals under review.',
+    );
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
@@ -1353,10 +1408,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/approve-proposal — PD/RD gives final approval or rejection
   app.patch('/:id/approve-proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const role = request.user.role;
-    if (!['REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only the Provincial/Regional Director can approve or reject proposals.');
-    }
+    requirePermission(
+      request.user,
+      'proposals.approve',
+      'Only users with proposal approval permission can approve or reject proposals.',
+    );
 
     const body = z.object({
       action: z.enum(['APPROVE', 'REJECT']),
@@ -1388,10 +1444,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/assign-organizer — PM/Admin assigns Event/Training Lead after proposal approval
   app.post('/:id/assign-organizer', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const role = request.user.role;
-    if (!['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only Technical Staff can assign an Event/Training Lead.');
-    }
+    requireAnyPermission(
+      request.user,
+      ['events.edit_own', 'events.manage_all'],
+      'Only users with event management permission can assign an Event/Training Lead.',
+    );
 
     const { organizerId, organizerName, organizerEmail } = z.object({
       organizerId: z.string().min(1),
@@ -1401,6 +1458,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
+
+    const canManageAllEvents = hasPermission(request.user, 'events.manage_all');
+    if (!canManageAllEvents && event.organizerId !== request.user.sub) {
+      throw new ForbiddenError('You can only assign a lead for events that you created.');
+    }
 
     if (event.proposalStatus !== 'APPROVED') {
       throw new BadRequestError('Proposal must be APPROVED before assigning a lead.', ErrorCode.VALIDATION_ERROR);
@@ -1428,7 +1490,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/upload-approved-proposal — upload scanned copy of signed/approved proposal to Google Drive
   app.post('/:id/upload-approved-proposal', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers or admins can upload proposal documents.');
     }
 
@@ -1478,10 +1540,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Transitions DRAFT → PUBLISHED + auto-seeds DTI Training Monitoring Checklist
   app.post('/:id/activate', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const role = request.user.role;
-    if (!['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only Technical Staff or admins can activate an event.');
-    }
+    requireAnyPermission(
+      request.user,
+      ['events.edit_own', 'events.manage_all'],
+      'Only users with event management permission can activate an event.',
+    );
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
@@ -1559,7 +1622,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/budget
   app.get('/:id/budget', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view budget.');
     }
 
@@ -1573,7 +1636,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/budget — add budget item
   app.post('/:id/budget', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage budget.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1598,7 +1661,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/budget/:itemId
   app.patch('/:id/budget/:itemId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, itemId } = z.object({ id: z.string(), itemId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage budget.');
     }
 
@@ -1622,7 +1685,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/budget/:itemId
   app.delete('/:id/budget/:itemId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, itemId } = z.object({ id: z.string(), itemId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage budget.');
     }
     const existing = await app.prisma.trainingBudgetItem.findFirst({ where: { id: itemId, eventId: id } });
@@ -1637,7 +1700,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/risks
   app.get('/:id/risks', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view risks.');
     }
 
@@ -1651,7 +1714,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/risks
   app.post('/:id/risks', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage risks.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1676,10 +1739,29 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.code(201).send({ success: true, data: riskItem });
   });
 
+  // PATCH /events/:id/risks/:riskId
+  app.patch('/:id/risks/:riskId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, riskId } = z.object({ id: z.string(), riskId: z.string() }).parse(request.params);
+    if (!isOrganizerRole(request.user.role)) {
+      throw new ForbiddenError('Only organizers/admins can manage risks.');
+    }
+    const existing = await app.prisma.trainingRiskItem.findFirst({ where: { id: riskId, eventId: id } });
+    if (!existing) throw new NotFoundError('Risk item not found');
+
+    const body = z.object({
+      riskDescription:   z.string().min(1).max(5000).optional(),
+      actionPlan:        z.string().max(5000).optional().nullable(),
+      responsiblePerson: z.string().max(200).optional().nullable(),
+    }).parse(request.body);
+
+    const updated = await app.prisma.trainingRiskItem.update({ where: { id: riskId }, data: body });
+    return reply.send({ success: true, data: updated });
+  });
+
   // DELETE /events/:id/risks/:riskId
   app.delete('/:id/risks/:riskId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, riskId } = z.object({ id: z.string(), riskId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage risks.');
     }
     const existing = await app.prisma.trainingRiskItem.findFirst({ where: { id: riskId, eventId: id } });
@@ -1694,7 +1776,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/target-groups
   app.get('/:id/target-groups', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view target groups.');
     }
 
@@ -1708,7 +1790,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/target-groups
   app.post('/:id/target-groups', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage target groups.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1727,10 +1809,29 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.code(201).send({ success: true, data: group });
   });
 
+  // PATCH /events/:id/target-groups/:groupId
+  app.patch('/:id/target-groups/:groupId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
+    const { id, groupId } = z.object({ id: z.string(), groupId: z.string() }).parse(request.params);
+    if (!isOrganizerRole(request.user.role)) {
+      throw new ForbiddenError('Only organizers/admins can manage target groups.');
+    }
+    const existing = await app.prisma.trainingTargetGroup.findFirst({ where: { id: groupId, eventId: id } });
+    if (!existing) throw new NotFoundError('Target group not found');
+
+    const body = z.object({
+      edtLevel:              z.string().max(100).optional().nullable(),
+      sectorGroup:           z.string().min(1).max(300).optional(),
+      estimatedParticipants: z.number().int().min(0).optional(),
+    }).parse(request.body);
+
+    const updated = await app.prisma.trainingTargetGroup.update({ where: { id: groupId }, data: body });
+    return reply.send({ success: true, data: updated });
+  });
+
   // DELETE /events/:id/target-groups/:groupId
   app.delete('/:id/target-groups/:groupId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, groupId } = z.object({ id: z.string(), groupId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage target groups.');
     }
     const existing = await app.prisma.trainingTargetGroup.findFirst({ where: { id: groupId, eventId: id } });
@@ -1745,7 +1846,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/proposal-tna — fetch linked TNA with respondents
   app.get('/:id/proposal-tna', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view proposal TNA.');
     }
     const tna = await app.prisma.preProposalTna.findFirst({
@@ -1758,7 +1859,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/proposal-tna — create or update the TNA linked to this event
   app.post('/:id/proposal-tna', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage proposal TNA.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1817,7 +1918,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/proposal-tna/status — finalize the TNA
   app.patch('/:id/proposal-tna/status', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage proposal TNA.');
     }
     const body = z.object({ status: z.enum(['DRAFT', 'FINALIZED']) }).parse(request.body);
@@ -1835,7 +1936,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/proposal-tna/respondents — add a respondent
   app.post('/:id/proposal-tna/respondents', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage TNA respondents.');
     }
     const tna = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
@@ -1867,7 +1968,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/proposal-tna/respondents/:respondentId
   app.delete('/:id/proposal-tna/respondents/:respondentId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, respondentId } = z.object({ id: z.string(), respondentId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can manage TNA respondents.');
     }
     const tna = await app.prisma.preProposalTna.findFirst({ where: { linkedEventId: id } });
@@ -1886,7 +1987,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/attachments
   app.get('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view attachments.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1902,7 +2003,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/attachments — register an uploaded file URL
   app.post('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can add attachments.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1925,7 +2026,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/attachments/:attachmentId
   app.delete('/:id/attachments/:attachmentId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, attachmentId } = z.object({ id: z.string(), attachmentId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can delete attachments.');
     }
     const attachment = await app.prisma.proposalAttachment.findFirst({ where: { id: attachmentId, eventId: id } });
@@ -1940,7 +2041,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/staff
   app.get('/:id/staff', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view event staff.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -1956,11 +2057,14 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/staff — assign a staff member with a role
   app.post('/:id/staff', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can assign event staff.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage staff.');
+    }
 
     const STAFF_ROLES = ['FACILITATOR', 'CO_FACILITATOR', 'RESOURCE_PERSON', 'REGISTRATION_OFFICER', 'LOGISTICS', 'DOCUMENTATION', 'SECRETARIAT', 'IT_SUPPORT', 'FINANCE', 'OTHER'] as const;
 
@@ -1984,11 +2088,15 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // PATCH /events/:id/staff/:staffId — update staff role/notes
   app.patch('/:id/staff/:staffId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, staffId } = z.object({ id: z.string(), staffId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can update event staff.');
     }
     const existing = await app.prisma.eventStaff.findFirst({ where: { id: staffId, eventId: id } });
     if (!existing) throw new NotFoundError('Staff assignment not found');
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (evCheck?.assignedOrganizerId !== request.user.sub) throw new ForbiddenError('Only the assigned event lead can manage staff.');
+    }
 
     const STAFF_ROLES = ['FACILITATOR', 'CO_FACILITATOR', 'RESOURCE_PERSON', 'REGISTRATION_OFFICER', 'LOGISTICS', 'DOCUMENTATION', 'SECRETARIAT', 'IT_SUPPORT', 'FINANCE', 'OTHER'] as const;
 
@@ -2004,11 +2112,15 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/staff/:staffId
   app.delete('/:id/staff/:staffId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, staffId } = z.object({ id: z.string(), staffId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can remove event staff.');
     }
     const existing = await app.prisma.eventStaff.findFirst({ where: { id: staffId, eventId: id } });
     if (!existing) throw new NotFoundError('Staff assignment not found');
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (evCheck?.assignedOrganizerId !== request.user.sub) throw new ForbiddenError('Only the assigned event lead can manage staff.');
+    }
 
     await app.prisma.eventStaff.delete({ where: { id: staffId } });
     return reply.send({ success: true, message: 'Staff member removed from event.' });
@@ -2019,7 +2131,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // GET /events/:id/materials — list materials for an event
   app.get('/:id/materials', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view event materials.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -2035,7 +2147,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/materials — add a Google Drive link as a shared material
   app.post('/:id/materials', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can add event materials.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -2052,11 +2164,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const material = await app.prisma.eventMaterial.create({
       data: {
-        eventId:     id,
-        title:       body.title,
+        eventId: id,
+        title: body.title,
         description: body.description ?? null,
-        driveUrl:    body.driveUrl,
-        uploadedBy:  request.user.userId,
+        driveUrl: body.driveUrl,
+        uploadedBy: request.user.sub,
         expiresAt,
       },
     });
@@ -2066,7 +2178,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /events/:id/materials/notify — send material links to all registered participants
   app.post('/:id/materials/notify', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can send material notifications.');
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
@@ -2116,7 +2228,7 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // DELETE /events/:id/materials/:materialId
   app.delete('/:id/materials/:materialId', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id, materialId } = z.object({ id: z.string(), materialId: z.string() }).parse(request.params);
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
+    if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can delete event materials.');
     }
     const material = await app.prisma.eventMaterial.findFirst({ where: { id: materialId, eventId: id } });

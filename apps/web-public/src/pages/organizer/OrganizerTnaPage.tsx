@@ -93,7 +93,7 @@ export default function OrganizerTnaPage() {
 
   useEffect(() => {
     if (!tnaData) return;
-    const t = (tnaData as Record<string, unknown>).data as Record<string, unknown> ?? tnaData as Record<string, unknown>;
+    const t = (tnaData as unknown as Record<string, unknown>).data as Record<string, unknown> ?? tnaData as unknown as Record<string, unknown>;
     if (typeof t.title === 'string') setTnaTitle(t.title);
     if (typeof t.sector === 'string') setTnaSector(t.sector);
     if (typeof t.targetRegion === 'string') setTnaRegion(t.targetRegion);
@@ -113,7 +113,7 @@ export default function OrganizerTnaPage() {
     if (typeof t.scoreDemandMsmes === 'number') setScoreDemand(t.scoreDemandMsmes);
   }, [tnaData]);
 
-  const tna = (tnaData as Record<string, unknown>)?.data as Record<string, unknown> ?? tnaData as Record<string, unknown>;
+  const tna = (tnaData as unknown as Record<string, unknown>)?.data as Record<string, unknown> ?? tnaData as unknown as Record<string, unknown>;
   const tnaFinalized = tna?.status === 'FINALIZED';
   const respondents = (tna?.respondents as unknown[]) ?? [];
 
@@ -165,7 +165,7 @@ export default function OrganizerTnaPage() {
     onSuccess: (res) => {
       setSaveErr('');
       if (isNew) {
-        const newId = ((res as Record<string, unknown>).data as Record<string, unknown>)?.id as string;
+        const newId = ((res as unknown as Record<string, unknown>).data as Record<string, unknown>)?.id as string;
         if (newId) navigate(`/organizer/tna/${newId}`, { replace: true });
       } else {
         qc.invalidateQueries({ queryKey: ['tna', tnaId] });
@@ -181,7 +181,7 @@ export default function OrganizerTnaPage() {
   });
 
   const addRespondentMut = useMutation({
-    mutationFn: () => tnaApi.addRespondent(tnaId!, newRespondent),
+    mutationFn: () => tnaApi.addRespondent(tnaId!, newRespondent as unknown as Record<string, unknown>),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tna', tnaId] });
       setNewRespondent(DEFAULT_RESPONDENT);
@@ -212,7 +212,7 @@ export default function OrganizerTnaPage() {
             {isNew ? 'New Training Needs Assessment' : (tnaTitle_ ?? 'Training Needs Assessment')}
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">FM-CT-1 · Version 2 · Effectivity: January 02, 2026</p>
-          {tnaRecord?.linkedEventId && (
+          {!!tnaRecord?.linkedEventId && (
             <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
               <ClipboardList size={13} className="text-gray-400" />
               Linked to proposal
@@ -376,7 +376,7 @@ export default function OrganizerTnaPage() {
           )}
           {respondents.map((r: unknown) => {
             const resp = r as Record<string, unknown>;
-            const rtLabel = RESPONDENT_TYPES.find(t => t.value === resp.respondentType)?.label ?? resp.respondentType;
+            const rtLabel = RESPONDENT_TYPES.find(t => t.value === resp.respondentType)?.label ?? (resp.respondentType as string);
             return (
               <div key={resp.id as string} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex-1 min-w-0">

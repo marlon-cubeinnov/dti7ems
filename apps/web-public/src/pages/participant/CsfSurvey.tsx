@@ -6,7 +6,7 @@ import dtiLogo from '@/assets/dti-bp-logo.png';
 
 /* ── Exact questions from official DTI FM-CSF-ACT form ── */
 
-const SQD_ITEMS = [
+const SQD_ITEMS: Array<{ num: string; title: string; key: string; text: string; isNA?: boolean }> = [
   {
     num: '0', title: 'OVERALL RATING',
     key: 'sqd0OverallRating',

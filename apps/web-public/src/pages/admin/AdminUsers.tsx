@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminIdentityApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, Eye, Pencil, Trash2, X, UserCheck } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, UserCog, ShieldCheck, ShieldOff, MailCheck, Eye, Pencil, Trash2, X, UserCheck, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -17,9 +17,8 @@ const APPROVE_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', '
 
 const ROLE_BADGE: Record<string, string> = {
   PARTICIPANT:              'bg-blue-50 text-blue-700',
+  DTI_EMPLOYEE:             'bg-slate-100 text-slate-700',
   ENTERPRISE_REPRESENTATIVE:'bg-teal-50 text-teal-700',
-  PROGRAM_MANAGER:          'bg-purple-50 text-purple-700',
-  EVENT_ORGANIZER:          'bg-indigo-50 text-indigo-700',
   DIVISION_CHIEF:           'bg-amber-50 text-amber-700',
   REGIONAL_DIRECTOR:        'bg-rose-50 text-rose-700',
   PROVINCIAL_DIRECTOR:      'bg-pink-50 text-pink-700',
@@ -29,9 +28,8 @@ const ROLE_BADGE: Record<string, string> = {
 
 const ROLE_DISPLAY: Record<string, string> = {
   PARTICIPANT:               'Participant',
+  DTI_EMPLOYEE:              'DTI Employee',
   ENTERPRISE_REPRESENTATIVE: 'Enterprise Rep',
-  PROGRAM_MANAGER:           'Technical Staff',
-  EVENT_ORGANIZER:           'Facilitator',
   DIVISION_CHIEF:            'Division Chief',
   REGIONAL_DIRECTOR:         'Regional Director',
   PROVINCIAL_DIRECTOR:       'Provincial Director',
@@ -40,9 +38,16 @@ const ROLE_DISPLAY: Record<string, string> = {
 };
 
 const ALL_ROLES = [
-  'PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER',
-  'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
+  'PARTICIPANT', 'DTI_EMPLOYEE', 'ENTERPRISE_REPRESENTATIVE',
+  'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN',
 ];
+
+const SOCIAL_CLASSIFICATIONS = ['ABLED', 'PWD', 'FOUR_PS', 'YOUTH', 'SENIOR_CITIZEN', 'INDIGENOUS_PERSON', 'OFW', 'OTHERS'];
+
+function displayCategory(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.replace(/_/g, ' ');
+}
 
 interface User {
   id: string;
@@ -50,9 +55,12 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
+  roles?: string[];
   status: string;
   mobileNumber: string | null;
   region: string | null;
+  companyOrOffice?: string | null;
+  classificationCategory?: string | null;
   emailVerified: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -65,6 +73,7 @@ interface UserDetail {
   lastName: string;
   middleName: string | null;
   role: string;
+  roles?: string[];
   status: string;
   mobileNumber: string | null;
   region: string | null;
@@ -90,11 +99,24 @@ export function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [actionModal, setActionModal] = useState<{ type: 'status' | 'role'; user: User } | null>(null);
   const [actionValue, setActionValue] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [reason, setReason] = useState('');
   const [viewUser, setViewUser] = useState<UserDetail | null>(null);
   const [editUser, setEditUser] = useState<UserDetail | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    roles: ['PARTICIPANT'],
+    industryClassification: '',
+    socialClassification: '',
+    employmentCategory: '',
+    clientType: '',
+  });
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -120,11 +142,12 @@ export function AdminUsersPage() {
   });
 
   const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) =>
-      adminIdentityApi.changeUserRole(id, role),
+    mutationFn: ({ id, roles }: { id: string; roles: string[] }) =>
+      adminIdentityApi.changeUserRole(id, roles),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setActionModal(null);
+      setSelectedRoles([]);
     },
   });
 
@@ -150,6 +173,25 @@ export function AdminUsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setDeleteConfirm(null);
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => adminIdentityApi.createUser(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setCreateOpen(false);
+      setCreateForm({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        roles: ['PARTICIPANT'],
+        industryClassification: '',
+        socialClassification: '',
+        employmentCategory: '',
+        clientType: '',
+      });
     },
   });
 
@@ -182,6 +224,17 @@ export function AdminUsersPage() {
 
   const users: User[] = Array.isArray((data as any)?.data) ? (data as any).data : [];
   const meta = (data as any)?.meta;
+
+  function toggleRoleSelection(role: string, source: string[], onChange: (roles: string[]) => void) {
+    const next = source.includes(role)
+      ? source.filter((value) => value !== role)
+      : [...source, role];
+    onChange(next.length ? next : ['PARTICIPANT']);
+  }
+
+  function getUserRoles(user: Pick<User, 'role' | 'roles'> | Pick<UserDetail, 'role' | 'roles'>): string[] {
+    return user.roles?.length ? user.roles : [user.role];
+  }
 
   return (
     <div className="space-y-4">
@@ -223,6 +276,13 @@ export function AdminUsersPage() {
             <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-dti-blue text-white rounded-lg text-sm font-medium hover:bg-dti-blue-dark"
+        >
+          <Plus size={14} /> Add User
+        </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-card overflow-hidden">
@@ -232,6 +292,8 @@ export function AdminUsersPage() {
               <tr className="bg-gray-50 border-b">
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Company / Office</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Classification Category</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Joined</th>
@@ -242,22 +304,28 @@ export function AdminUsersPage() {
               {isLoading ? (
                 Array.from({ length: 5 }, (_, i) => (
                   <tr key={i}>
-                    <td colSpan={6} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+                    <td colSpan={8} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                   </tr>
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No users found.</td>
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No users found.</td>
                 </tr>
               ) : (
                 users.map((u) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{u.firstName} {u.lastName}</td>
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                    <td className="px-4 py-3 text-gray-600">{u.companyOrOffice || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{displayCategory(u.classificationCategory)}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {ROLE_DISPLAY[u.role] ?? u.role.replace(/_/g, ' ')}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {getUserRoles(u).map((role) => (
+                          <span key={`${u.id}-${role}`} className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${ROLE_BADGE[role] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {ROLE_DISPLAY[role] ?? role.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_BADGE[u.status] ?? ''}`}>
@@ -283,7 +351,7 @@ export function AdminUsersPage() {
                         <Pencil size={13} />
                       </button>
                       <button
-                        onClick={() => { setActionModal({ type: 'role', user: u }); setActionValue(u.role); }}
+                        onClick={() => { setActionModal({ type: 'role', user: u }); setSelectedRoles(getUserRoles(u)); }}
                         className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
                         title="Change role"
                       >
@@ -331,6 +399,7 @@ export function AdminUsersPage() {
                         title="Delete user"
                       >
                         <Trash2 size={13} />
+                        <span>Delete</span>
                       </button>
                     </td>
                   </tr>
@@ -355,6 +424,147 @@ export function AdminUsersPage() {
         )}
       </div>
 
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-lg mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add User</h3>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <EditField label="First Name" value={createForm.firstName} onChange={v => setCreateForm(f => ({ ...f, firstName: v }))} />
+              <EditField label="Last Name" value={createForm.lastName} onChange={v => setCreateForm(f => ({ ...f, lastName: v }))} />
+            </div>
+
+            <div className="space-y-3 mb-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Email</label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Temporary Password</label>
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dti-blue"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Roles</label>
+                <div className="border border-gray-300 rounded-lg p-2 space-y-1 max-h-44 overflow-y-auto">
+                  {ALL_ROLES.map((role) => (
+                    <label key={role} className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={createForm.roles.includes(role)}
+                        onChange={() => toggleRoleSelection(role, createForm.roles, (roles) => setCreateForm((f) => ({ ...f, roles })))}
+                        className="accent-dti-blue"
+                      />
+                      <span>{ROLE_DISPLAY[role] ?? role.replace(/_/g, ' ')}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Classification Category</label>
+                <select
+                  value={createForm.socialClassification}
+                  onChange={e => setCreateForm(f => ({ ...f, socialClassification: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select…</option>
+                  {SOCIAL_CLASSIFICATIONS.map((s) => (
+                    <option key={s} value={s}>{displayCategory(s)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <EditField
+                label="Company / Office"
+                value={createForm.industryClassification}
+                onChange={v => setCreateForm(f => ({ ...f, industryClassification: v }))}
+              />
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Employment Category</label>
+                <select
+                  value={createForm.employmentCategory}
+                  onChange={e => setCreateForm(f => ({ ...f, employmentCategory: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select…</option>
+                  <option value="SELF_EMPLOYED">Self Employed</option>
+                  <option value="EMPLOYED_GOVT">Employed Government</option>
+                  <option value="EMPLOYED_PRIVATE">Employed Private</option>
+                  <option value="GENERAL_PUBLIC">General Public</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-xs text-gray-500 block mb-0.5">Client Type</label>
+              <select
+                value={createForm.clientType}
+                onChange={e => setCreateForm(f => ({ ...f, clientType: e.target.value }))}
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Select…</option>
+                <option value="CITIZEN">Citizen</option>
+                <option value="BUSINESS">Business</option>
+                <option value="GOVERNMENT">Government</option>
+              </select>
+            </div>
+
+            {createUserMutation.error && (
+              <p className="text-sm text-red-600 mb-3">{(createUserMutation.error as ApiError)?.message ?? 'Create user failed.'}</p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCreateOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  createUserMutation.mutate({
+                    firstName: createForm.firstName.trim(),
+                    lastName: createForm.lastName.trim(),
+                    email: createForm.email.trim(),
+                    password: createForm.password,
+                    roles: createForm.roles,
+                    socialClassification: createForm.socialClassification || null,
+                    employmentCategory: createForm.employmentCategory || null,
+                    clientType: createForm.clientType || null,
+                    industryClassification: createForm.industryClassification.trim() || null,
+                  });
+                }}
+                disabled={
+                  createUserMutation.isPending
+                  || !createForm.firstName.trim()
+                  || !createForm.lastName.trim()
+                  || !createForm.email.trim()
+                  || !createForm.roles.length
+                  || createForm.password.length < 8
+                }
+                className="px-4 py-2 bg-dti-blue text-white rounded-lg text-sm font-medium hover:bg-dti-blue-dark disabled:opacity-50"
+              >
+                {createUserMutation.isPending ? 'Creating…' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {actionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md mx-4">
@@ -366,15 +576,19 @@ export function AdminUsersPage() {
             </p>
 
             {actionModal.type === 'role' ? (
-              <select
-                value={actionValue}
-                onChange={(e) => setActionValue(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4"
-              >
-                {ALL_ROLES.map((r) => (
-                  <option key={r} value={r}>{ROLE_DISPLAY[r] ?? r.replace(/_/g, ' ')}</option>
+              <div className="w-full border border-gray-300 rounded-lg p-3 text-sm mb-4 space-y-2 max-h-60 overflow-y-auto">
+                {ALL_ROLES.map((role) => (
+                  <label key={role} className="flex items-center gap-2 text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedRoles.includes(role)}
+                      onChange={() => toggleRoleSelection(role, selectedRoles, setSelectedRoles)}
+                      className="accent-dti-blue"
+                    />
+                    <span>{ROLE_DISPLAY[role] ?? role.replace(/_/g, ' ')}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             ) : (
               <>
                 <select
@@ -409,13 +623,13 @@ export function AdminUsersPage() {
               <button
                 onClick={() => {
                   if (actionModal.type === 'role') {
-                    roleMutation.mutate({ id: actionModal.user.id, role: actionValue });
+                    roleMutation.mutate({ id: actionModal.user.id, roles: selectedRoles });
                   } else {
                     if (!reason.trim()) return;
                     statusMutation.mutate({ id: actionModal.user.id, status: actionValue, reason });
                   }
                 }}
-                disabled={statusMutation.isPending || roleMutation.isPending || (actionModal.type === 'status' && !reason.trim())}
+                disabled={statusMutation.isPending || roleMutation.isPending || (actionModal.type === 'status' && !reason.trim()) || (actionModal.type === 'role' && !selectedRoles.length)}
                 className="px-4 py-2 bg-dti-blue text-white rounded-lg text-sm font-medium hover:bg-dti-blue-dark disabled:opacity-50"
               >
                 {statusMutation.isPending || roleMutation.isPending ? 'Saving…' : 'Confirm'}
@@ -445,7 +659,7 @@ export function AdminUsersPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <DetailRow label="Role" value={ROLE_DISPLAY[viewUser.role] ?? viewUser.role} />
+                <DetailRow label="Roles" value={getUserRoles(viewUser).map((role) => ROLE_DISPLAY[role] ?? role.replace(/_/g, ' ')).join(', ')} />
                 <DetailRow label="Status" value={viewUser.status.replace(/_/g, ' ')} />
                 <DetailRow label="Mobile" value={viewUser.mobileNumber} />
                 <DetailRow label="Email Verified" value={viewUser.emailVerified ? 'Yes' : 'No'} />

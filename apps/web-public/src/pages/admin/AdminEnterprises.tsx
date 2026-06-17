@@ -91,14 +91,29 @@ function SectionHeader({ title }: { title: string }) {
     </div>
   );
 }
+
+function toDateInputValue(value: string): string {
+  if (!value) return '';
+  const raw = value.trim();
+  if (!raw) return '';
+
+  const yyyyMmDdPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (yyyyMmDdPrefix) return yyyyMmDdPrefix[1];
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
+
 function FField({ label, value, onChange, type = 'text', placeholder, span2 }: {
   label: string; value: string; onChange: (v: string) => void;
   type?: string; placeholder?: string; span2?: boolean;
 }) {
+  const safeValue = type === 'date' ? toDateInputValue(value) : value;
   return (
     <div className={span2 ? 'col-span-2' : ''}>
       <label className={LBL_CLS}>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={INPUT_CLS} />
+      <input type={type} value={safeValue} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={INPUT_CLS} />
     </div>
   );
 }
@@ -134,7 +149,7 @@ function s(v: string | null | undefined): string { return v ?? ''; }
 function n(v: number | null | undefined): string { return v != null ? String(v) : ''; }
 function b(v: boolean | null | undefined): string { return v == null ? '' : v ? 'true' : 'false'; }
 function arr(v: string[] | null | undefined): string { return (v ?? []).join(', '); }
-function dateStr(v: string | null | undefined): string { return v ? v.substring(0, 10) : ''; }
+function dateStr(v: string | null | undefined): string { return v ? toDateInputValue(v) : ''; }
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
 interface Enterprise {

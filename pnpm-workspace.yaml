@@ -2,3 +2,12 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'packages/*'
+
+# pnpm v11: build script approvals (moved from package.json pnpm.onlyBuiltDependencies)
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - argon2
+  - esbuild
+  - prisma
+  - msgpackr-extract

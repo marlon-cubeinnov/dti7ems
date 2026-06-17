@@ -53,7 +53,7 @@ import { AdminSettingsPage } from '@/pages/admin/AdminSettings';
 import { AdminRolesPermissionsPage } from '@/pages/admin/AdminRolesPermissions';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
-const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'] as const;
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 
 export default function App() {

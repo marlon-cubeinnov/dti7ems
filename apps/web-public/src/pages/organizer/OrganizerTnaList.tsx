@@ -9,7 +9,7 @@ export default function OrganizerTnaList() {
     queryFn: () => tnaApi.listTnas({ limit: 100 }),
   });
 
-  const tnas = ((data as Record<string, unknown>)?.data as unknown[]) ?? [];
+  const tnas = ((data as unknown as Record<string, unknown>)?.data as unknown[]) ?? [];
 
   return (
     <div className="space-y-5">

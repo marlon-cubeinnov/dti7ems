@@ -382,6 +382,8 @@ export function CompanyProfilePage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('registration');
   const [form, setForm] = useState<Record<string, unknown>>({ ...EMPTY });
+  const [originalForm, setOriginalForm] = useState<Record<string, unknown>>({ ...EMPTY });
+  const [isEditing, setIsEditing] = useState(requiredMode);
 
   useEffect(() => {
     (async () => {
@@ -390,9 +392,11 @@ export function CompanyProfilePage() {
         const list = (res?.data ?? []) as Record<string, unknown>[];
         if (!list.length) { setLoading(false); return; }
         const p = list[0];
+        const normalized = fromProfile(p);
         setEnterpriseId(p.id as string);
         setLastUpdated((p.profileLastUpdatedAt as string | null) ?? null);
-        setForm(fromProfile(p));
+        setForm(normalized);
+        setOriginalForm(normalized);
       } catch {
         setError('Failed to load company profile.');
       } finally {
@@ -420,6 +424,7 @@ export function CompanyProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!requiredMode && !isEditing) return;
     if (!enterpriseId) return;
     if (!(form.businessName as string).trim() || !(form.industrySector as string).trim()) {
       setError('Business name and industry sector are required.');
@@ -430,6 +435,8 @@ export function CompanyProfilePage() {
       await enterpriseApi.updateFull(enterpriseId, toPayload(form));
       setSaved(true);
       setLastUpdated(new Date().toISOString());
+      setOriginalForm({ ...form });
+      if (!requiredMode) setIsEditing(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       // If this was a required update (first login / annual), redirect to dashboard after save
       if (requiredMode) {
@@ -440,6 +447,19 @@ export function CompanyProfilePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleEdit() {
+    setError(null);
+    setSaved(false);
+    setIsEditing(true);
+  }
+
+  function handleCancel() {
+    setForm({ ...originalForm });
+    setError(null);
+    setSaved(false);
+    setIsEditing(false);
   }
 
   if (loading) return (
@@ -458,6 +478,7 @@ export function CompanyProfilePage() {
   );
 
   const f = form;
+  const canEdit = requiredMode || isEditing;
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -502,6 +523,19 @@ export function CompanyProfilePage() {
         </div>
       )}
 
+      {!requiredMode && (
+        <div className="flex items-center justify-between rounded-input border border-gray-200 bg-white px-4 py-3 text-sm">
+          <p className="text-gray-600">
+            {canEdit ? 'Edit mode is on. Review your changes, then save or cancel.' : 'View mode is on. Click Edit Company Profile to make changes.'}
+          </p>
+          {!canEdit && (
+            <button type="button" className="btn-primary" onClick={handleEdit}>
+              Edit Company Profile
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1 border-b border-gray-200">
         {TABS.map(t => (
           <button
@@ -520,6 +554,7 @@ export function CompanyProfilePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset disabled={!canEdit} className="space-y-4 disabled:opacity-100">
         <div className="card space-y-4">
 
           {/* ── Registration & Status ─────────────────────────────────────── */}
@@ -572,7 +607,7 @@ export function CompanyProfilePage() {
               <div className="col-span-2"><label className="label">Business / Legal Name *</label><input className="input" required value={f.businessName as string} onChange={e => set('businessName', e.target.value)} /></div>
               <div><label className="label">Registered Business Name</label><input className="input" value={f.registeredBusinessName as string} onChange={e => set('registeredBusinessName', e.target.value)} /></div>
               <div><label className="label">Trade Name / Billboard Name</label><input className="input" value={f.tradeName as string} onChange={e => set('tradeName', e.target.value)} /></div>
-              <div><label className="label">Date of Registration</label><input className="input" type="date" value={f.dateOfRegistration as string} onChange={e => set('dateOfRegistration', e.target.value)} /></div>
+              <div><label className="label">Date of Registration</label><input className="input" type="date" value={toDateInputValue(f.dateOfRegistration)} onChange={e => set('dateOfRegistration', e.target.value)} /></div>
               <div><label className="label">Primary Registration No.</label><input className="input" value={f.registrationNo as string} onChange={e => set('registrationNo', e.target.value)} /></div>
               <div><label className="label">IPO Registration No.</label><input className="input" value={f.ipoRegistrationNumber as string} onChange={e => set('ipoRegistrationNumber', e.target.value)} /></div>
             </div>
@@ -762,7 +797,7 @@ export function CompanyProfilePage() {
               <div><label className="label">Middle Name</label><input className="input" value={f.ownerMiddleName as string} onChange={e => set('ownerMiddleName', e.target.value)} /></div>
               <div><label className="label">Last Name</label><input className="input" value={f.ownerLastName as string} onChange={e => set('ownerLastName', e.target.value)} /></div>
               <div><label className="label">Suffix</label><input className="input" value={f.ownerSuffix as string} onChange={e => set('ownerSuffix', e.target.value)} placeholder="Jr./Sr./III" /></div>
-              <div><label className="label">Date of Birth</label><input className="input" type="date" value={f.ownerBirthdate as string} onChange={e => set('ownerBirthdate', e.target.value)} /></div>
+              <div><label className="label">Date of Birth</label><input className="input" type="date" value={toDateInputValue(f.ownerBirthdate)} onChange={e => set('ownerBirthdate', e.target.value)} /></div>
               <div><label className="label">Citizenship</label><input className="input" value={f.ownerCitizenship as string} onChange={e => set('ownerCitizenship', e.target.value)} placeholder="Filipino" /></div>
               <div>
                 <label className="label">Sex</label>
@@ -1004,9 +1039,17 @@ export function CompanyProfilePage() {
           <textarea className="input" rows={2} maxLength={500} value={f.notes as string} onChange={e => set('notes', e.target.value)} placeholder="e.g. Rebranded last quarter, updated trade name and website." />
         </div>
 
+        </fieldset>
+
         <div className="flex justify-end gap-3 pb-6">
-          <button type="button" className="btn-secondary" onClick={() => window.location.reload()} disabled={saving}>Discard</button>
-          <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+          {canEdit ? (
+            <>
+              {!requiredMode && (
+                <button type="button" className="btn-secondary" onClick={handleCancel} disabled={saving}>Cancel</button>
+              )}
+              <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+            </>
+          ) : null}
         </div>
       </form>
     </div>

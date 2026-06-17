@@ -15,6 +15,7 @@ datasource db {
 
 enum UserRole {
   PARTICIPANT
+  DTI_EMPLOYEE
   ENTERPRISE_REPRESENTATIVE
   PROGRAM_MANAGER
   EVENT_ORGANIZER
@@ -123,6 +124,7 @@ model UserProfile {
   email        String     @unique
   passwordHash String     @map("password_hash")
   role         UserRole   @default(PARTICIPANT)
+  roles        UserRole[] @default([PARTICIPANT])
   status       UserStatus @default(PENDING_VERIFICATION)
 
   // Personal info

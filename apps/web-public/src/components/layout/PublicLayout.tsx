@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import dtiLogo from '@/assets/dti-bp-logo.png';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
@@ -28,9 +29,11 @@ const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF',
 export function PublicLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch { /* best-effort */ }
+    qc.clear();
     logout();
     navigate('/');
   };

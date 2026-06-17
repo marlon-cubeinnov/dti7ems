@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi } from '@/lib/api';
 import dtiLogo from '@/assets/dti-bp-logo.png';
@@ -12,6 +13,7 @@ const ROLE_LABELS: Record<string, string> = {
   PROVINCIAL_DIRECTOR:'Provincial Director',
   SYSTEM_ADMIN:       'System Admin',
   SUPER_ADMIN:        'Super Admin',
+  DTI_EMPLOYEE:       'DTI Employee',
 };
 
 // Nav for Program Managers (Technical Staff): can create proposals/events
@@ -58,12 +60,25 @@ const ADMIN_NAV = [
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'];
 
+function getOrganizerNav(role?: string) {
+  if (role === 'EVENT_ORGANIZER') return EO_NAV;
+  if (role === 'DTI_EMPLOYEE')    return EO_NAV;
+  if (role === 'DIVISION_CHIEF') return DC_NAV;
+  if (role === 'REGIONAL_DIRECTOR') return RD_NAV;
+  if (role === 'PROVINCIAL_DIRECTOR') return RD_NAV;
+  return PM_NAV;
+}
+
 export function OrganizerLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const isAdminUser = ADMIN_ROLES.includes(user?.role ?? '');
+  const organizerNav = getOrganizerNav(user?.role);
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch { /* best-effort */ }
+    qc.clear();
     logout();
     navigate('/');
   };
@@ -113,11 +128,7 @@ export function OrganizerLayout() {
         {/* Sidebar */}
         <aside className="w-52 shrink-0 hidden md:block">
           <nav className="space-y-1">
-            {(user?.role === 'EVENT_ORGANIZER' ? EO_NAV
-              : user?.role === 'DIVISION_CHIEF' ? DC_NAV
-              : user?.role === 'REGIONAL_DIRECTOR' ? RD_NAV
-              : user?.role === 'PROVINCIAL_DIRECTOR' ? RD_NAV
-              : PM_NAV).map(({ to, label, icon: Icon }) => (
+            {organizerNav.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -146,7 +157,7 @@ export function OrganizerLayout() {
               <User size={16} /> My Profile
             </NavLink>
 
-            {user?.role && ADMIN_ROLES.includes(user.role) && (
+            {user?.role && isAdminUser && (
               <>
                 <div className="border-t my-2" />
                 <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Admin</p>

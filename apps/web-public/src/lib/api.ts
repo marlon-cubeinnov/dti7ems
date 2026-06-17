@@ -153,7 +153,7 @@ export const authApi = {
     request(`${BASE_IDENTITY}/auth/accept-invite`, { method: 'POST', body: JSON.stringify(body) }),
 
   login: (body: { email: string; password: string }) =>
-    request<{ accessToken: string; user: { id: string; email: string; role: string; firstName: string; lastName: string } }>(
+    request<{ accessToken: string; user: { id: string; email: string; role: string; roles?: string[]; firstName: string; lastName: string } }>(
       `${BASE_IDENTITY}/auth/login`,
       { method: 'POST', body: JSON.stringify(body) },
     ),
@@ -338,6 +338,7 @@ export interface EventBody {
   programId?: string | null;
   // Proposal fields
   trainingType?: string | null;
+  eventType?: 'TRAINING' | 'EVENT';
   partnerInstitution?: string | null;
   background?: string | null;
   objectives?: string | null;
@@ -417,6 +418,16 @@ export const organizerApi = {
   deleteSpeaker: (eventId: string, speakerId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/speakers/${speakerId}`, { method: 'DELETE' }),
 
+  // Event staff management
+  getEventStaff: (eventId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/staff`),
+
+  addEventStaff: (eventId: string, body: { userId: string; userName: string; userEmail?: string | null; role: string; notes?: string | null }) =>
+    request(`${BASE_EVENTS}/events/${eventId}/staff`, { method: 'POST', body: JSON.stringify(body) }),
+
+  removeEventStaff: (eventId: string, staffId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/staff/${staffId}`, { method: 'DELETE' }),
+
   // Post-Activity Report
   getPar: (eventId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/par`),
@@ -493,6 +504,9 @@ export const organizerApi = {
   deleteRisk: (eventId: string, riskId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/risks/${riskId}`, { method: 'DELETE' }),
 
+  updateRisk: (eventId: string, riskId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/risks/${riskId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
   // Target Groups
   getTargetGroups: (eventId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/target-groups`),
@@ -502,6 +516,9 @@ export const organizerApi = {
 
   deleteTargetGroup: (eventId: string, groupId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/target-groups/${groupId}`, { method: 'DELETE' }),
+
+  updateTargetGroup: (eventId: string, groupId: string, body: Record<string, unknown>) =>
+    request(`${BASE_EVENTS}/events/${eventId}/target-groups/${groupId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 };
 
 // ── Standalone TNA API ───────────────────────────────────────────────────────
@@ -738,6 +755,9 @@ export const staffApi = {
 export const adminIdentityApi = {
   getStats: () => request(`${BASE_IDENTITY}/admin/stats`),
 
+  createUser: (data: Record<string, unknown>) =>
+    request(`${BASE_IDENTITY}/users`, { method: 'POST', body: JSON.stringify(data) }),
+
   listUsers: (params?: Record<string, string | number | undefined>) => {
     const qs = params
       ? '?' + new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))).toString()
@@ -748,8 +768,8 @@ export const adminIdentityApi = {
   changeUserStatus: (id: string, status: string, reason: string) =>
     request(`${BASE_IDENTITY}/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),
 
-  changeUserRole: (id: string, role: string) =>
-    request(`${BASE_IDENTITY}/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  changeUserRole: (id: string, roles: string[]) =>
+    request(`${BASE_IDENTITY}/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ roles }) }),
 
   verifyUserEmail: (id: string) =>
     request(`${BASE_IDENTITY}/admin/users/${id}/verify-email`, { method: 'PATCH' }),

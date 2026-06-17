@@ -58,8 +58,8 @@ export const mailerPlugin = fp(async (app) => {
     const newCfg = await loadSmtpConfig(app.prisma);
     const newTransport = buildTransport(newCfg);
     await newTransport.verify();
-    // @ts-expect-error – replace decorated value in-place
-    app.mailer = newTransport;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (app as any).mailer = newTransport;
     app.log.info('SMTP mailer reloaded');
   });
 });

@@ -110,7 +110,7 @@ export function OrganizerProposalListPage() {
                       )}
                       {(isTechnicalStaff || isAdmin) && (p.proposalStatus === 'DRAFT' || p.proposalStatus === 'REJECTED') && (
                         <Link
-                          to={`/organizer/proposals/${p.id}/edit`}
+                          to={`/organizer/proposals/${p.id}?edit=1`}
                           className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                         >
                           <Pencil size={13} /> Edit

@@ -1,10 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
-
-const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
-type OrganizerRole = typeof ORGANIZER_ROLES[number];
-const PM_ADMIN_ROLES = ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+import { hasPermission, requireAnyPermission, requirePermission } from '../lib/rbac.js';
 
 const tnaBodySchema = z.object({
   title:                  z.string().min(1).max(500),
@@ -47,9 +44,11 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // GET /tna — list TNAs for current user (or all for admin)
   app.get('/', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
-      throw new ForbiddenError('Only organizers/admins can access TNA records.');
-    }
+    requireAnyPermission(
+      request.user,
+      ['tna.view', 'tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA access can view TNA records.',
+    );
     const q = z.object({
       page:          z.coerce.number().min(1).default(1),
       limit:         z.coerce.number().min(1).max(100).default(50),
@@ -57,9 +56,9 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       linkedEventId: z.string().optional(),
     }).parse(request.query);
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
+    const canViewAllTna = hasPermission(request.user, 'tna.view') || hasPermission(request.user, 'tna.manage_all');
     const where: Record<string, unknown> = {};
-    if (!isAdmin) where['conductedBy'] = request.user.sub;
+    if (!canViewAllTna) where['conductedBy'] = request.user.sub;
     if (q.status) where['status'] = q.status;
     if (q.linkedEventId) where['linkedEventId'] = q.linkedEventId;
 
@@ -83,9 +82,11 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // POST /tna — create standalone TNA
   app.post('/', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    if (!PM_ADMIN_ROLES.includes(request.user.role as typeof PM_ADMIN_ROLES[number])) {
-      throw new ForbiddenError('Only Program Managers or admins can create TNA records.');
-    }
+    requirePermission(
+      request.user,
+      'tna.create',
+      'Only users with TNA creation permission can create TNA records.',
+    );
     const body = tnaBodySchema.parse(request.body);
 
     // If linkedEventId provided, verify event exists
@@ -108,9 +109,11 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // GET /tna/:id
   app.get('/:id', { preHandler: [app.verifyJwt] }, async (request, reply) => {
-    if (!ORGANIZER_ROLES.includes(request.user.role as OrganizerRole)) {
-      throw new ForbiddenError('Only organizers/admins can view TNA records.');
-    }
+    requireAnyPermission(
+      request.user,
+      ['tna.view', 'tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA access can view TNA records.',
+    );
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const tna = await app.prisma.preProposalTna.findUnique({
       where: { id },
@@ -118,8 +121,8 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    const canViewAllTna = hasPermission(request.user, 'tna.view') || hasPermission(request.user, 'tna.manage_all');
+    if (!canViewAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
     return reply.send({ success: true, data: tna });
@@ -131,8 +134,14 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const tna = await app.prisma.preProposalTna.findUnique({ where: { id } });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    requireAnyPermission(
+      request.user,
+      ['tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA edit permission can update this TNA.',
+    );
+
+    const canManageAllTna = hasPermission(request.user, 'tna.manage_all');
+    if (!canManageAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
     if (tna.status === 'FINALIZED') {
@@ -166,8 +175,14 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const tna = await app.prisma.preProposalTna.findUnique({ where: { id } });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    requireAnyPermission(
+      request.user,
+      ['tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA edit permission can change TNA status.',
+    );
+
+    const canManageAllTna = hasPermission(request.user, 'tna.manage_all');
+    if (!canManageAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
 
@@ -186,8 +201,14 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const tna = await app.prisma.preProposalTna.findUnique({ where: { id } });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    requireAnyPermission(
+      request.user,
+      ['tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA edit permission can delete this TNA.',
+    );
+
+    const canManageAllTna = hasPermission(request.user, 'tna.manage_all');
+    if (!canManageAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
     if (tna.status === 'FINALIZED') {
@@ -204,8 +225,14 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const tna = await app.prisma.preProposalTna.findUnique({ where: { id } });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    requireAnyPermission(
+      request.user,
+      ['tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA edit permission can add respondents.',
+    );
+
+    const canManageAllTna = hasPermission(request.user, 'tna.manage_all');
+    if (!canManageAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
     if (tna.status === 'FINALIZED') {
@@ -225,8 +252,14 @@ const tnaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const tna = await app.prisma.preProposalTna.findUnique({ where: { id } });
     if (!tna) throw new NotFoundError('TNA not found.');
 
-    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
-    if (!isAdmin && tna.conductedBy !== request.user.sub) {
+    requireAnyPermission(
+      request.user,
+      ['tna.edit_own', 'tna.manage_all'],
+      'Only users with TNA edit permission can remove respondents.',
+    );
+
+    const canManageAllTna = hasPermission(request.user, 'tna.manage_all');
+    if (!canManageAllTna && tna.conductedBy !== request.user.sub) {
       throw new ForbiddenError('You do not have access to this TNA.');
     }
     if (tna.status === 'FINALIZED') {

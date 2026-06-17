@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { organizerApi, eventsApi, certificatesApi, surveyApi, ApiError, type EventStatus } from '@/lib/api';
+import { organizerApi, eventsApi, certificatesApi, surveyApi, staffApi, ApiError, type EventStatus } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { ArrowLeft, Pencil, QrCode, Plus, Trash2, ClipboardList, BarChart3, Users, Award, FileText, FileCheck, TrendingUp, Mic, Briefcase, X, Send, CheckCircle2, Table2, Printer } from 'lucide-react';
+import { ArrowLeft, Pencil, QrCode, Plus, Trash2, ClipboardList, BarChart3, Users, Award, FileText, FileCheck, TrendingUp, Mic, Briefcase, X, Send, CheckCircle2, Table2, Printer, UserPlus } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:               'bg-gray-100 text-gray-600',
@@ -44,12 +44,30 @@ const PARTICIPATION_STATUS_COLORS: Record<string, string> = {
   CANCELLED:    'bg-gray-50 text-gray-500',
 };
 
+const STAFF_ROLE_OPTIONS = [
+  { value: 'FACILITATOR',          label: 'Facilitator' },
+  { value: 'CO_FACILITATOR',       label: 'Co-Facilitator' },
+  { value: 'RESOURCE_PERSON',      label: 'Resource Person' },
+  { value: 'REGISTRATION_OFFICER', label: 'Registration Officer' },
+  { value: 'LOGISTICS',            label: 'Logistics' },
+  { value: 'DOCUMENTATION',        label: 'Documentation' },
+  { value: 'SECRETARIAT',          label: 'Secretariat' },
+  { value: 'IT_SUPPORT',           label: 'IT Support' },
+  { value: 'FINANCE',              label: 'Finance' },
+  { value: 'OTHER',                label: 'Other' },
+];
+
 export function OrganizerEventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuthStore();
   const [statusError, setStatusError] = useState('');
+  const [staffMsg, setStaffMsg] = useState('');
+  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('FACILITATOR');
+  const [selectedStaffPerson, setSelectedStaffPerson] = useState<any>(null);
 
   const { data: eventData, isLoading: eventLoading } = useQuery({
     queryKey: ['event', id],
@@ -199,10 +217,70 @@ export function OrganizerEventDetailPage() {
     onError: (err) => setSpeakerMsg(err instanceof ApiError ? err.message : 'Failed to remove speaker.'),
   });
 
+  const { data: eventStaffData } = useQuery({
+    queryKey: ['event-staff', id],
+    queryFn: () => organizerApi.getEventStaff(id!),
+    enabled: Boolean(id),
+  });
+
+  const { data: staffSearchData } = useQuery({
+    queryKey: ['staff-search-detail', staffSearchQuery],
+    queryFn: () => staffApi.search(staffSearchQuery),
+    enabled: staffSearchQuery.length >= 2,
+  });
+
+  const addStaffMut = useMutation({
+    mutationFn: (person: any) => organizerApi.addEventStaff(id!, {
+      userId: person.id,
+      userName: `${person.firstName} ${person.lastName}`,
+      userEmail: person.email ?? null,
+      role: newStaffRole,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['event-staff', id] });
+      setSelectedStaffPerson(null);
+      setStaffSearchQuery('');
+      setShowAddStaff(false);
+      setStaffMsg('Staff member assigned.');
+    },
+    onError: (err) => setStaffMsg(err instanceof ApiError ? err.message : 'Failed to assign staff.'),
+  });
+
+  const removeStaffMut = useMutation({
+    mutationFn: (staffId: string) => organizerApi.removeEventStaff(id!, staffId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['event-staff', id] });
+      setStaffMsg('Staff member removed.');
+    },
+    onError: (err) => setStaffMsg(err instanceof ApiError ? err.message : 'Failed to remove staff.'),
+  });
+
   const event = eventData?.data as any;
   const participants: any[] = (participantsData?.data as any) ?? [];
   const meta: any = (participantsData as any)?.meta ?? {};
   const total: number = meta.total ?? participants.length;
+
+  // Effective role for DTI_EMPLOYEE: LEAD / STAFF / VIEWER; all other roles get FULL access
+  const eventStaff: any[] = (eventStaffData as any)?.data ?? [];
+  const staffSearchResults: any[] = (staffSearchData as any)?.data ?? [];
+  const isDtiEmployee = user?.role === 'DTI_EMPLOYEE';
+  const isLead = !!event && event.assignedOrganizerId === user?.id;
+  const isStaffMember = !isLead && eventStaff.some((s: any) => s.userId === user?.id);
+  const effectiveRole: 'FULL' | 'LEAD' | 'STAFF' | 'VIEWER' =
+    isDtiEmployee ? (isLead ? 'LEAD' : isStaffMember ? 'STAFF' : 'VIEWER') : 'FULL';
+  const canWrite = effectiveRole === 'FULL' || effectiveRole === 'LEAD';
+  const canManageStaff = effectiveRole === 'LEAD' || (!isDtiEmployee && ['PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? ''));
+  const leaderRow = event?.assignedOrganizerId ? {
+    id: `lead-${event.assignedOrganizerId}`,
+    userId: event.assignedOrganizerId,
+    userName: event.assignedOrganizerName ?? 'Assigned Lead',
+    userEmail: null,
+    role: 'TEAM_LEAD',
+    isLeader: true,
+  } : null;
+  const nonLeadStaff = eventStaff.filter((s: any) => s.userId !== event?.assignedOrganizerId);
+  const eventTeam = leaderRow ? [leaderRow, ...nonLeadStaff] : nonLeadStaff;
+  const showTeamSection = !!leaderRow || eventTeam.length > 0 || canManageStaff;
 
   // Derived attendance stats from participants list
   const attended = participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).length;
@@ -251,6 +329,18 @@ export function OrganizerEventDetailPage() {
         </div>
       )}
 
+      {isDtiEmployee && (
+        <div className={`text-sm rounded-xl px-4 py-3 flex items-center gap-2 ${
+          effectiveRole === 'LEAD'  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+          effectiveRole === 'STAFF' ? 'bg-green-50 text-green-700 border border-green-200' :
+          'bg-blue-50 text-blue-700 border border-blue-200'
+        }`}>
+          {effectiveRole === 'LEAD'  ? '👑 You are the Event Lead — you have full event management access for this event.' :
+           effectiveRole === 'STAFF' ? '🧑‍💼 You are assigned as staff for this event.' :
+           '👁 You are viewing this event (not assigned — view only).'}
+        </div>
+      )}
+
       {certMsg && (
         <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-input px-4 py-3">
           {certMsg}
@@ -259,6 +349,7 @@ export function OrganizerEventDetailPage() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {canWrite && (
         <Link to={`/organizer/events/${id}/edit`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
@@ -266,6 +357,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Edit Event</span>
         </Link>
+        )}
         {['REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'COMPLETED'].includes(event.status) && (
         <Link to={`/organizer/events/${id}/participants`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-green-300 hover:shadow-md transition-all text-center group">
@@ -298,6 +390,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Report</span>
         </Link>
+        {canWrite && (
         <Link to={`/organizer/proposals/${id}`}
           className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all text-center group">
           <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
@@ -305,6 +398,7 @@ export function OrganizerEventDetailPage() {
           </div>
           <span className="text-xs font-medium text-gray-700">Proposal</span>
         </Link>
+        )}
         {event.status === 'COMPLETED' && (
           <Link to={`/organizer/events/${id}/csf-results`}
             className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-yellow-300 hover:shadow-md transition-all text-center group">
@@ -392,7 +486,7 @@ export function OrganizerEventDetailPage() {
 
       {/* Certificate & Status Actions */}
       <div className="flex flex-wrap items-center gap-3">
-        {attended > 0 && !allCertsIssued && (
+        {canWrite && attended > 0 && !allCertsIssued && (
           <button
             onClick={() => bulkCertMut.mutate()}
             disabled={bulkCertMut.isPending}
@@ -406,7 +500,7 @@ export function OrganizerEventDetailPage() {
             <CheckCircle2 size={14} /> All certificates issued
           </span>
         )}
-        {transitions.length > 0 && (
+        {canWrite && transitions.length > 0 && (
           <>
             <span className="text-sm text-gray-500 font-medium">Move to:</span>
             {transitions.map((s) => (
@@ -461,7 +555,7 @@ export function OrganizerEventDetailPage() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            {!allCsfDistributed && (user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+            {!allCsfDistributed && canWrite && (
               <button
                 onClick={() => distributeCsfMut.mutate()}
                 disabled={distributeCsfMut.isPending}
@@ -533,12 +627,14 @@ export function OrganizerEventDetailPage() {
           <h2 className="font-semibold text-gray-900">
             Sessions <span className="text-gray-500 font-normal text-sm">({sessions.length})</span>
           </h2>
+          {canWrite && (
           <button
             onClick={() => { setShowAddSession(s => !s); setSessionMsg(''); }}
             className="flex items-center gap-1 text-sm text-dti-blue hover:underline"
           >
             <Plus size={14} /> Add Session
           </button>
+          )}
         </div>
 
         {sessionMsg && (
@@ -697,6 +793,7 @@ export function OrganizerEventDetailPage() {
                         {s.speakerName ? ` · 🎤 ${s.speakerName}` : ''}
                       </p>
                     </div>
+                    {canWrite && (
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => {
@@ -730,6 +827,7 @@ export function OrganizerEventDetailPage() {
                         <Trash2 size={15} />
                       </button>
                     </div>
+                    )}
                   </div>
                 )}
               </li>
@@ -744,12 +842,14 @@ export function OrganizerEventDetailPage() {
           <h2 className="font-semibold text-gray-900">
             Speakers <span className="text-gray-500 font-normal text-sm">({speakersList.length})</span>
           </h2>
+          {canWrite && (
           <button
             onClick={() => { setShowAddSpeaker(s => !s); setSpeakerMsg(''); }}
             className="flex items-center gap-1 text-sm text-dti-blue hover:underline"
           >
             <Plus size={14} /> Add Speaker
           </button>
+          )}
         </div>
 
         {speakerMsg && (
@@ -814,6 +914,7 @@ export function OrganizerEventDetailPage() {
                     </p>
                   </div>
                 </div>
+                {canWrite && (
                 <button
                   onClick={() => { if (confirm('Remove this speaker?')) deleteSpeakerMut.mutate(s.id); }}
                   disabled={deleteSpeakerMut.isPending}
@@ -822,11 +923,137 @@ export function OrganizerEventDetailPage() {
                 >
                   <Trash2 size={15} />
                 </button>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* Event Team (after Speakers) */}
+      {showTeamSection && (
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+            <h2 className="font-semibold text-gray-900">
+              Event Team <span className="text-gray-500 font-normal text-sm">({eventTeam.length})</span>
+            </h2>
+            {canManageStaff && (
+            <button
+              onClick={() => { setShowAddStaff(s => !s); setStaffMsg(''); }}
+              className="flex items-center gap-1 text-sm text-dti-blue hover:underline"
+            >
+              <UserPlus size={14} /> Assign Staff
+            </button>
+            )}
+          </div>
+
+          <div className="px-4 py-2 border-b bg-gray-50/60">
+            <p className="text-xs text-gray-500">
+              Event-level sub-roles apply per training/event (independent from each user’s global account role).
+            </p>
+          </div>
+
+          {staffMsg && (
+            <p className={`text-sm px-4 py-2 ${staffMsg.startsWith('Failed') ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
+              {staffMsg}
+            </p>
+          )}
+
+          {canManageStaff && showAddStaff && (
+            <div className="px-4 py-3 border-b bg-blue-50 space-y-3">
+              <p className="text-sm font-medium text-blue-800">Assign Staff Member</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="relative">
+                  <input
+                    placeholder="Search by name or email..."
+                    value={staffSearchQuery}
+                    onChange={e => { setStaffSearchQuery(e.target.value); setSelectedStaffPerson(null); }}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {staffSearchResults.length > 0 && !selectedStaffPerson && (
+                    <ul className="absolute z-10 bg-white border border-gray-200 rounded-lg mt-1 shadow-lg w-full max-h-48 overflow-y-auto">
+                      {staffSearchResults.map((p: any) => (
+                        <li
+                          key={p.id}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                          onClick={() => { setSelectedStaffPerson(p); setStaffSearchQuery(`${p.firstName} ${p.lastName}`); }}
+                        >
+                          <p className="font-medium">{p.firstName} {p.lastName}</p>
+                          <p className="text-xs text-gray-500">{p.email} · {p.role}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <select
+                  value={newStaffRole}
+                  onChange={e => setNewStaffRole(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {STAFF_ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => selectedStaffPerson && addStaffMut.mutate(selectedStaffPerson)}
+                  disabled={!selectedStaffPerson || addStaffMut.isPending}
+                  className="btn-primary text-sm"
+                >
+                  {addStaffMut.isPending ? 'Assigning…' : 'Assign Staff'}
+                </button>
+                <button
+                  onClick={() => { setShowAddStaff(false); setSelectedStaffPerson(null); setStaffSearchQuery(''); }}
+                  className="btn-secondary text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {eventTeam.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No staff assigned yet. Assign staff above.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-left">
+                  <th className="px-4 py-3 font-semibold text-gray-600">Name</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Email</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600">Sub-Role (Event)</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {eventTeam.map((s: any) => (
+                  <tr key={s.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{s.userName}</td>
+                    <td className="px-4 py-3 hidden md:table-cell text-gray-500">{s.userEmail ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {s.isLeader ? (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Lead (Event/Training Lead)</span>
+                      ) : (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{s.role.replace(/_/g, ' ')}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {canManageStaff && !s.isLeader && (
+                        <button
+                          onClick={() => { if (confirm('Remove this staff member?')) removeStaffMut.mutate(s.id); }}
+                          disabled={removeStaffMut.isPending}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove staff"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Participants */}
       <div className="card p-0 overflow-hidden">

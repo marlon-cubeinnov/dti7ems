@@ -1,15 +1,53 @@
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
-export type UserRole =
-  | 'PARTICIPANT'
-  | 'ENTERPRISE_REPRESENTATIVE'
-  | 'PROGRAM_MANAGER'
-  | 'EVENT_ORGANIZER'
-  | 'DIVISION_CHIEF'
-  | 'REGIONAL_DIRECTOR'
-  | 'PROVINCIAL_DIRECTOR'
-  | 'SYSTEM_ADMIN'
-  | 'SUPER_ADMIN';
+export const USER_ROLE_VALUES = [
+  'PARTICIPANT',
+  'DTI_EMPLOYEE',
+  'ENTERPRISE_REPRESENTATIVE',
+  'PROGRAM_MANAGER',
+  'EVENT_ORGANIZER',
+  'DIVISION_CHIEF',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_DIRECTOR',
+  'SYSTEM_ADMIN',
+  'SUPER_ADMIN',
+] as const;
+
+export type UserRole = typeof USER_ROLE_VALUES[number];
+
+export const PRIMARY_USER_ROLE_PRIORITY: readonly UserRole[] = [
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_DIRECTOR',
+  'DIVISION_CHIEF',
+  'DTI_EMPLOYEE',
+  'PROGRAM_MANAGER',
+  'EVENT_ORGANIZER',
+  'ENTERPRISE_REPRESENTATIVE',
+  'PARTICIPANT',
+] as const;
+
+export const ASSIGNABLE_USER_ROLE_VALUES = [
+  'PARTICIPANT',
+  'DTI_EMPLOYEE',
+  'ENTERPRISE_REPRESENTATIVE',
+  'DIVISION_CHIEF',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_DIRECTOR',
+  'SYSTEM_ADMIN',
+  'SUPER_ADMIN',
+] as const satisfies readonly UserRole[];
+
+export function derivePrimaryRole(roles: readonly UserRole[] | null | undefined): UserRole {
+  if (!roles?.length) return 'PARTICIPANT';
+
+  for (const role of PRIMARY_USER_ROLE_PRIORITY) {
+    if (roles.includes(role)) return role;
+  }
+
+  return roles[0] ?? 'PARTICIPANT';
+}
 
 export type UserStatus =
   | 'PENDING_VERIFICATION'
@@ -128,6 +166,7 @@ export interface UserProfile {
   id: string;
   email: string;
   role: UserRole;
+  roles: UserRole[];
   status: UserStatus;
   firstName: string;
   lastName: string;
@@ -299,6 +338,8 @@ export interface AuthTokenPayload {
   sub: string;         // userId
   email: string;
   role: UserRole;
+  roles: UserRole[];
+  permissions: string[];
   firstName?: string | null;
   lastName?: string | null;
   iat: number;
@@ -307,5 +348,7 @@ export interface AuthTokenPayload {
 
 export interface LoginResult {
   accessToken: string;
-  user: Pick<UserProfile, 'id' | 'email' | 'role' | 'status' | 'firstName' | 'lastName'>;
+  user: Pick<UserProfile, 'id' | 'email' | 'role' | 'roles' | 'status' | 'firstName' | 'lastName'> & {
+    permissions: string[];
+  };
 }

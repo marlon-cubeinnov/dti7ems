@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import dtiLogo from '@/assets/dti-bp-logo.png';
 import { useAuthStore } from '@/stores/auth.store';
 import { authApi, enterpriseApi } from '@/lib/api';
@@ -46,6 +47,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export function ParticipantLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const NAV = user?.role === 'ENTERPRISE_REPRESENTATIVE' ? ENTERPRISE_NAV : BASE_NAV;
 
   // Company profile update modal state
@@ -75,6 +77,7 @@ export function ParticipantLayout() {
 
   const handleLogout = async () => {
     await authApi.logout();
+    qc.clear();
     logout();
     navigate('/');
   };

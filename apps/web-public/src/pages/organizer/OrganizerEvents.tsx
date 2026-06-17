@@ -53,6 +53,7 @@ export function OrganizerEventsPage() {
 
   const isFacilitator = user?.role === 'EVENT_ORGANIZER';
   const isTechnicalStaff = user?.role === 'PROGRAM_MANAGER';
+  const isDtiEmployee = user?.role === 'DTI_EMPLOYEE';
 
   // For Technical Staff: only show approved/active events (not proposals)
   // For Facilitators: show assigned events that have been activated
@@ -61,7 +62,7 @@ export function OrganizerEventsPage() {
     queryKey: ['organizer-events'],
     queryFn: () => organizerApi.listMyEvents({
       limit: 50,
-      ...((isTechnicalStaff || isFacilitator) ? { view: 'events' } : {}),
+      ...((isTechnicalStaff || isFacilitator || isDtiEmployee) ? { view: 'events' } : {}),
     }),
   });
 
@@ -84,7 +85,7 @@ export function OrganizerEventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
-          {isFacilitator ? 'My Assigned Events' : 'My Events'}
+          {isDtiEmployee ? 'All Events' : isFacilitator ? 'My Assigned Events' : 'My Events'}
         </h1>
       </div>
 
@@ -145,6 +146,7 @@ export function OrganizerEventsPage() {
                         >
                           <Eye size={13} /> View
                         </Link>
+                        {!isDtiEmployee && (
                         <Link
                           to={`/organizer/events/${event.id}/edit`}
                           className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
@@ -152,6 +154,7 @@ export function OrganizerEventsPage() {
                         >
                           <Pencil size={13} /> Edit
                         </Link>
+                        )}
                         <Link
                           to={`/organizer/events/${event.id}/participants`}
                           className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
@@ -159,7 +162,7 @@ export function OrganizerEventsPage() {
                         >
                           <Users size={13} /> Participants
                         </Link>
-                        {transitions.length > 0 && (
+                        {!isDtiEmployee && transitions.length > 0 && (
                               <select
                                 className="text-xs font-medium border border-gray-300 rounded-lg px-2 py-1.5 text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors shadow-sm"
                                 value=""

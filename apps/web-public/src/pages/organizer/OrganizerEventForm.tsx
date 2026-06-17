@@ -131,6 +131,8 @@ export function OrganizerEventFormPage() {
 
   const mutation = useMutation({
     mutationFn: () => {
+      const EVENT_SUBTYPES = ['SEMINAR', 'FORUM', 'CONFERENCE', 'TRADE_FAIR', 'TRADE_MISSION', 'CONSULTATION'];
+      const isEventSubtype = EVENT_SUBTYPES.includes(form.trainingType as string);
       const payload: EventBody = {
         ...form,
         startDate:            toIso(form.startDate as string) ?? '',
@@ -143,6 +145,7 @@ export function OrganizerEventFormPage() {
         targetRegion:         form.targetRegion || null,
         maxParticipants:      form.maxParticipants || null,
         trainingType:         form.trainingType || null,
+        eventType:            isEventSubtype ? 'EVENT' : 'TRAINING',
         partnerInstitution:   form.partnerInstitution || null,
         background:           form.background || null,
         objectives:           form.objectives || null,

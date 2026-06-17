@@ -83,12 +83,14 @@ const CLIENT_TYPE_OPTIONS = [
 
 export function ProfilePage() {
   const qc = useQueryClient();
+  const authUser = useAuthStore((s) => s.user);
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
 
   const { data: user, isLoading } = useQuery<UserProfile>({
-    queryKey: ['me'],
+    queryKey: ['me', authUser?.id],
     queryFn:  () => userApi.getMe().then((r) => r.data as UserProfile),
+    enabled: Boolean(authUser?.id),
   });
 
   const [form, setForm] = useState<Partial<UserProfile>>({});
@@ -101,7 +103,7 @@ export function ProfilePage() {
   const mutation = useMutation({
     mutationFn: (body: Partial<UserProfile>) => userApi.updateMe(body),
     onSuccess: (updated) => {
-      qc.setQueryData(['me'], updated);
+      qc.setQueryData(['me', authUser?.id], updated.data as UserProfile);
       setForm({});
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -453,27 +455,6 @@ function EnterpriseMembershipSection() {
   const enterpriseId = membership?.enterprise?.id;
   const isOwnerOrAdmin = membership?.role === 'OWNER' || membership?.role === 'ADMIN';
   const isPending = membership?.status === 'PENDING';
-  const canUpdateCpms = Boolean(membership) && !isPending && (isOwnerOrAdmin || user?.role === 'ENTERPRISE_REPRESENTATIVE');
-
-  const { data: updateStatusData, isFetching: updateStatusLoading } = useQuery({
-    queryKey: ['enterprise-update-status', enterpriseId],
-    queryFn: () => enterpriseApi.getUpdateStatus(enterpriseId!),
-    enabled: Boolean(enterpriseId) && !isPending,
-  });
-  const updateStatus = (updateStatusData as {
-    data?: { updateDue?: boolean; updateType?: 'FIRST_LOGIN' | 'ANNUAL' | null; lastUpdatedYear?: number | null };
-  })?.data;
-
-  const handleOpenCpms = () => {
-    const due = updateStatus?.updateDue;
-    const type = updateStatus?.updateType ?? 'ANNUAL';
-    const cpmsPath = ORGANIZER_ROLES.has(user?.role ?? '') ? '/organizer/company-profile' : '/company-profile';
-    if (due) {
-      navigate(`${cpmsPath}?mode=required&type=${type}`);
-      return;
-    }
-    navigate(cpmsPath);
-  };
 
   // Members query (only load when team panel is open and user is owner/admin)
   const { data: membersData, refetch: refetchMembers } = useQuery({
@@ -635,29 +616,6 @@ function EnterpriseMembershipSection() {
               Your event registrations will be automatically linked to this company.
             </p>
           </div>
-
-          {/* ── UPDATE CPMS PROFILE (main contact / enterprise rep) ────── */}
-          {canUpdateCpms && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-              <div>
-                <p className="text-sm font-medium text-blue-900">MSME CPMS Form 01</p>
-                <p className="text-xs text-blue-700">
-                  {updateStatusLoading
-                    ? 'Checking update rules…'
-                    : updateStatus?.updateDue
-                      ? `Update required${updateStatus.updateType ? ` (${updateStatus.updateType.replace(/_/g, ' ')})` : ''}.`
-                      : 'You may update your enterprise profile anytime.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenCpms}
-                className="btn-secondary text-xs whitespace-nowrap"
-              >
-                Update CPMS
-              </button>
-            </div>
-          )}
 
           {/* ── MANAGE TEAM (owner/admin only) ────────────────────────── */}
           {isOwnerOrAdmin && (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { AlertCircle } from 'lucide-react';
@@ -8,6 +9,7 @@ import { AlertCircle } from 'lucide-react';
 export function LoginPage() {
   const navigate  = useNavigate();
   const { login } = useAuthStore();
+  const qc = useQueryClient();
 
   const [form, setForm]   = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -15,9 +17,11 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: () => authApi.login(form),
     onSuccess: (res) => {
-      const d = res.data as { accessToken: string; user: { id: string; email: string; role: import('@dti-ems/shared-types').UserRole; firstName: string; lastName: string } };
+      const d = res.data as { accessToken: string; user: { id: string; email: string; role: import('@dti-ems/shared-types').UserRole; roles?: import('@dti-ems/shared-types').UserRole[]; firstName: string; lastName: string } };
+      qc.clear();
       login(d.accessToken, d.user);
-      const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(d.user.role);
+      const effectiveRoles = d.user.roles?.length ? d.user.roles : [d.user.role];
+      const isOrganizer = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].some((role) => effectiveRoles.includes(role as import('@dti-ems/shared-types').UserRole));
       navigate(isOrganizer ? '/organizer/dashboard' : '/dashboard');
     },
     onError: (err) => {

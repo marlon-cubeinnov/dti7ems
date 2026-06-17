@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
+import { ASSIGNABLE_USER_ROLE_VALUES, derivePrimaryRole } from '@dti-ems/shared-types';
 import { loadSmtpConfig } from '../plugins/mailer.js';
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
@@ -13,6 +14,8 @@ function requireAdmin(role: string) {
 
 export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.addHook('preHandler', app.verifyJwt);
+
+  const roleSchema = z.enum(ASSIGNABLE_USER_ROLE_VALUES);
 
   // ── System-wide stats ─────────────────────────────────────────────────────
 
@@ -67,12 +70,18 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     requireAdmin(request.user.role);
 
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const { role } = z.object({
-      role: z.enum(['PARTICIPANT', 'ENTERPRISE_REPRESENTATIVE', 'PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DIVISION_CHIEF', 'REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN']),
+    const body = z.object({
+      role: roleSchema.optional(),
+      roles: z.array(roleSchema).min(1).optional(),
     }).parse(request.body);
+    const roles = Array.from(new Set(body.roles?.length ? body.roles : body.role ? [body.role] : []));
+    if (!roles.length) {
+      throw new BadRequestError('At least one role must be assigned.', ErrorCode.VALIDATION_ERROR);
+    }
+    const role = derivePrimaryRole(roles);
 
     // Only SUPER_ADMIN can grant admin roles
-    if (['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role) && request.user.role !== 'SUPER_ADMIN') {
+    if (roles.some((assignedRole) => ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(assignedRole)) && request.user.role !== 'SUPER_ADMIN') {
       throw new ForbiddenError('Only Super Admins can grant admin roles.');
     }
 
@@ -86,8 +95,8 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const updated = await app.prisma.userProfile.update({
       where: { id },
-      data: { role },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true },
+      data: { role, roles },
+      select: { id: true, email: true, role: true, roles: true, firstName: true, lastName: true },
     });
 
     await app.prisma.auditLog.create({
@@ -96,8 +105,8 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         action: `ROLE_CHANGE:${role}`,
         entityType: 'UserProfile',
         entityId: id,
-        oldData: { role: existing.role },
-        newData: { role },
+        oldData: { role: existing.role, roles: existing.roles },
+        newData: { role, roles },
       },
     });
 
