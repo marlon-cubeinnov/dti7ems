@@ -456,6 +456,14 @@ function EnterpriseMembershipSection() {
   const isOwnerOrAdmin = membership?.role === 'OWNER' || membership?.role === 'ADMIN';
   const isPending = membership?.status === 'PENDING';
 
+  // ── enterprises query (fallback for CPMS button) ─────────────────────────
+  const { data: myEnterprisesData } = useQuery({
+    queryKey: ['my-enterprises'],
+    queryFn: () => enterpriseApi.getMyEnterprises(),
+  });
+  const myEnterprises = ((myEnterprisesData as { data?: Array<Record<string, unknown>> })?.data ?? []);
+  const hasEnterprise = !!myEnterprises.length;
+
   // Members query (only load when team panel is open and user is owner/admin)
   const { data: membersData, refetch: refetchMembers } = useQuery({
     queryKey: ['enterprise-members', enterpriseId],
@@ -800,8 +808,30 @@ function EnterpriseMembershipSection() {
         </>
       )}
 
+      {/* ── CPMS / Company Profile (available for any enterprise user) ── */}
+      {(membership || hasEnterprise) && (
+        <div className="bg-white border border-blue-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <Building2 className="w-4 h-4 text-dti-blue" />
+            MSME CPMS Company Profile
+          </div>
+          <p className="text-xs text-gray-500">
+            Update your company&rsquo;s full MSME CPMS information — business registration,
+            owner details, financial structure, markets, and employment data.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/company-profile')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#172187] text-white text-sm font-medium rounded-lg hover:bg-[#0f1666] transition-colors"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            {isOwnerOrAdmin ? 'Edit CPMS Company Profile' : 'Manage Company Profile'}
+          </button>
+        </div>
+      )}
+
       {/* ── NO MEMBERSHIP — show options ──────────────────────────────── */}
-      {!membership && (
+      {!membership && !hasEnterprise && (
         <>
           <p className="text-sm text-gray-500">
             Link your company to track enterprise-level training completion across team members.

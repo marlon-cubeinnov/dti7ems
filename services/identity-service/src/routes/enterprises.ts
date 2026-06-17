@@ -241,7 +241,20 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
   // GET /enterprises/my — get current user's enterprise profiles
   app.get('/my', async (request, reply) => {
     const enterprises = await app.prisma.enterpriseProfile.findMany({
-      where: { userId: request.user.sub },
+      where: {
+        OR: [
+          { userId: request.user.sub },
+          {
+            memberships: {
+              some: {
+                userId: request.user.sub,
+                isActive: true,
+                status: 'ACTIVE',
+              },
+            },
+          },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
     });
     return reply.send({ success: true, data: enterprises });
@@ -757,10 +770,16 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
 
     const isOwner = enterprise.userId === request.user.sub;
     const isAdmin = ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number]);
-    const isMember = await app.prisma.enterpriseMembership.findUnique({
+    const callerMembership = await app.prisma.enterpriseMembership.findUnique({
       where: { enterpriseId_userId: { enterpriseId: id, userId: request.user.sub } },
+      select: { role: true, isActive: true, status: true },
     });
-    if (!isOwner && !isAdmin && !isMember) throw new ForbiddenError('Access denied.');
+    const isActiveMember = Boolean(
+      callerMembership
+      && callerMembership.isActive
+      && callerMembership.status === 'ACTIVE',
+    );
+    if (!isOwner && !isAdmin && !isActiveMember) throw new ForbiddenError('Access denied.');
 
     const currentYear = new Date().getFullYear();
     const isAnnualDue = enterprise.profileUpdateDue || (enterprise.annualUpdateYear ?? 0) < currentYear;
@@ -788,8 +807,14 @@ export const enterpriseRoutes: FastifyPluginAsync = async (app: FastifyInstance)
     const isAdmin = ADMIN_ROLES.includes(request.user.role as typeof ADMIN_ROLES[number]);
     const callerMembership = await app.prisma.enterpriseMembership.findUnique({
       where: { enterpriseId_userId: { enterpriseId: id, userId: request.user.sub } },
+      select: { role: true, isActive: true, status: true },
     });
-    const isOwnerMember = callerMembership?.role === 'OWNER';
+    const isOwnerMember = Boolean(
+      callerMembership
+      && callerMembership.isActive
+      && callerMembership.status === 'ACTIVE'
+      && callerMembership.role === 'OWNER',
+    );
 
     if (!isOwner && !isOwnerMember && !isAdmin) {
       throw new ForbiddenError('Only the primary contact (owner) can submit profile updates.');
