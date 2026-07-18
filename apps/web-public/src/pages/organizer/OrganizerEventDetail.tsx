@@ -284,7 +284,7 @@ export function OrganizerEventDetailPage() {
 
   // Derived attendance stats from participants list
   const attended = participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).length;
-  const allCertsIssued = attended > 0 && participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).every(p => p.certificate);
+  const allCertsIssued = attended > 0 && participants.filter(p => ['ATTENDED', 'COMPLETED'].includes(p.status)).every(p => p.certificate?.status === 'ISSUED');
   const allCsfDistributed = csfDist && csfDist.attended > 0 && csfDist.distributed >= csfDist.attended;
 
   if (eventLoading) {
