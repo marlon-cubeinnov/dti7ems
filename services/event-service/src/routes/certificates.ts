@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
 import { notifyCertificateIssued } from '../lib/notify.js';
@@ -327,12 +329,9 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
       return '';
     })();
 
-    const issueDateObj = cert.issuedAt ? new Date(cert.issuedAt) : new Date();
-    const issueLine = `Given this ${toOrdinal(issueDateObj.getDate())} day of ${issueDateObj.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })} Cebu City, Philippines`;
-
     // Generate PDF
     const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 60 });
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, autoFirstPage: true });
 
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 
@@ -340,56 +339,111 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
       doc.on('end', () => resolve());
       doc.on('error', reject);
 
-      const W = doc.page.width;   // ~841 landscape
-      const H = doc.page.height;  // ~595 landscape
+      const W = doc.page.width;   // ~842
+      const H = doc.page.height;  // ~595
+      const C = W / 2;
 
-      // Background border
-      doc.rect(34, 34, W - 68, H - 68).lineWidth(1.5).strokeColor('#2e468f').stroke();
-      doc.rect(26, 26, W - 52, H - 52).lineWidth(0.8).strokeColor('#ef4444').stroke();
+      // ── Colors ────────────────────────────────────────────
+      const navy      = '#1e3a8a';
+      const blue      = '#1e40af';
+      const lightBlue = '#bfdbfe';
+      const medBlue   = '#3b82f6';
+      const dark      = '#111827';
+      const gray      = '#6b7280';
+      const lightGray = '#9ca3af';
+      const darkGray  = '#4b5563';
+      const charcoal  = '#374151';
 
-      // Header logo placeholders
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(34)
-        .text('dti', W / 2 - 90, 48, { width: 70, align: 'right' });
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(24)
-        .text('BP', W / 2 - 10, 56, { width: 60, align: 'left' });
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(10)
-        .text('PHILIPPINES BAGONG PILIPINAS', 0, 95, { align: 'center' });
+      // ── Outer double border ────────────────────────────────
+      doc.rect(20, 20, W - 40, H - 40).lineWidth(1.5).strokeColor(navy).stroke();
+      doc.rect(25, 25, W - 50, H - 50).lineWidth(0.75).strokeColor(navy).stroke();
+      // Inner accent line
+      doc.rect(35, 35, W - 70, H - 70).lineWidth(0.5).strokeColor(lightBlue).stroke();
 
-      // Blue title band
-      doc.rect(0, 130, W, 62).fillColor('#2e468f').fill();
-      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(20)
-        .text('CERTIFICATE OF ATTENDANCE', 0, 151, { align: 'center', characterSpacing: 3 });
+      // ── Header: logo + DTI text ────────────────────────────
+      const logoPath = path.join(process.cwd(), '..', '..', 'apps', 'web-public', 'src', 'assets', 'dti-bp-logo.png');
+      const headerY  = 48;
+      const textX    = C - 60;
 
-      // Body
-      doc.fillColor('#2e468f').font('Helvetica').fontSize(18)
-        .text('This Certificate of Attendance is given to', 0, 228, { align: 'center' });
+      try {
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, C - 140, headerY, { fit: [52, 52] });
+        }
+      } catch { /* skip logo if unavailable */ }
 
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(46)
-        .text(participantName.toUpperCase(), 80, 265, { align: 'center', width: W - 160 });
+      doc.fillColor(navy).font('Helvetica-Bold').fontSize(6.5)
+        .text('REPUBLIC OF THE PHILIPPINES', textX, headerY + 2, { characterSpacing: 1 });
+      doc.fillColor(navy).font('Helvetica-Bold').fontSize(11)
+        .text('Department of Trade and Industry', textX, headerY + 16);
+      doc.fillColor(blue).font('Helvetica').fontSize(8)
+        .text('Regional Office VII \u2013 Central Visayas', textX, headerY + 31);
 
-      doc.fillColor('#2e468f').font('Helvetica').fontSize(18)
-        .text('for successfully attended the', 0, 330, { align: 'center' });
+      // ── Title bar ─────────────────────────────────────────
+      const titleTop = 113;
+      const titleBot = 153;
+      doc.moveTo(50, titleTop).lineTo(W - 50, titleTop).lineWidth(0.5).strokeColor(lightBlue).stroke();
+      doc.moveTo(50, titleBot).lineTo(W - 50, titleBot).lineWidth(0.5).strokeColor(lightBlue).stroke();
+      doc.fillColor(navy).font('Helvetica-Bold').fontSize(26)
+        .text('CERTIFICATE OF ATTENDANCE', 50, titleTop + 7, { width: W - 100, align: 'center', characterSpacing: 2.5 });
 
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(22)
-        .text(event.title, 110, 360, { align: 'center', width: W - 220 });
+      // ── Body ──────────────────────────────────────────────
+      let y = 165;
 
-      doc.fillColor('#2e468f').font('Helvetica').fontSize(16)
-        .text(`on ${eventDate}${eventChannel ? ` ${eventChannel}` : ''}`, 0, 435, { align: 'center' });
+      doc.fillColor(gray).font('Helvetica-Oblique').fontSize(11)
+        .text('This is to certify that', 50, y, { width: W - 100, align: 'center' });
+      y += 22;
 
-      doc.fillColor('#2e468f').font('Helvetica').fontSize(15)
-        .text(issueLine, 0, 470, { align: 'center' });
+      // Recipient name
+      doc.fillColor(dark).font('Helvetica-Bold').fontSize(28)
+        .text(participantName, 100, y, { width: W - 200, align: 'center' });
+      const nameLineCount = Math.ceil(doc.widthOfString(participantName, { width: W - 200 }) / (W - 200)) || 1;
+      const nameBlockH = 34 * nameLineCount;
+      const underlineY = y + nameBlockH;
+      doc.moveTo(C - 180, underlineY).lineTo(C + 180, underlineY)
+        .lineWidth(1.5).strokeColor(medBlue).stroke();
+      y = underlineY + 14;
 
-      // Signature
-      doc.fillColor('#2e468f').font('Helvetica-Bold').fontSize(20)
-        .text('MARIA ELENA C. ARBON', 0, H - 98, { align: 'center' });
-      doc.fillColor('#2e468f').font('Helvetica').fontSize(18)
-        .text('Regional Director', 0, H - 72, { align: 'center' });
+      doc.fillColor(gray).font('Helvetica').fontSize(10.5)
+        .text('has successfully attended the', 50, y, { width: W - 100, align: 'center' });
+      y += 20;
 
-      // Footer verification
-      doc.fillColor('#5a6da7').font('Helvetica').fontSize(9)
-        .text(`Verification Code: ${cert.verificationCode}`, 40, H - 36, { align: 'left', width: W - 80 });
-      doc.fillColor('#7c8dbd').font('Helvetica').fontSize(8)
-        .text(`Verify at: ${process.env['FRONTEND_URL'] ?? 'https://ems.dti7.gov.ph'}/verify/${cert.verificationCode}`, 40, H - 22, { align: 'left', width: W - 80 });
+      doc.fillColor(blue).font('Helvetica-Bold').fontSize(15)
+        .text(event.title, 100, y, { width: W - 200, align: 'center' });
+      // Advance y past event title (may wrap)
+      y = doc.y + 8;
+
+      if (event.venue) {
+        doc.fillColor(lightGray).font('Helvetica').fontSize(9)
+          .text(event.venue, 100, y, { width: W - 200, align: 'center' });
+        y = doc.y + 4;
+      }
+      doc.fillColor(lightGray).font('Helvetica').fontSize(9)
+        .text(eventDate, 100, y, { width: W - 200, align: 'center' });
+
+      // ── Footer ────────────────────────────────────────────
+      const sigLineY   = H - 72;
+      const sigTextY   = H - 68;
+      const sigX       = 60;
+      const sigW       = 115;
+
+      doc.moveTo(sigX, sigLineY).lineTo(sigX + sigW, sigLineY)
+        .lineWidth(0.5).strokeColor(lightGray).stroke();
+      doc.fillColor(charcoal).font('Helvetica-Bold').fontSize(8.5)
+        .text('Regional Director', sigX, sigTextY, { width: sigW, align: 'center' });
+      doc.fillColor(gray).font('Helvetica').fontSize(7.5)
+        .text('DTI Region VII', sigX, sigTextY + 13, { width: sigW, align: 'center' });
+
+      const verifyW = 250;
+      const verifyX = W - 55 - verifyW;
+      doc.fillColor(lightGray).font('Helvetica').fontSize(6.5)
+        .text('VERIFICATION CODE', verifyX, sigLineY - 12, { width: verifyW, align: 'right', characterSpacing: 0.8 });
+      doc.fillColor(darkGray).font('Courier-Bold').fontSize(8.5)
+        .text(cert.verificationCode, verifyX, sigTextY, { width: verifyW, align: 'right', characterSpacing: 2 });
+      if (cert.issuedAt) {
+        const issuedDateStr = new Date(cert.issuedAt).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+        doc.fillColor(lightGray).font('Helvetica').fontSize(6.5)
+          .text(`Issued: ${issuedDateStr}`, verifyX, sigTextY + 13, { width: verifyW, align: 'right' });
+      }
 
       doc.end();
     });
