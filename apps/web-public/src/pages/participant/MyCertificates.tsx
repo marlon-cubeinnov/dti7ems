@@ -103,6 +103,7 @@ export function MyCertificatesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['my-certificates'],
     queryFn: () => certificatesApi.getMyCertificates(),
+    staleTime: 0,
   });
 
   const certificates: Certificate[] = (data as { data?: Certificate[] })?.data ?? [];

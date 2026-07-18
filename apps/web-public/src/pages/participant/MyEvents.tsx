@@ -11,6 +11,7 @@ export function MyEventsPage() {
     queryKey: ['my-participations', page],
     queryFn: () => eventsApi.getMyParticipations({ page, limit: 10 }),
     placeholderData: (prev) => prev,
+    staleTime: 0,
   });
 
   const participations = (data?.data as unknown as Array<{
