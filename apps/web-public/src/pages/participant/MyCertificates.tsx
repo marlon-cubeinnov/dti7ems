@@ -131,49 +131,63 @@ export function MyCertificatesPage() {
   <title>Certificate of Attendance</title>
   <meta charset="utf-8">
   <style>
-    @page { size: A4 landscape; margin: 0; }
+    @page { size: A4 landscape; margin: 6mm; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 297mm; height: 210mm;
+      width: 100%; height: 100%;
       background: white;
       font-family: Georgia, 'Times New Roman', serif;
     }
     .page {
-      width: 297mm; height: 210mm;
-      padding: 10mm 14mm;
-      border: 5pt double #1e3a8a;
+      width: 100%; height: 100%;
+      position: relative;
+      border: 3.5pt double #1e3a8a;
+      padding: 8mm 11mm;
       display: flex; flex-direction: column;
       align-items: center; justify-content: space-between;
     }
-    .header { display: flex; align-items: center; gap: 10pt; justify-content: center; }
+    /* Thin accent line just inside the outer double border */
+    .page::before {
+      content: '';
+      position: absolute;
+      inset: 3.5mm;
+      border: 0.75pt solid #bfdbfe;
+      pointer-events: none;
+    }
+    .header {
+      display: flex; align-items: center; gap: 10pt; justify-content: center;
+      width: 100%;
+    }
     .header img { height: 44pt; width: auto; object-fit: contain; }
     .header-text { text-align: left; }
     .header-text .republic { font-size: 7pt; color: #1e40af; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5pt; }
-    .header-text .dept { font-size: 10pt; font-weight: bold; color: #1e3a8a; }
+    .header-text .dept { font-size: 11pt; font-weight: bold; color: #1e3a8a; }
     .header-text .region { font-size: 7.5pt; color: #1d4ed8; }
     .title-bar {
-      border-top: 0.75pt solid #bfdbfe; border-bottom: 0.75pt solid #bfdbfe;
+      border-top: 0.75pt solid #93c5fd; border-bottom: 0.75pt solid #93c5fd;
       padding: 5pt 0; text-align: center; width: 100%;
     }
-    .title-bar h1 { font-size: 26pt; font-weight: bold; color: #1e3a8a; font-variant: small-caps; letter-spacing: 2pt; }
+    .title-bar h1 { font-size: 30pt; font-weight: bold; color: #1e3a8a; font-variant: small-caps; letter-spacing: 3pt; }
     .body { text-align: center; }
-    .certify-text { font-size: 9pt; color: #4b5563; margin-bottom: 5pt; }
+    .certify-text { font-size: 10.5pt; color: #6b7280; margin-bottom: 6pt; font-style: italic; }
     .recipient {
-      font-size: 22pt; font-weight: bold; color: #111827;
-      border-bottom: 2pt solid #93c5fd;
-      display: inline-block; padding: 0 20pt 3pt;
+      font-size: 28pt; font-weight: bold; color: #111827;
+      border-bottom: 2pt solid #3b82f6;
+      display: inline-block; padding: 0 24pt 4pt;
     }
-    .event-label { font-size: 9pt; color: #4b5563; margin-top: 9pt; margin-bottom: 3pt; }
-    .event-title { font-size: 14pt; font-weight: 600; color: #1e40af; margin-bottom: 2pt; }
-    .venue { font-size: 8pt; color: #6b7280; }
-    .dates { font-size: 8pt; color: #6b7280; margin-top: 2pt; }
+    .event-label { font-size: 10pt; color: #6b7280; margin-top: 8pt; margin-bottom: 4pt; }
+    .event-title { font-size: 14.5pt; font-weight: 600; color: #1e40af; }
+    .venue { font-size: 8.5pt; color: #9ca3af; margin-top: 3pt; }
+    .dates { font-size: 8.5pt; color: #9ca3af; margin-top: 2pt; }
     .footer { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; }
-    .sig-line { border-top: 0.75pt solid #9ca3af; width: 90pt; margin-top: 20pt; padding-top: 3pt; }
-    .sig-line p { font-size: 7pt; color: #6b7280; }
+    .sig-block { text-align: center; }
+    .sig-line { border-top: 0.75pt solid #9ca3af; width: 100pt; padding-top: 4pt; margin-top: 26pt; }
+    .sig-name { font-size: 8pt; font-weight: bold; color: #374151; }
+    .sig-title { font-size: 7pt; color: #6b7280; }
     .verify-block { text-align: right; }
-    .verify-label { font-size: 6.5pt; color: #9ca3af; }
-    .verify-code { font-family: 'Courier New', monospace; font-size: 8pt; font-weight: bold; color: #4b5563; letter-spacing: 2pt; }
-    .issued-date { font-size: 6.5pt; color: #9ca3af; margin-top: 2pt; }
+    .verify-label { font-size: 6pt; color: #9ca3af; text-transform: uppercase; letter-spacing: 1pt; }
+    .verify-code { font-family: 'Courier New', monospace; font-size: 8pt; font-weight: bold; color: #4b5563; letter-spacing: 2pt; margin-top: 2pt; }
+    .issued-date { font-size: 6pt; color: #9ca3af; margin-top: 2pt; }
   </style>
 </head>
 <body>
@@ -183,7 +197,7 @@ export function MyCertificatesPage() {
       <div class="header-text">
         <p class="republic">Republic of the Philippines</p>
         <p class="dept">Department of Trade and Industry</p>
-        <p class="region">Regional Office VII – Central Visayas</p>
+        <p class="region">Regional Office VII \u2013 Central Visayas</p>
       </div>
     </div>
     <div class="title-bar">
@@ -198,10 +212,10 @@ export function MyCertificatesPage() {
       <p class="dates">${dateRange}</p>
     </div>
     <div class="footer">
-      <div>
+      <div class="sig-block">
         <div class="sig-line">
-          <p>Regional Director</p>
-          <p>DTI Region VII</p>
+          <p class="sig-name">Regional Director</p>
+          <p class="sig-title">DTI Region VII</p>
         </div>
       </div>
       <div class="verify-block">
