@@ -90,8 +90,7 @@ interface ChecklistItem {
   phase: string;
   status: string;
   priority: string;
-  assignedTo: string | null;
-  assignedToName: string | null;
+  assignees: Array<{ userId: string; name: string }>;
   dueDate: string | null;
   completedAt: string | null;
   notes: string | null;
@@ -279,8 +278,9 @@ export function OrganizerChecklistPage() {
       title: newItem.title,
       phase: newItem.phase,
       priority: newItem.priority,
-      assignedToName: newItem.assignedToName || null,
-      assignedTo: newItem.assignedTo || null,
+      assignees: newItem.assignedTo
+        ? [{ userId: newItem.assignedTo, name: newItem.assignedToName }]
+        : [],
       dueDate: newItem.dueDate ? new Date(newItem.dueDate).toISOString() : null,
       orderIndex: checklist.items.length,
     }),
@@ -344,8 +344,8 @@ export function OrganizerChecklistPage() {
       title: item.title,
       phase: item.phase,
       priority: item.priority,
-      assignedToName: item.assignedToName ?? '',
-      assignedTo: item.assignedTo ?? null,
+      assignedToName: item.assignees?.[0]?.name ?? '',
+      assignedTo: item.assignees?.[0]?.userId ?? null,
       dueDate: item.dueDate ? item.dueDate.slice(0, 10) : '',
       notes: item.notes ?? '',
       description: item.description ?? '',
@@ -357,9 +357,13 @@ export function OrganizerChecklistPage() {
     if (editForm.title !== item.title) data.title = editForm.title;
     if (editForm.phase !== item.phase) data.phase = editForm.phase;
     if (editForm.priority !== item.priority) data.priority = editForm.priority;
-    if ((editForm.assignedToName || null) !== (item.assignedToName || null)) {
-      data.assignedToName = editForm.assignedToName || null;
-      data.assignedTo = editForm.assignedTo || null;
+    const currentAssigneeName = item.assignees?.[0]?.name ?? null;
+    const currentAssigneeId   = item.assignees?.[0]?.userId ?? null;
+    if ((editForm.assignedToName || null) !== currentAssigneeName ||
+        (editForm.assignedTo     || null) !== currentAssigneeId) {
+      data.assignees = editForm.assignedTo
+        ? [{ userId: editForm.assignedTo, name: editForm.assignedToName }]
+        : [];
     }
     if ((editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null) !== (item.dueDate || null)) data.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
     if ((editForm.notes || null) !== (item.notes || null)) data.notes = editForm.notes || null;
@@ -709,10 +713,10 @@ export function OrganizerChecklistPage() {
                                     {item.priority}
                                   </span>
 
-                                  {item.assignedToName ? (
+                                  {item.assignees?.[0]?.name ? (
                                     <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">
                                       <User size={11} className="text-gray-500" />
-                                      {item.assignedToName}
+                                      {item.assignees[0].name}
                                     </span>
                                   ) : (
                                     <button

@@ -571,8 +571,7 @@ export const checklistApi = {
     description?: string | null;
     phase?: string;
     priority?: string;
-    assignedTo?: string | null;
-    assignedToName?: string | null;
+    assignees?: Array<{ userId: string; name: string }>;
     dueDate?: string | null;
     orderIndex?: number;
     notes?: string | null;
