@@ -375,7 +375,7 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
     // Find participation for this user + event
     const participation = await app.prisma.eventParticipation.findUnique({
       where: { eventId_userId: { eventId: session.eventId, userId } },
-      select: { id: true, userId: true, eventId: true, status: true },
+      select: { id: true, userId: true, eventId: true, status: true, participantName: true, participantEmail: true },
     });
 
     if (!participation || participation.status === 'CANCELLED') {
@@ -432,7 +432,11 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
 
     return reply.code(201).send({
       success: true,
-      data: record,
+      data: {
+        ...record,
+        participantName:  participation.participantName ?? null,
+        participantEmail: participation.participantEmail ?? null,
+      },
       message: `Attendance recorded for ${session.title}`,
     });
   });
@@ -449,7 +453,7 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
 
     const participation = await app.prisma.eventParticipation.findUnique({
       where: { id },
-      select: { id: true, userId: true, eventId: true, status: true },
+      select: { id: true, userId: true, eventId: true, status: true, participantName: true, participantEmail: true },
     });
     if (!participation) throw new NotFoundError('Participation not found');
 
@@ -486,7 +490,11 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
 
     return reply.code(201).send({
       success: true,
-      data: record,
+      data: {
+        ...record,
+        participantName:  participation.participantName ?? null,
+        participantEmail: participation.participantEmail ?? null,
+      },
       message: `Manual check-in recorded for ${session.title}`,
     });
   });
