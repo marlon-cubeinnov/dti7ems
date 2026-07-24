@@ -107,7 +107,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
   // POST /certificates/:participationId/issue — organizer marks certificate issued
   app.post('/:participationId/issue', async (request, reply) => {
     const role = normalizeRole(request.user.role);
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
+    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].includes(role)) {
       throw new ForbiddenError('Only organizers can issue certificates.');
     }
 
@@ -115,10 +115,13 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
     const participation = await app.prisma.eventParticipation.findUnique({
       where: { id: participationId },
-      select: { id: true, userId: true, eventId: true, status: true, participantName: true, participantEmail: true, event: { select: { title: true } } },
+      select: { id: true, userId: true, eventId: true, status: true, participantName: true, participantEmail: true, event: { select: { title: true, assignedOrganizerId: true } } },
     });
 
     if (!participation) throw new NotFoundError('Participation not found');
+    if (role === 'DTI_EMPLOYEE' && participation.event?.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can issue certificates for this event.');
+    }
 
     if (!['ATTENDED', 'COMPLETED'].includes(participation.status)) {
       throw new BadRequestError(
@@ -263,7 +266,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
           select: {
             userId: true,
             event: {
-              select: { id: true, title: true, startDate: true, endDate: true, venue: true, deliveryMode: true },
+              select: { id: true, title: true, startDate: true, endDate: true, venue: true, deliveryMode: true, assignedOrganizerId: true },
             },
           },
         },
@@ -272,9 +275,11 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
     if (!cert) throw new NotFoundError('Certificate not found');
 
+    const role = normalizeRole(request.user.role);
     const isOwner  = cert.participation.userId === request.user.sub;
-    const isStaff  = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
-    if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
+    const isAdmin  = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
+    const isAssignedLead = cert.participation.event?.assignedOrganizerId === request.user.sub;
+    if (!isOwner && !isAdmin && !isAssignedLead) throw new ForbiddenError('Access denied.');
 
     return reply.send({ success: true, data: cert });
   });
@@ -292,7 +297,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
             participantName: true,
             participantEmail: true,
             event: {
-              select: { title: true, startDate: true, endDate: true, venue: true, deliveryMode: true, onlineLink: true },
+              select: { title: true, startDate: true, endDate: true, venue: true, deliveryMode: true, onlineLink: true, assignedOrganizerId: true },
             },
           },
         },
@@ -302,9 +307,11 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
     if (!cert) throw new NotFoundError('Certificate not found');
     if (cert.status === 'REVOKED') throw new BadRequestError('This certificate has been revoked.', ErrorCode.VALIDATION_ERROR);
 
+    const role = normalizeRole(request.user.role);
     const isOwner = cert.participation.userId === request.user.sub;
-    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
-    if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
+    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
+    const isAssignedLead = cert.participation.event?.assignedOrganizerId === request.user.sub;
+    if (!isOwner && !isAdmin && !isAssignedLead) throw new ForbiddenError('Access denied.');
 
     const participantName = cert.participation.participantName ?? cert.participation.participantEmail ?? 'Participant';
 
@@ -472,7 +479,7 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
             participantEmail: true,
             enterpriseName: true,
             event: {
-              select: { title: true, startDate: true, endDate: true, venue: true },
+              select: { title: true, startDate: true, endDate: true, venue: true, assignedOrganizerId: true },
             },
           },
         },
@@ -482,9 +489,11 @@ export const certificateRoutes: FastifyPluginAsync = async (app: FastifyInstance
     if (!cert) throw new NotFoundError('Certificate not found');
     if (cert.status === 'REVOKED') throw new BadRequestError('This certificate has been revoked.', ErrorCode.VALIDATION_ERROR);
 
+    const role = normalizeRole(request.user.role);
     const isOwner = cert.participation.userId === request.user.sub;
-    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
-    if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
+    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
+    const isAssignedLead = cert.participation.event?.assignedOrganizerId === request.user.sub;
+    if (!isOwner && !isAdmin && !isAssignedLead) throw new ForbiddenError('Access denied.');
 
     const appearanceEligible = await isGovernmentParticipant(cert.participation.userId);
     if (!appearanceEligible) {

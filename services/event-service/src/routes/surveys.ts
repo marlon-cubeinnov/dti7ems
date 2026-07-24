@@ -6,6 +6,21 @@ const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 const normalizeRole = (role: unknown): string =>
   String(role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
+// Only a system/super admin, or the event's assigned Event/Training Lead, may view
+// organizer-facing survey data — PROGRAM_MANAGER/EVENT_ORGANIZER roles no longer exist.
+async function requireLeadOrAdmin(
+  app: FastifyInstance,
+  request: { user: { role: unknown; sub: string } },
+  eventId: string,
+  message: string,
+) {
+  const event = await app.prisma.event.findUnique({ where: { id: eventId }, select: { assignedOrganizerId: true } });
+  if (!event) throw new NotFoundError('Event not found');
+  const isAdmin = ADMIN_ROLES.includes(normalizeRole(request.user.role) as typeof ADMIN_ROLES[number]);
+  const isAssignedLead = event.assignedOrganizerId === request.user.sub;
+  if (!isAdmin && !isAssignedLead) throw new ForbiddenError(message);
+}
+
 export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.addHook('preHandler', app.verifyJwt);
 
@@ -116,12 +131,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/results — organizer/admin aggregated results
   app.get('/events/:eventId/csf/results', async (request, reply) => {
-    const role = normalizeRole(request.user.role);
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only organizers can view survey results.');
-    }
-
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await requireLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can view survey results.');
 
     const responses = await app.prisma.csfSurveyResponse.findMany({
       where: { eventId, status: 'SUBMITTED' },
@@ -377,12 +388,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/impact/results — aggregated results (admin/organizer)
   app.get('/events/:eventId/impact/results', async (request, reply) => {
-    const role = normalizeRole(request.user.role);
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
-      throw new ForbiddenError('Only organizers or admins can view impact results.');
-    }
-
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await requireLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can view impact results.');
 
     const responses = await app.prisma.impactSurveyResponse.findMany({
       where: { eventId, status: 'SUBMITTED' },
@@ -431,12 +438,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/report — FM-CSF-ACT-RPT full report
   app.get('/events/:eventId/csf/report', async (request, reply) => {
-    const role = normalizeRole(request.user.role);
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
-      throw new ForbiddenError('Only organizers can view CSF reports.');
-    }
-
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await requireLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can view CSF reports.');
 
     // Fetch event details
     const event = await app.prisma.event.findUnique({
@@ -602,12 +605,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/impact/effectiveness — FM-CT-3 effectiveness report
   app.get('/events/:eventId/impact/effectiveness', async (request, reply) => {
-    const role = normalizeRole(request.user.role);
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', ...ADMIN_ROLES].includes(role)) {
-      throw new ForbiddenError('Only organizers or admins can view effectiveness reports.');
-    }
-
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await requireLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can view effectiveness reports.');
 
     const responses = await app.prisma.impactSurveyResponse.findMany({
       where: { eventId, status: 'SUBMITTED' },
@@ -721,12 +720,8 @@ export const surveyRoutes: FastifyPluginAsync = async (app: FastifyInstance) => 
 
   // GET /surveys/events/:eventId/csf/distribution-status — Step 5: get CSF distribution summary
   app.get('/events/:eventId/csf/distribution-status', async (request, reply) => {
-    const role = normalizeRole(request.user.role);
-    if (!['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only Technical Staff or admins can view CSF distribution status.');
-    }
-
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await requireLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can view CSF distribution status.');
 
     const [attended, distributed, submitted] = await Promise.all([
       app.prisma.eventParticipation.count({ where: { eventId, status: { in: ['ATTENDED', 'COMPLETED'] } } }),

@@ -2,8 +2,28 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ForbiddenError, NotFoundError, BadRequestError, ErrorCode } from '@dti-ems/shared-errors';
 
-const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
+// PROGRAM_MANAGER/EVENT_ORGANIZER roles no longer exist; DTI_EMPLOYEE is included here
+// but narrowed to the event's assigned Lead (or admin) via assertEventLeadOrAdmin below.
+const ORGANIZER_ROLES = ['PROGRAM_MANAGER', 'EVENT_ORGANIZER', 'DTI_EMPLOYEE', 'SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
 type OrganizerRole = typeof ORGANIZER_ROLES[number];
+
+const normalizeRole = (role: unknown): string =>
+  String(role ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+const isDtiEmployeeRole = (role: unknown): boolean => normalizeRole(role) === 'DTI_EMPLOYEE';
+
+// A DTI_EMPLOYEE may only manage checklists for events they're the assigned Lead of;
+// system/super admins can manage any event's checklists.
+async function assertEventLeadOrAdmin(
+  app: FastifyInstance,
+  request: { user: { role: unknown; sub: string } },
+  eventId: string,
+  message: string,
+) {
+  if (!isDtiEmployeeRole(request.user.role)) return;
+  const event = await app.prisma.event.findUnique({ where: { id: eventId }, select: { assignedOrganizerId: true } });
+  if (!event) throw new NotFoundError('Event not found');
+  if (event.assignedOrganizerId !== request.user.sub) throw new ForbiddenError(message);
+}
 
 // ── Default checklist template (FM-CT-7 Training Monitoring Checklist) ──────
 const DEFAULT_CHECKLIST_ITEMS = [
@@ -106,6 +126,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     }
 
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await assertEventLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can access this event\'s checklists.');
 
     const event = await app.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundError('Event not found');
@@ -139,6 +160,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     }
 
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await assertEventLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can create checklists for this event.');
     const body = createChecklistSchema.parse(request.body);
 
     const event = await app.prisma.event.findUnique({ where: { id: eventId } });
@@ -197,6 +219,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     });
 
     if (!checklist) throw new NotFoundError('Checklist not found');
+    await assertEventLeadOrAdmin(app, request, checklist.eventId, 'Only the assigned event lead or a system admin can access this checklist.');
     return reply.send({ success: true, data: checklist });
   });
 
@@ -211,6 +234,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const checklist = await app.prisma.eventChecklist.findUnique({ where: { id } });
     if (!checklist) throw new NotFoundError('Checklist not found');
+    await assertEventLeadOrAdmin(app, request, checklist.eventId, 'Only the assigned event lead or a system admin can delete this checklist.');
 
     await app.prisma.eventChecklist.delete({ where: { id } });
     return reply.send({ success: true, message: 'Checklist deleted.' });
@@ -228,6 +252,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const checklist = await app.prisma.eventChecklist.findUnique({ where: { id } });
     if (!checklist) throw new NotFoundError('Checklist not found');
+    await assertEventLeadOrAdmin(app, request, checklist.eventId, 'Only the assigned event lead or a system admin can add checklist items.');
 
     const item = await app.prisma.checklistItem.create({
       data: {
@@ -260,8 +285,10 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const item = await app.prisma.checklistItem.findFirst({
       where: { id: itemId, checklistId: id },
+      include: { checklist: { select: { eventId: true } } },
     });
     if (!item) throw new NotFoundError('Checklist item not found');
+    await assertEventLeadOrAdmin(app, request, item.checklist.eventId, 'Only the assigned event lead or a system admin can update checklist items.');
 
     const updateData: Record<string, unknown> = {};
     if (body.title !== undefined) updateData['title'] = body.title;
@@ -308,8 +335,10 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const item = await app.prisma.checklistItem.findFirst({
       where: { id: itemId, checklistId: id },
+      include: { checklist: { select: { eventId: true } } },
     });
     if (!item) throw new NotFoundError('Checklist item not found');
+    await assertEventLeadOrAdmin(app, request, item.checklist.eventId, 'Only the assigned event lead or a system admin can remove checklist items.');
 
     await app.prisma.checklistItem.delete({ where: { id: itemId } });
     return reply.send({ success: true, message: 'Item deleted.' });
@@ -327,8 +356,10 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const item = await app.prisma.checklistItem.findFirst({
       where: { id: itemId, checklistId: id },
+      include: { checklist: { select: { eventId: true } } },
     });
     if (!item) throw new NotFoundError('Checklist item not found');
+    await assertEventLeadOrAdmin(app, request, item.checklist.eventId, 'Only the assigned event lead or a system admin can comment on checklist items.');
 
     const comment = await app.prisma.checklistComment.create({
       data: {
@@ -355,8 +386,10 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const item = await app.prisma.checklistItem.findFirst({
       where: { id: itemId, checklistId: id },
+      include: { checklist: { select: { eventId: true } } },
     });
     if (!item) throw new NotFoundError('Checklist item not found');
+    await assertEventLeadOrAdmin(app, request, item.checklist.eventId, 'Only the assigned event lead or a system admin can view comments.');
 
     const comments = await app.prisma.checklistComment.findMany({
       where: { itemId },
@@ -375,8 +408,12 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
 
     const { commentId } = z.object({ id: z.string(), itemId: z.string(), commentId: z.string() }).parse(request.params);
 
-    const comment = await app.prisma.checklistComment.findUnique({ where: { id: commentId } });
+    const comment = await app.prisma.checklistComment.findUnique({
+      where: { id: commentId },
+      include: { item: { include: { checklist: { select: { eventId: true } } } } },
+    });
     if (!comment) throw new NotFoundError('Comment not found');
+    await assertEventLeadOrAdmin(app, request, comment.item.checklist.eventId, 'Only the assigned event lead or a system admin can delete comments.');
 
     // Only author or admins can delete
     if (comment.authorId !== request.user.sub && !['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role)) {
@@ -395,6 +432,7 @@ export const checklistRoutes: FastifyPluginAsync = async (app: FastifyInstance) 
     }
 
     const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    await assertEventLeadOrAdmin(app, request, eventId, 'Only the assigned event lead or a system admin can access this event\'s checklists.');
 
     const event = await app.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundError('Event not found');

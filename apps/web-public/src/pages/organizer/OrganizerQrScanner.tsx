@@ -45,7 +45,6 @@ export function OrganizerQrScannerPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-reader';
 
-  const [sessionId, setSessionId]     = useState('');
   const [cameraOn, setCameraOn]       = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [lastResult, setLastResult]   = useState<{ ok: boolean; name?: string; message: string } | null>(null);
@@ -54,16 +53,6 @@ export function OrganizerQrScannerPage() {
 
   // Pending confirmation — shown before the API call is made
   const [pending, setPending] = useState<CheckinConfirmation | null>(null);
-
-  // ── Sessions list ─────────────────────────────────────────────────────────
-  const { data: sessionsData } = useQuery({
-    queryKey: ['event-sessions', eventId],
-    queryFn: () => organizerApi.getEventSessions(eventId!),
-    enabled: !!eventId,
-  });
-  const sessions: { id: string; title: string; startTime: string }[] =
-    (sessionsData as { data?: typeof sessions })?.data ?? [];
-  const selectedSession = sessions.find(s => s.id === sessionId);
 
   // ── Participants for name-based manual lookup ────────────────────────────
   const [manualQuery, setManualQuery] = useState('');
@@ -103,7 +92,7 @@ export function OrganizerQrScannerPage() {
 
   // ── Scan mutation ─────────────────────────────────────────────────────────
   const scanMut = useMutation({
-    mutationFn: (token: string) => organizerApi.scanQr(token, sessionId),
+    mutationFn: (token: string) => organizerApi.scanQr(token, eventId!),
     onSuccess: (res) => {
       const r = res as { data?: { participantName?: string | null; participantEmail?: string | null }; message?: string };
       const name = r.data?.participantName ?? r.data?.participantEmail ?? 'Participant';
@@ -123,7 +112,7 @@ export function OrganizerQrScannerPage() {
 
   // ── Manual check-in mutation ──────────────────────────────────────────────
   const manualMut = useMutation({
-    mutationFn: (participationId: string) => organizerApi.manualCheckin(participationId, sessionId),
+    mutationFn: (participationId: string) => organizerApi.manualCheckin(participationId),
     onSuccess: (res) => {
       const r = res as { data?: { participantName?: string | null; participantEmail?: string | null }; message?: string };
       const name = r.data?.participantName ?? r.data?.participantEmail ?? 'Participant';
@@ -229,34 +218,6 @@ export function OrganizerQrScannerPage() {
         <h1 className="text-2xl font-bold text-gray-800">QR Attendance Scanner</h1>
       </div>
 
-      {/* Session Selector */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-3">
-        <label className="block text-sm font-medium text-gray-700">
-          Select Session to Mark Attendance
-        </label>
-        {sessions.length === 0 ? (
-          <p className="text-sm text-gray-500">No sessions found for this event. Add sessions first.</p>
-        ) : (
-          <select
-            value={sessionId}
-            onChange={e => {
-              setSessionId(e.target.value);
-              setLastResult(null);
-              setPending(null);
-              processingRef.current = false;
-            }}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">— select a session —</option>
-            {sessions.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.title} ({new Date(s.startTime).toLocaleString()})
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
       {/* ── QR Confirmation overlay ─────────────────────────────────────────── */}
       {pending && (
         <div className="rounded-xl border-2 border-blue-400 bg-blue-50 p-5 space-y-4 shadow-md">
@@ -271,9 +232,6 @@ export function OrganizerQrScannerPage() {
               <p className="text-lg font-bold text-gray-900">{pending.name}</p>
               {pending.email && (
                 <p className="text-sm text-gray-500">{pending.email}</p>
-              )}
-              {selectedSession && (
-                <p className="text-sm text-blue-700 mt-1">Session: <span className="font-medium">{selectedSession.title}</span></p>
               )}
             </div>
           </div>
@@ -327,12 +285,6 @@ export function OrganizerQrScannerPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
         <h2 className="font-semibold text-gray-700">Scan QR Code</h2>
 
-        {!sessionId && (
-          <p className="text-sm text-amber-600 bg-amber-50 rounded-lg p-3">
-            Please select a session before scanning.
-          </p>
-        )}
-
         {cameraError && (
           <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{cameraError}</p>
         )}
@@ -342,7 +294,7 @@ export function OrganizerQrScannerPage() {
         <div className="flex gap-3">
           <button
             onClick={startCamera}
-            disabled={!sessionId || cameraOn || !!pending}
+            disabled={cameraOn || !!pending}
             className="btn-primary text-sm px-4 py-2 disabled:opacity-40"
           >
             Start Camera
@@ -365,12 +317,6 @@ export function OrganizerQrScannerPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-3">
         <h2 className="font-semibold text-gray-700">Manual Check-in</h2>
         <p className="text-xs text-gray-500">Type a participant name or email to search, then select to check them in.</p>
-
-        {!sessionId && (
-          <p className="text-sm text-amber-600 bg-amber-50 rounded-lg p-2 text-xs">
-            Select a session first.
-          </p>
-        )}
 
         <div className="space-y-2">
           <input
@@ -411,7 +357,6 @@ export function OrganizerQrScannerPage() {
                   <button
                     key={p.id}
                     type="button"
-                    disabled={!sessionId}
                     onClick={() => {
                       setLastResult(null);
                       setPending({

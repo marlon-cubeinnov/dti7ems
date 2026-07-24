@@ -274,7 +274,7 @@ export function OrganizerEventDetailPage() {
     id: `lead-${event.assignedOrganizerId}`,
     userId: event.assignedOrganizerId,
     userName: event.assignedOrganizerName ?? 'Assigned Lead',
-    userEmail: null,
+    userEmail: event.assignedOrganizerEmail ?? null,
     role: 'TEAM_LEAD',
     isLeader: true,
   } : null;

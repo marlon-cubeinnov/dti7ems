@@ -150,7 +150,7 @@ export function OrganizerPostActivityReportPage() {
   };
 
   const role = user?.role ?? '';
-  const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
+  const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN', 'DTI_EMPLOYEE'].includes(role);
   const isChief = ['DIVISION_CHIEF', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
   const isApprover = ['REGIONAL_DIRECTOR', 'PROVINCIAL_DIRECTOR', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role);
 

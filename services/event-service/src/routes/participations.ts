@@ -44,6 +44,43 @@ function recommendTrack(score: number): string {
   return 'foundational';
 }
 
+// Admins, the event's assigned Lead, and any assigned event staff (e.g. Registration
+// Officer) may manage attendance for that event — PROGRAM_MANAGER/EVENT_ORGANIZER
+// roles no longer exist, so this can no longer be a plain role-name check.
+async function canManageEventAttendance(
+  app: FastifyInstance,
+  request: { user: { role: unknown; sub: string } },
+  eventId: string,
+): Promise<boolean> {
+  if (['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(String(request.user.role))) return true;
+  const event = await app.prisma.event.findUnique({ where: { id: eventId }, select: { assignedOrganizerId: true } });
+  if (event?.assignedOrganizerId === request.user.sub) return true;
+  const staff = await app.prisma.eventStaff.findFirst({ where: { eventId, userId: request.user.sub } });
+  return !!staff;
+}
+
+// Sessions are optional — most trainings don't need a multi-session agenda.
+// QR/manual check-in no longer requires picking one; if the event has no session yet,
+// transparently reuse (or create) a single catch-all session so attendance still has
+// somewhere to attach to.
+async function getOrCreateDefaultSession(app: FastifyInstance, eventId: string) {
+  const existing = await app.prisma.eventSession.findFirst({ where: { eventId }, orderBy: { orderIndex: 'asc' } });
+  if (existing) return existing;
+
+  const event = await app.prisma.event.findUnique({ where: { id: eventId }, select: { startDate: true, endDate: true } });
+  if (!event) throw new NotFoundError('Event not found');
+
+  return app.prisma.eventSession.create({
+    data: {
+      eventId,
+      title: 'Attendance',
+      startTime: event.startDate,
+      endTime: event.endDate,
+      orderIndex: 0,
+    },
+  });
+}
+
 export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.addHook('preHandler', app.verifyJwt);
 
@@ -350,31 +387,26 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
     });
   });
 
-  // POST /attendance/scan — permanent QR scan: token encodes userId, sessionId comes from organizer
+  // POST /attendance/scan — permanent QR scan: token encodes userId; no session selection required
   app.post('/attendance/scan', async (request, reply) => {
-    const role = request.user.role;
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only event organizers can scan attendance.');
+    const { token, eventId } = z.object({
+      token:   z.string(),
+      eventId: z.string(),
+    }).parse(request.body);
+
+    if (!(await canManageEventAttendance(app, request, eventId))) {
+      throw new ForbiddenError('Only the assigned event lead, assigned event staff, or a system admin can scan attendance.');
     }
 
-    const { token, sessionId } = z.object({
-      token:     z.string(),
-      sessionId: z.string(),
-    }).parse(request.body);
+    const session = await getOrCreateDefaultSession(app, eventId);
+    const sessionId = session.id;
 
     // Verify permanent QR → extract userId
     const { userId } = verifyPermanentQr(token);
 
-    // Resolve session → eventId
-    const session = await app.prisma.eventSession.findUnique({
-      where: { id: sessionId },
-      select: { id: true, title: true, eventId: true },
-    });
-    if (!session) throw new NotFoundError('Session not found');
-
     // Find participation for this user + event
     const participation = await app.prisma.eventParticipation.findUnique({
-      where: { eventId_userId: { eventId: session.eventId, userId } },
+      where: { eventId_userId: { eventId, userId } },
       select: { id: true, userId: true, eventId: true, status: true, participantName: true, participantEmail: true },
     });
 
@@ -387,11 +419,11 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
 
     const participationId = participation.id;
 
-    // Check if already scanned for this session
+    // Check if already scanned
     const existing = await app.prisma.attendanceRecord.findUnique({
       where: { participationId_sessionId: { participationId, sessionId } },
     });
-    if (existing) throw new ConflictError('Attendance for this session was already recorded.', ErrorCode.CONFLICT);
+    if (existing) throw new ConflictError('Attendance was already recorded for this participant.', ErrorCode.CONFLICT);
 
     const [record] = await app.prisma.$transaction([
       app.prisma.attendanceRecord.create({
@@ -437,19 +469,13 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
         participantName:  participation.participantName ?? null,
         participantEmail: participation.participantEmail ?? null,
       },
-      message: `Attendance recorded for ${session.title}`,
+      message: 'Attendance recorded.',
     });
   });
 
-  // POST /participations/:id/manual-checkin — organizer-only manual fallback
+  // POST /participations/:id/manual-checkin — organizer-only manual fallback; no session selection required
   app.post('/:id/manual-checkin', async (request, reply) => {
-    const role = request.user.role;
-    if (!['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only organizers can perform manual check-in.');
-    }
-
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const { sessionId } = z.object({ sessionId: z.string() }).parse(request.body);
 
     const participation = await app.prisma.eventParticipation.findUnique({
       where: { id },
@@ -457,19 +483,21 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
     });
     if (!participation) throw new NotFoundError('Participation not found');
 
+    if (!(await canManageEventAttendance(app, request, participation.eventId))) {
+      throw new ForbiddenError('Only the assigned event lead, assigned event staff, or a system admin can perform manual check-in.');
+    }
+
     if (!['RSVP_CONFIRMED', 'ATTENDED'].includes(participation.status)) {
       throw new BadRequestError('Participant RSVP must be confirmed first.', ErrorCode.VALIDATION_ERROR);
     }
 
-    const session = await app.prisma.eventSession.findFirst({
-      where: { id: sessionId, eventId: participation.eventId },
-    });
-    if (!session) throw new NotFoundError('Session not found for this event');
+    const session = await getOrCreateDefaultSession(app, participation.eventId);
+    const sessionId = session.id;
 
     const existing = await app.prisma.attendanceRecord.findUnique({
       where: { participationId_sessionId: { participationId: id, sessionId } },
     });
-    if (existing) throw new ConflictError('Attendance already recorded for this session.', ErrorCode.CONFLICT);
+    if (existing) throw new ConflictError('Attendance was already recorded for this participant.', ErrorCode.CONFLICT);
 
     const [record] = await app.prisma.$transaction([
       app.prisma.attendanceRecord.create({
@@ -495,7 +523,7 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
         participantName:  participation.participantName ?? null,
         participantEmail: participation.participantEmail ?? null,
       },
-      message: `Manual check-in recorded for ${session.title}`,
+      message: 'Manual check-in recorded.',
     });
   });
 
@@ -505,12 +533,12 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
 
     const participation = await app.prisma.eventParticipation.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, eventId: true },
     });
     if (!participation) throw new NotFoundError('Participation not found');
 
     const isOwner = participation.userId === request.user.sub;
-    const isStaff = ['EVENT_ORGANIZER', 'PROGRAM_MANAGER', 'SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(request.user.role);
+    const isStaff = !isOwner && await canManageEventAttendance(app, request, participation.eventId);
     if (!isOwner && !isStaff) throw new ForbiddenError('Access denied.');
 
     const records = await app.prisma.attendanceRecord.findMany({

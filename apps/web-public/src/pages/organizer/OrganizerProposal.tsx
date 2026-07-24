@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { organizerApi, staffApi, eventsApi, tnaApi, ApiError } from '@/lib/api';
+import { organizerApi, staffApi, eventsApi, attachmentsApi, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { Link as RouterLink } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Pencil, Save, UserCheck, Rocket, ClipboardList, Upload, FileCheck, ExternalLink } from 'lucide-react';
 
 const PROPOSAL_TYPES = [
@@ -67,9 +66,17 @@ export function OrganizerProposalPage() {
   // Upload approved proposal doc
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
+  // Upload approved TNA reference PDF
+  const [tnaFile, setTnaFile] = useState<File | null>(null);
+
   // Assign Event/Training Lead
-  const [staffSearch, setStaffSearch] = useState('');  
+  const [staffSearch, setStaffSearch] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState('');
+  // Captured at selection time (not re-derived from the live search results at
+  // submit time) so a fast click right after selecting a name can't race the
+  // search query's refetch and silently drop the name/email.
+  const [selectedLead, setSelectedLead] = useState<{ id: string; firstName: string; lastName: string; email: string } | null>(null);
+  const [isReassigningLead, setIsReassigningLead] = useState(false);
 
   // Inline edit mode for proposal narrative fields — auto-activate when ?edit=1
   const [isEditMode, setIsEditMode] = useState(() => searchParams.get('edit') === '1');
@@ -110,9 +117,9 @@ export function OrganizerProposalPage() {
     enabled: Boolean(id),
   });
 
-  const { data: linkedTnaData } = useQuery({
-    queryKey: ['tna-linked', id],
-    queryFn: () => tnaApi.listTnas({ linkedEventId: id!, limit: 10 }),
+  const { data: tnaAttachmentsData } = useQuery({
+    queryKey: ['tna-attachments', id],
+    queryFn: () => attachmentsApi.list(id!, 'TNA_REFERENCE'),
     enabled: !!id,
   });
 
@@ -139,9 +146,13 @@ export function OrganizerProposalPage() {
   const proposalStatus = proposal?.proposalStatus ?? 'DRAFT';
   const isLocked = proposalStatus === 'APPROVED';
   const canModifyItems = ['DRAFT', 'REJECTED'].includes(proposalStatus);
+  // Once approved, the budget's structure (item/cost/qty/source) locks, but the
+  // assigned Lead can still log actual expenses as they're incurred post-approval.
+  const canEditActualSpend = canModifyItems
+    || (proposalStatus === 'APPROVED' && proposal?.assignedOrganizerId === user?.id);
   const hasLead = !!proposal?.assignedOrganizerId;
   const canActivate = proposalStatus === 'APPROVED' && event?.status === 'DRAFT'
-    && (user?.role === 'PROGRAM_MANAGER' || user?.role === 'EVENT_ORGANIZER' || user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN');
+    && (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SUPER_ADMIN' || proposal?.assignedOrganizerId === user?.id);
 
   // Save proposal narrative fields
   const saveMut = useMutation({
@@ -219,11 +230,31 @@ export function OrganizerProposalPage() {
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Upload failed.'),
   });
 
+  const uploadTnaMut = useMutation({
+    mutationFn: () => attachmentsApi.upload(id!, tnaFile!, 'TNA_REFERENCE'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tna-attachments', id] });
+      setTnaFile(null);
+      setMsg('TNA reference document uploaded successfully.');
+      setErrMsg('');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Upload failed.'),
+  });
+
+  const deleteTnaMut = useMutation({
+    mutationFn: (attachmentId: string) => attachmentsApi.remove(id!, attachmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tna-attachments', id] });
+      setMsg('TNA reference document removed.');
+      setErrMsg('');
+    },
+    onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to remove document.'),
+  });
+
   const assignMut = useMutation({
     mutationFn: () => {
-      const selected = staffList.find((s: any) => s.id === selectedLeadId);
-      const name = selected ? `${selected.firstName} ${selected.lastName}` : undefined;
-      const email = selected?.email;
+      const name = selectedLead ? `${selectedLead.firstName} ${selectedLead.lastName}` : undefined;
+      const email = selectedLead?.email;
       return organizerApi.assignOrganizer(id!, selectedLeadId, name, email);
     },
     onSuccess: () => {
@@ -231,6 +262,10 @@ export function OrganizerProposalPage() {
       qc.invalidateQueries({ queryKey: ['event', id] });
       setMsg('Event/Training Lead assigned. They will receive a notification.');
       setErrMsg('');
+      setIsReassigningLead(false);
+      setSelectedLeadId('');
+      setSelectedLead(null);
+      setStaffSearch('');
     },
     onError: (err) => setErrMsg(err instanceof ApiError ? err.message : 'Failed to assign lead.'),
   });
@@ -575,7 +610,7 @@ export function OrganizerProposalPage() {
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">Assigned</span>
                 )}
               </div>
-              {hasLead && !selectedLeadId ? (
+              {hasLead && !isReassigningLead ? (
                 <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-green-800 font-medium">
@@ -584,7 +619,7 @@ export function OrganizerProposalPage() {
                     <p className="text-xs text-green-600 mt-0.5">A notification has been sent to this person.</p>
                   </div>
                   <button
-                    onClick={() => { setSelectedLeadId('x'); setStaffSearch(''); }}
+                    onClick={() => { setIsReassigningLead(true); setSelectedLeadId(''); setSelectedLead(null); setStaffSearch(''); }}
                     className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
                   >
                     Change
@@ -599,7 +634,7 @@ export function OrganizerProposalPage() {
                     className="input text-sm"
                     placeholder="Search by name or email…"
                     value={staffSearch}
-                    onChange={e => { setStaffSearch(e.target.value); setSelectedLeadId(''); }}
+                    onChange={e => { setStaffSearch(e.target.value); setSelectedLeadId(''); setSelectedLead(null); }}
                   />
                   {staffSearch && staffList.length > 0 && (
                     <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto bg-white shadow-sm">
@@ -607,7 +642,7 @@ export function OrganizerProposalPage() {
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => { setSelectedLeadId(s.id); setStaffSearch(`${s.firstName} ${s.lastName}`); }}
+                          onClick={() => { setSelectedLeadId(s.id); setSelectedLead(s); setStaffSearch(`${s.firstName} ${s.lastName}`); }}
                           className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedLeadId === s.id ? 'bg-blue-50 text-blue-700' : 'text-gray-800'}`}
                         >
                           <span className="font-medium">{s.firstName} {s.lastName}</span>
@@ -620,13 +655,23 @@ export function OrganizerProposalPage() {
                   {staffSearch && staffList.length === 0 && (
                     <p className="text-xs text-gray-400">No staff members found.</p>
                   )}
-                  <button
-                    onClick={() => assignMut.mutate()}
-                    disabled={!selectedLeadId || selectedLeadId === 'x' || assignMut.isPending}
-                    className="btn-primary flex items-center gap-2 text-sm"
-                  >
-                    <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign as Event/Training Lead'}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => assignMut.mutate()}
+                      disabled={!selectedLead || assignMut.isPending}
+                      className="btn-primary flex items-center gap-2 text-sm"
+                    >
+                      <UserCheck size={15} /> {assignMut.isPending ? 'Assigning…' : 'Assign as Event/Training Lead'}
+                    </button>
+                    {hasLead && (
+                      <button
+                        onClick={() => { setIsReassigningLead(false); setSelectedLeadId(''); setSelectedLead(null); setStaffSearch(''); }}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -726,54 +771,71 @@ export function OrganizerProposalPage() {
           )}
 
           {/* TNA Reference */}
-          <div className="border-t pt-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <ClipboardList size={16} className="text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-700">Training Needs Assessment (TNA)</h3>
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Optional</span>
-              </div>
-              <RouterLink to="/organizer/tna" className="text-xs text-blue-600 hover:underline font-medium">
-                Manage TNAs →
-              </RouterLink>
+          <div className="border-t pt-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList size={16} className="text-gray-400" />
+              <h3 className="text-sm font-semibold text-gray-700">Training Needs Assessment (TNA)</h3>
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Optional</span>
             </div>
+
             {(() => {
-              const tnas = ((linkedTnaData as unknown as Record<string, unknown>)?.data as unknown[]) ?? [];
-              if (tnas.length === 0) {
-                return (
-                  <p className="text-xs text-gray-500">
-                    No TNA linked to this proposal.{' '}
-                    <RouterLink to="/organizer/tna/new" className="text-blue-600 hover:underline">Create a TNA</RouterLink>
-                    {' '}and set this proposal as its reference, or link an existing one from the{' '}
-                    <RouterLink to="/organizer/tna" className="text-blue-600 hover:underline">TNA list</RouterLink>.
-                  </p>
-                );
-              }
+              const tnaAttachments = ((tnaAttachmentsData as unknown as Record<string, unknown>)?.data as Record<string, unknown>[]) ?? [];
+              if (tnaAttachments.length === 0) return null;
               return (
                 <div className="space-y-1.5">
-                  {tnas.map((t: unknown) => {
-                    const tna = t as Record<string, unknown>;
-                    const finalized = tna.status === 'FINALIZED';
-                    return (
-                      <div key={tna.id as string} className="flex items-center justify-between gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-800">{tna.title as string}</p>
-                          <p className="text-[10px] text-gray-500">{tna.sector as string}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${finalized ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {finalized ? 'Finalized' : 'Draft'}
-                          </span>
-                          <RouterLink to={`/organizer/tna/${tna.id}`} className="text-xs text-blue-600 hover:underline font-medium">
-                            View →
-                          </RouterLink>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {tnaAttachments.map((a) => (
+                    <div key={a.id as string} className="flex items-center justify-between gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <a
+                        href={a.fileUrl as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline min-w-0"
+                      >
+                        <FileCheck size={14} className="shrink-0" />
+                        <span className="truncate">{a.fileName as string}</span>
+                      </a>
+                      <button
+                        onClick={() => { if (confirm('Remove this TNA reference document?')) deleteTnaMut.mutate(a.id as string); }}
+                        className="text-gray-400 hover:text-red-500 shrink-0"
+                        title="Remove"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               );
             })()}
+
+            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                Upload the approved Training Needs Assessment (TNA) document as reference (PDF, max 20 MB).
+              </p>
+              <label className="flex items-center gap-2 w-fit cursor-pointer btn-secondary text-sm">
+                <Upload size={14} />
+                {tnaFile ? tnaFile.name : 'Choose file…'}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={e => setTnaFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+
+            {tnaFile && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-600 truncate max-w-xs">{tnaFile.name}</span>
+                <button
+                  onClick={() => uploadTnaMut.mutate()}
+                  disabled={uploadTnaMut.isPending}
+                  className="btn-primary text-sm flex items-center gap-2 shrink-0"
+                >
+                  <Upload size={14} /> {uploadTnaMut.isPending ? 'Uploading…' : 'Upload'}
+                </button>
+                <button onClick={() => setTnaFile(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -812,12 +874,34 @@ export function OrganizerProposalPage() {
                   {budgetItems.map((b: any) => (
                     editingBudgetId === b.id ? (
                       <tr key={b.id} className="bg-blue-50">
-                        <td className="px-2 py-1.5"><input className="input text-xs py-1" value={editBudgetDraft.item} onChange={e => setEditBudgetDraft(p => ({ ...p, item: e.target.value }))} /></td>
-                        <td className="px-2 py-1.5"><input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.unitCost || ''} onChange={e => { const uc = Number(e.target.value); setEditBudgetDraft(p => ({ ...p, unitCost: uc, estimatedAmount: uc * p.quantity })); }} /></td>
-                        <td className="px-2 py-1.5"><input type="number" min={1} className="input text-xs py-1 text-center" value={editBudgetDraft.quantity || ''} onChange={e => { const q = Number(e.target.value) || 1; setEditBudgetDraft(p => ({ ...p, quantity: q, estimatedAmount: p.unitCost * q })); }} /></td>
-                        <td className="px-2 py-1.5"><input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.estimatedAmount || ''} onChange={e => setEditBudgetDraft(p => ({ ...p, estimatedAmount: Number(e.target.value) }))} /></td>
-                        <td className="px-2 py-1.5"><input className="input text-xs py-1" value={editBudgetDraft.sourceOfFunds ?? ''} onChange={e => setEditBudgetDraft(p => ({ ...p, sourceOfFunds: e.target.value }))} /></td>
-                        <td className="px-2 py-1.5 text-right text-gray-400 text-xs">—</td>
+                        <td className="px-2 py-1.5">
+                          {canModifyItems ? (
+                            <input className="input text-xs py-1" value={editBudgetDraft.item} onChange={e => setEditBudgetDraft(p => ({ ...p, item: e.target.value }))} />
+                          ) : <span className="text-xs text-gray-700">{b.item}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {canModifyItems ? (
+                            <input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.unitCost || ''} onChange={e => { const uc = Number(e.target.value); setEditBudgetDraft(p => ({ ...p, unitCost: uc, estimatedAmount: uc * p.quantity })); }} />
+                          ) : <span className="text-xs text-gray-700">₱{Number(b.unitCost).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {canModifyItems ? (
+                            <input type="number" min={1} className="input text-xs py-1 text-center" value={editBudgetDraft.quantity || ''} onChange={e => { const q = Number(e.target.value) || 1; setEditBudgetDraft(p => ({ ...p, quantity: q, estimatedAmount: p.unitCost * q })); }} />
+                          ) : <span className="text-xs text-gray-700">{b.quantity}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {canModifyItems ? (
+                            <input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" value={editBudgetDraft.estimatedAmount || ''} onChange={e => setEditBudgetDraft(p => ({ ...p, estimatedAmount: Number(e.target.value) }))} />
+                          ) : <span className="text-xs text-gray-700">₱{Number(b.estimatedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {canModifyItems ? (
+                            <input className="input text-xs py-1" value={editBudgetDraft.sourceOfFunds ?? ''} onChange={e => setEditBudgetDraft(p => ({ ...p, sourceOfFunds: e.target.value }))} />
+                          ) : <span className="text-xs text-gray-700">{b.sourceOfFunds ?? '—'}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" min={0} step={0.01} className="input text-xs py-1 text-right" placeholder="0.00" value={editBudgetDraft.actualSpent ?? ''} onChange={e => setEditBudgetDraft(p => ({ ...p, actualSpent: e.target.value === '' ? null : Number(e.target.value) }))} />
+                        </td>
                         <td className="px-2 py-1.5">
                           <div className="flex gap-1">
                             <button onClick={() => updateBudgetMut.mutate({ itemId: b.id, data: { ...editBudgetDraft } })} disabled={updateBudgetMut.isPending || !editBudgetDraft.item.trim()} className="text-blue-600 hover:text-blue-800"><Save size={14} /></button>
@@ -835,8 +919,8 @@ export function OrganizerProposalPage() {
                         <td className="px-3 py-2 text-right text-gray-600">{b.actualSpent != null ? `₱${Number(b.actualSpent).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}</td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1.5">
-                            {canModifyItems && (
-                              <button onClick={() => { setEditingBudgetId(b.id); setEditBudgetDraft({ item: b.item, unitCost: Number(b.unitCost), quantity: b.quantity, estimatedAmount: Number(b.estimatedAmount), sourceOfFunds: b.sourceOfFunds ?? '', actualSpent: b.actualSpent }); }} className="text-gray-400 hover:text-blue-500"><Pencil size={13} /></button>
+                            {canEditActualSpend && (
+                              <button onClick={() => { setEditingBudgetId(b.id); setEditBudgetDraft({ item: b.item, unitCost: Number(b.unitCost), quantity: b.quantity, estimatedAmount: Number(b.estimatedAmount), sourceOfFunds: b.sourceOfFunds ?? '', actualSpent: b.actualSpent }); }} className="text-gray-400 hover:text-blue-500" title={canModifyItems ? 'Edit' : 'Log actual expense'}><Pencil size={13} /></button>
                             )}
                             {canModifyItems && (
                               <button onClick={() => { if (confirm('Delete?')) deleteBudgetMut.mutate(b.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>

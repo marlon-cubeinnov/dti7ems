@@ -122,11 +122,17 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     };
 
     if (search) {
-      where['OR'] = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName:  { contains: search, mode: 'insensitive' } },
-        { email:     { contains: search, mode: 'insensitive' } },
-      ];
+      // Match each word of the query against first/last name or email, so a full
+      // display name like "DTI Employee Four" still matches even though it's
+      // split across the firstName/lastName columns.
+      const terms = search.trim().split(/\s+/).filter(Boolean);
+      where['AND'] = terms.map((term) => ({
+        OR: [
+          { firstName: { contains: term, mode: 'insensitive' } },
+          { lastName:  { contains: term, mode: 'insensitive' } },
+          { email:     { contains: term, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     const users = await app.prisma.userProfile.findMany({

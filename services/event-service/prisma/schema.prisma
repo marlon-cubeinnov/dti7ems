@@ -157,6 +157,7 @@ model Event {
   // Facilitator assigned after proposal approval (EVENT_ORGANIZER role)
   assignedOrganizerId    String?      @map("assigned_organizer_id")
   assignedOrganizerName  String?      @map("assigned_organizer_name")
+  assignedOrganizerEmail String?      @map("assigned_organizer_email")
 
   coverImageUrl        String?      @map("cover_image_url")
 
@@ -795,6 +796,7 @@ model EventStaff {
 model ProposalAttachment {
   id           String   @id @default(cuid())
   eventId      String   @map("event_id")
+  category     String   @default("GENERAL")     // GENERAL | TNA_REFERENCE
   fileName     String   @map("file_name")
   fileUrl      String   @db.Text @map("file_url")
   fileSize     Int?     @map("file_size")       // bytes

@@ -173,9 +173,16 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     if (!canManageAllEvents) {
       if (isDtiEmployee) {
-        // DTI employees see all approved/active events
-        where['proposalStatus'] = 'APPROVED';
-        where['status'] = { not: 'DRAFT' };
+        // DTI employees see all approved/active events, plus any event
+        // (including still-DRAFT ones) where they're the assigned lead —
+        // otherwise a newly assigned lead can't see their own event until
+        // someone else activates it.
+        delete where['proposalStatus'];
+        delete where['status'];
+        where['OR'] = [
+          { proposalStatus: 'APPROVED', status: { not: 'DRAFT' } },
+          { assignedOrganizerId: request.user.sub },
+        ];
       } else if (canReviewProposals) {
         where['proposalStatus'] = { in: ['SUBMITTED', 'UNDER_REVIEW'] };
       } else if (canApproveProposals) {
@@ -1318,6 +1325,8 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         proposalApprovedAt: event.proposalApprovedAt,
         proposalRejectionNote: event.proposalRejectionNote,
         assignedOrganizerId: event.assignedOrganizerId,
+        assignedOrganizerName: event.assignedOrganizerName,
+        assignedOrganizerEmail: event.assignedOrganizerEmail,
         budgetItems: event.budgetItems,
         riskItems: event.riskItems,
         targetGroups: event.targetGroups,
@@ -1470,7 +1479,11 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const updated = await app.prisma.event.update({
       where: { id },
-      data: { assignedOrganizerId: organizerId, assignedOrganizerName: organizerName ?? null },
+      data: {
+        assignedOrganizerId: organizerId,
+        assignedOrganizerName: organizerName ?? null,
+        assignedOrganizerEmail: organizerEmail ?? null,
+      },
     });
 
     // Notify the assigned lead (fire-and-forget)
@@ -1540,14 +1553,17 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Transitions DRAFT → PUBLISHED + auto-seeds DTI Training Monitoring Checklist
   app.post('/:id/activate', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    requireAnyPermission(
-      request.user,
-      ['events.edit_own', 'events.manage_all'],
-      'Only users with event management permission can activate an event.',
-    );
 
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
+
+    // Only the assigned Event/Training Lead or a System/Super Admin may activate.
+    const isAssignedLead = event.assignedOrganizerId === request.user.sub;
+    const isAdmin = ['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(normalizeRole(request.user.role));
+    if (!isAssignedLead && !isAdmin) {
+      throw new ForbiddenError('Only the assigned event lead or a system admin can activate an event.');
+    }
+
     if (event.proposalStatus !== 'APPROVED') {
       throw new BadRequestError('Proposal must be APPROVED before activating the event.', ErrorCode.VALIDATION_ERROR);
     }
@@ -1625,6 +1641,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view budget.');
     }
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (!evCheck || evCheck.assignedOrganizerId !== request.user.sub) {
+        throw new ForbiddenError('Only the assigned event lead can view this event\'s budget.');
+      }
+    }
 
     const items = await app.prisma.trainingBudgetItem.findMany({
       where: { eventId: id },
@@ -1641,6 +1663,9 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
+    if (isDtiEmployeeRole(request.user.role) && event.assignedOrganizerId !== request.user.sub) {
+      throw new ForbiddenError('Only the assigned event lead can manage this event\'s budget.');
+    }
 
     const body = z.object({
       item:            z.string().min(1).max(500),
@@ -1667,6 +1692,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const existing = await app.prisma.trainingBudgetItem.findFirst({ where: { id: itemId, eventId: id } });
     if (!existing) throw new NotFoundError('Budget item not found');
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (!evCheck || evCheck.assignedOrganizerId !== request.user.sub) {
+        throw new ForbiddenError('Only the assigned event lead can manage this event\'s budget.');
+      }
+    }
 
     const body = z.object({
       item:            z.string().min(1).max(500).optional(),
@@ -1690,6 +1721,12 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
     const existing = await app.prisma.trainingBudgetItem.findFirst({ where: { id: itemId, eventId: id } });
     if (!existing) throw new NotFoundError('Budget item not found');
+    if (isDtiEmployeeRole(request.user.role)) {
+      const evCheck = await app.prisma.event.findUnique({ where: { id }, select: { assignedOrganizerId: true } });
+      if (!evCheck || evCheck.assignedOrganizerId !== request.user.sub) {
+        throw new ForbiddenError('Only the assigned event lead can manage this event\'s budget.');
+      }
+    }
 
     await app.prisma.trainingBudgetItem.delete({ where: { id: itemId } });
     return reply.send({ success: true, message: 'Budget item deleted.' });
@@ -1984,23 +2021,24 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   // ── Proposal Attachments ───────────────────────────────────────────────────
 
-  // GET /events/:id/attachments
+  // GET /events/:id/attachments?category=TNA_REFERENCE
   app.get('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!isOrganizerRole(request.user.role)) {
       throw new ForbiddenError('Only organizers/admins can view attachments.');
     }
+    const { category } = z.object({ category: z.string().optional() }).parse(request.query);
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
     const attachments = await app.prisma.proposalAttachment.findMany({
-      where: { eventId: id },
+      where: { eventId: id, ...(category ? { category } : {}) },
       orderBy: { uploadedAt: 'desc' },
     });
     return reply.send({ success: true, data: attachments });
   });
 
-  // POST /events/:id/attachments — register an uploaded file URL
+  // POST /events/:id/attachments — upload a PDF attachment (e.g. approved TNA reference) to Google Drive
   app.post('/:id/attachments', { preHandler: [app.verifyJwt] }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!isOrganizerRole(request.user.role)) {
@@ -2009,16 +2047,45 @@ export const eventRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const event = await app.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Event not found');
 
-    const body = z.object({
-      fileName:    z.string().min(1).max(500),
-      fileUrl:     z.string().url(),
-      fileSize:    z.number().int().min(0).optional().nullable(),
-      mimeType:    z.string().max(200).optional().nullable(),
-      description: z.string().max(1000).optional().nullable(),
-    }).parse(request.body);
+    const data = await request.file();
+    if (!data) throw new BadRequestError('No file attached.', ErrorCode.VALIDATION_ERROR);
+
+    if (data.mimetype !== 'application/pdf') {
+      throw new BadRequestError('Only PDF files are allowed.', ErrorCode.VALIDATION_ERROR);
+    }
+
+    const fields = data.fields as Record<string, { value?: unknown } | undefined>;
+    const category = fields.category?.value ? String(fields.category.value) : 'GENERAL';
+    const description = fields.description?.value ? String(fields.description.value) : null;
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk as Buffer);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    if (buffer.length > 20 * 1024 * 1024) {
+      throw new BadRequestError('File exceeds the 20 MB limit.', ErrorCode.VALIDATION_ERROR);
+    }
+
+    const filename = `attachment-${id}-${Date.now()}.pdf`;
+    const driveUrl = await uploadToGoogleDrive({
+      filename,
+      mimeType: data.mimetype,
+      buffer,
+    });
 
     const attachment = await app.prisma.proposalAttachment.create({
-      data: { ...body, eventId: id, uploadedBy: request.user.sub },
+      data: {
+        eventId: id,
+        category,
+        fileName: data.filename,
+        fileUrl: driveUrl,
+        fileSize: buffer.length,
+        mimeType: data.mimetype,
+        description,
+        uploadedBy: request.user.sub,
+      },
     });
     return reply.code(201).send({ success: true, data: attachment });
   });

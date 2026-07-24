@@ -378,12 +378,12 @@ export const organizerApi = {
   getAttendanceSheet: (eventId: string) =>
     request(`${BASE_EVENTS}/events/${eventId}/participants/attendance-sheet`),
 
-  // Attendance
-  scanQr: (token: string, sessionId: string) =>
-    request(`${BASE_EVENTS}/participations/attendance/scan`, { method: 'POST', body: JSON.stringify({ token, sessionId }) }),
+  // Attendance — no session selection required; check-in applies directly to the event
+  scanQr: (token: string, eventId: string) =>
+    request(`${BASE_EVENTS}/participations/attendance/scan`, { method: 'POST', body: JSON.stringify({ token, eventId }) }),
 
-  manualCheckin: (participationId: string, sessionId: string) =>
-    request(`${BASE_EVENTS}/participations/${participationId}/manual-checkin`, { method: 'POST', body: JSON.stringify({ sessionId }) }),
+  manualCheckin: (participationId: string) =>
+    request(`${BASE_EVENTS}/participations/${participationId}/manual-checkin`, { method: 'POST', body: '{}' }),
 
   getAttendance: (participationId: string) =>
     request(`${BASE_EVENTS}/participations/${participationId}/attendance`),
@@ -519,6 +519,25 @@ export const organizerApi = {
 
   updateTargetGroup: (eventId: string, groupId: string, body: Record<string, unknown>) =>
     request(`${BASE_EVENTS}/events/${eventId}/target-groups/${groupId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+};
+
+// ── Proposal Attachments (e.g. approved TNA reference PDFs) ─────────────────
+
+export const attachmentsApi = {
+  list: (eventId: string, category?: string) => {
+    const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+    return request(`${BASE_EVENTS}/events/${eventId}/attachments${qs}`);
+  },
+
+  upload: (eventId: string, file: File, category: string) => {
+    const fd = new FormData();
+    fd.append('category', category);
+    fd.append('file', file);
+    return request(`${BASE_EVENTS}/events/${eventId}/attachments`, { method: 'POST', body: fd });
+  },
+
+  remove: (eventId: string, attachmentId: string) =>
+    request(`${BASE_EVENTS}/events/${eventId}/attachments/${attachmentId}`, { method: 'DELETE' }),
 };
 
 // ── Standalone TNA API ───────────────────────────────────────────────────────

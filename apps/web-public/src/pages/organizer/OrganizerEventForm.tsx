@@ -331,7 +331,7 @@ export function OrganizerEventFormPage() {
               checked={form.requiresTNA}
               onChange={(e) => set('requiresTNA', e.target.checked)} />
             <label htmlFor="tna" className="text-sm text-gray-700">
-              Require Training Needs Assessment (TNA) before registration (optional — case-by-case)
+              Require Pre-Training Needs Assessment before registration (optional — case-by-case)
             </label>
           </div>
         </div>
