@@ -103,6 +103,7 @@ export const participationRoutes: FastifyPluginAsync = async (app: FastifyInstan
             select: {
               id: true, title: true, startDate: true, endDate: true,
               venue: true, deliveryMode: true, status: true, coverImageUrl: true,
+              requiresTNA: true,
             },
           },
           tnaResponse:       { select: { compositeScore: true, recommendedTrack: true, submittedAt: true } },

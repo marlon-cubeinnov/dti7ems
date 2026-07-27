@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { eventsApi } from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { eventsApi, ApiError } from '@/lib/api';
 import { format } from 'date-fns';
 
 export function MyEventsPage() {
   const [page, setPage] = useState(1);
+  const qc = useQueryClient();
+  const [rsvpError, setRsvpError] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-participations', page],
@@ -14,10 +16,19 @@ export function MyEventsPage() {
     staleTime: 0,
   });
 
+  const confirmRsvpMut = useMutation({
+    mutationFn: (participationId: string) => eventsApi.confirmRSVP(participationId),
+    onSuccess: () => {
+      setRsvpError('');
+      qc.invalidateQueries({ queryKey: ['my-participations'] });
+    },
+    onError: (err) => setRsvpError(err instanceof ApiError ? err.message : 'Failed to confirm RSVP.'),
+  });
+
   const participations = (data?.data as unknown as Array<{
     id: string;
     status: string;
-    event: { id: string; title: string; startDate: string; endDate: string; venue?: string; status: string };
+    event: { id: string; title: string; startDate: string; endDate: string; venue?: string; status: string; requiresTNA?: boolean };
     tnaResponse?: { compositeScore: string; recommendedTrack: string } | null;
     certificate?: { status: string; verificationCode?: string } | null;
     csfSurveyResponse?: { status: string; submittedAt?: string } | null;
@@ -34,6 +45,10 @@ export function MyEventsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">My Events</h1>
+
+      {rsvpError && (
+        <div className="text-sm text-red-600 bg-red-50 rounded-input px-4 py-3">{rsvpError}</div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">
@@ -69,11 +84,21 @@ export function MyEventsPage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                {/* TNA CTA */}
-                {p.status === 'REGISTERED' && (
+                {/* TNA CTA — only for events that actually require it */}
+                {p.status === 'REGISTERED' && p.event.requiresTNA && (
                   <Link to={`/my-events/${p.id}/tna`} className="btn-accent text-xs px-3 py-1.5">
                     Complete TNA →
                   </Link>
+                )}
+                {/* Direct RSVP confirmation for events that don't require TNA */}
+                {p.status === 'REGISTERED' && !p.event.requiresTNA && (
+                  <button
+                    onClick={() => confirmRsvpMut.mutate(p.id)}
+                    disabled={confirmRsvpMut.isPending}
+                    className="btn-accent text-xs px-3 py-1.5"
+                  >
+                    {confirmRsvpMut.isPending ? 'Confirming…' : 'Confirm RSVP →'}
+                  </button>
                 )}
                 {/* QR attendance code */}
                 {['RSVP_CONFIRMED', 'ATTENDED'].includes(p.status) && (

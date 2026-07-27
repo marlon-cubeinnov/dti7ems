@@ -37,10 +37,21 @@ export function TNAPage() {
 
   const { data: partData } = useQuery({
     queryKey: ['participation', participationId],
-    queryFn: () => eventsApi.getMyParticipations({ limit: 100 }),
+    queryFn: () => eventsApi.getMyParticipations({ limit: 50 }),
     select: (res) => {
       const list = res.data as unknown as Array<{ id: string; event: { title: string; requiresTNA: boolean } }>;
       return list.find((p) => p.id === participationId);
+    },
+  });
+
+  const confirmRsvpMut = useMutation({
+    mutationFn: () => eventsApi.confirmRSVP(participationId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-participations'] });
+      navigate('/my-events');
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.message : 'Failed to confirm RSVP.');
     },
   });
 
@@ -109,6 +120,35 @@ export function TNAPage() {
       ))}
     </div>
   );
+
+  // Guard against landing here for an event that doesn't actually require a TNA
+  // (e.g. a stale link) — the submit endpoint would just reject it anyway.
+  if (partData && !partData.event.requiresTNA) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">Training Needs Assessment</h1>
+        <div className="card space-y-4">
+          <p className="text-sm text-gray-700">
+            <strong>{partData.event.title}</strong> does not require a Training Needs Assessment.
+            You can confirm your RSVP directly.
+          </p>
+          {error && (
+            <div className="flex items-start gap-2 text-red-600 bg-red-50 rounded-input p-3 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+          <button
+            onClick={() => confirmRsvpMut.mutate()}
+            disabled={confirmRsvpMut.isPending}
+            className="btn-primary"
+          >
+            {confirmRsvpMut.isPending ? 'Confirming…' : 'Confirm RSVP'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
