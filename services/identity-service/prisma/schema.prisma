@@ -348,6 +348,8 @@ model EnterpriseProfile {
   profileLastUpdatedBy   String?   @map("profile_last_updated_by")
   annualUpdateYear       Int?      @map("annual_update_year")
 
+  notes            String?         @db.Text  // free-text "Note to DTI Staff"
+
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 

@@ -14,6 +14,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/prisma/seed.ts",
+    "migrate:longlist": "tsx src/prisma/migrate-longlist.ts",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {

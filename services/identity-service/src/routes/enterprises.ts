@@ -230,6 +230,8 @@ const createEnterpriseSchema = z.object({
   ptSeniorMale:       z.number().int().min(0).optional().nullable(),
   ptSeniorFemale:     z.number().int().min(0).optional().nullable(),
   employeeCount:      z.number().int().min(1).optional().nullable(),
+
+  notes: z.string().max(8000).optional().nullable(),
 });
 
 const ADMIN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN'] as const;
