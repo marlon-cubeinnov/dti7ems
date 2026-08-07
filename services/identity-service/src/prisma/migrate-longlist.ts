@@ -17,230 +17,24 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
-import { z } from 'zod';
+import {
+  type RawRow,
+  excelOrIsoToTimestamp,
+  mapRow,
+  normalizeName,
+} from './migration-data/shared-mapping.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DRY_RUN = process.env.DRY_RUN === '1';
+const SOURCE_LABEL = 'DTI Startup Longlist';
 
 const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DATABASE_URL } },
 });
 
-// ── Source row shape (matches extract-longlist.py's COLUMNS) ───────────────
-interface RawRow {
-  startupId: number | null;
-  startup: string;
-  shortDescription: string | null;
-  industry: string | null;
-  specificIndustry: string | null;
-  yearFounded: number | string | null;
-  city: string | null;
-  province: string | null;
-  startupStage: string | null;
-  operatingStatus: string | null;
-  legalIdentity: string | null;
-  revenueStatus: string | null;
-  mrr: string | null;
-  fundingStage: string | null;
-  jobsCreated: number | string | null;
-  marketsReached: string | null;
-  primaryContactPerson: string | null;
-  designation: string | null;
-  emailAddress: string | null;
-  mobileNumber: number | string | null;
-  website: string | number | null;
-  socialMediaLink: string | null;
-  programsParticipated: string | null;
-  majorMilestones: string | null;
-  supportNeeded: string | null;
-  prioritySupportArea: string | null;
-  remarks: string | null;
-  lastUpdated: string | null;
-  previousStartup: string | null;
-}
-
 // 32 unique companies total, minus 1 ("SugboDoc Technologies Inc") whose source
 // row is column-shifted/corrupted and gets excluded before dedup (see loadAndDedupe).
 const EXPECTED_UNIQUE_COMPANIES = 31;
-
-// ── Field-mapping lookup tables ─────────────────────────────────────────────
-
-const INDUSTRY_MAP: Record<string, string> = {
-  'technology': 'Information and Communication',
-  'gaming and esports': 'Information and Communication',
-  'b2b saas (software as a service)': 'Information and Communication',
-  'education': 'Education',
-  'travel and hospitality': 'Accommodation and Food Service Activities',
-  'agriculture and food technology': 'Agriculture, Forestry and Fishing',
-  'finance and fintech': 'Financial and Insurance Activities',
-  'e-commerce and retail': 'Wholesale and Retail Trade',
-  'healthcare': 'Human Health and Social Work Activities',
-  'media and entertainment': 'Arts, Entertainment and Recreation',
-  'hr and workplace': 'Administrative and Support Service Activities',
-  'sustainability and clean energy': 'Electricity, Gas, Steam and Air Conditioning Supply',
-  'social impact and non-profit': 'Other Service Activities',
-};
-const INDUSTRY_FALLBACK = 'Other Service Activities';
-
-const STAGE_MAP: Array<[prefix: string, stage: string]> = [
-  ['growth', 'GROWTH'],
-  ['validation', 'VALIDATION'],
-  ['expansion', 'EXPANSION'],
-  ['maturity', 'MATURITY_EXIT'],
-];
-const STAGE_DEFAULT = 'VALIDATION';
-
-// ── Local Zod validation (mirrors createEnterpriseSchema's constraints) ────
-
-const enterpriseFieldsSchema = z.object({
-  businessName: z.string().min(1).max(300),
-  industrySector: z.string().min(1).max(200),
-  description: z.string().max(2000).optional().nullable(),
-  yearEstablished: z.number().int().min(1900).max(2100).optional().nullable(),
-  province: z.string().max(200).optional().nullable(),
-  cityMunicipality: z.string().max(200).optional().nullable(),
-  businessEmail: z.string().email().optional().nullable(),
-  businessPhone: z.string().max(50).optional().nullable(),
-  websiteUrl: z.string().url().optional().nullable(),
-  socialMediaFacebook: z.string().max(500).optional().nullable(),
-  socialMediaLinkedIn: z.string().max(500).optional().nullable(),
-  socialMediaInstagram: z.string().max(500).optional().nullable(),
-  socialMediaOthers: z.string().max(1000).optional().nullable(),
-  stage: z.enum(['IDEATION', 'VALIDATION', 'GROWTH', 'EXPANSION', 'MATURITY_EXIT']),
-  businessIsRegistered: z.boolean().optional().nullable(),
-  notes: z.string().max(8000).optional().nullable(),
-});
-type EnterpriseFields = z.infer<typeof enterpriseFieldsSchema>;
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function excelOrIsoToTimestamp(v: string | null): number {
-  if (!v) return 0;
-  const t = Date.parse(v);
-  return Number.isNaN(t) ? 0 : t;
-}
-
-function mapIndustry(raw: string | null, warnings: string[], companyName: string): string {
-  if (!raw) return INDUSTRY_FALLBACK;
-  const key = raw.trim().toLowerCase();
-  const mapped = INDUSTRY_MAP[key];
-  if (!mapped) {
-    warnings.push(`${companyName}: industry "${raw}" has no mapping, using fallback "${INDUSTRY_FALLBACK}"`);
-    return INDUSTRY_FALLBACK;
-  }
-  return mapped;
-}
-
-function mapStage(raw: string | null): string {
-  if (!raw) return STAGE_DEFAULT;
-  const lower = raw.trim().toLowerCase();
-  for (const [prefix, stage] of STAGE_MAP) {
-    if (lower.startsWith(prefix)) return stage;
-  }
-  return STAGE_DEFAULT;
-}
-
-function deriveBusinessIsRegistered(raw: string | null): boolean | null {
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
-  if (lower.includes('none') || lower.includes('under processing') || lower.includes('soon to be')) return false;
-  if (['sec', 'dti bn', 'bir', "mayor's permit"].some((k) => lower.includes(k))) return true;
-  return null;
-}
-
-function cleanCity(raw: string | null): string | null {
-  if (!raw) return null;
-  return raw.trim().replace(/,\s*cebu\.?$/i, '').trim() || null;
-}
-
-function cleanWebsite(raw: string | number | null): string | null {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
-}
-
-/** Returns { phone, unparseable } — unparseable raw value goes into notes instead. */
-function cleanMobile(raw: string | number | null): { phone: string | null; unparseableRaw: string | null } {
-  if (raw == null) return { phone: null, unparseableRaw: null };
-  const raw_s = String(raw).trim();
-  const digits = raw_s.replace(/\D/g, '');
-  if (digits.length < 7) return { phone: null, unparseableRaw: raw_s || null };
-  return { phone: digits, unparseableRaw: null };
-}
-
-interface SocialLinks {
-  facebook: string | null;
-  linkedin: string | null;
-  instagram: string | null;
-  others: string | null;
-}
-function splitSocialLinks(raw: string | null): SocialLinks {
-  const out: SocialLinks = { facebook: null, linkedin: null, instagram: null, others: null };
-  if (!raw) return out;
-  const others: string[] = [];
-  for (const part of raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean)) {
-    const lower = part.toLowerCase();
-    if (lower.includes('facebook.com') && !out.facebook) out.facebook = part;
-    else if (lower.includes('linkedin.com') && !out.linkedin) out.linkedin = part;
-    else if (lower.includes('instagram.com') && !out.instagram) out.instagram = part;
-    else others.push(part);
-  }
-  if (others.length) out.others = others.join(', ');
-  return out;
-}
-
-function splitContactName(raw: string | null): { firstName: string; lastName: string } {
-  const trimmed = (raw ?? '').trim().replace(/\s+/g, ' ');
-  if (!trimmed) return { firstName: 'Unknown', lastName: 'Contact' };
-  const parts = trimmed.split(' ');
-  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
-  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
-}
-
-function buildNotes(row: RawRow, mobileUnparseable: string | null): string | null {
-  const lines: string[] = [`[Migrated from DTI Startup Longlist — Startup ID ${row.startupId ?? '?'}]`];
-  const add = (label: string, value: unknown) => {
-    if (value === null || value === undefined) return;
-    const s = String(value).trim();
-    if (s) lines.push(`${label}: ${s}`);
-  };
-  add('Operating Status', row.operatingStatus);
-  add('Legal Identity', row.legalIdentity);
-  add('Revenue Status', row.revenueStatus);
-  add('MRR', row.mrr);
-  add('Funding Stage', row.fundingStage);
-  add('Jobs Created', row.jobsCreated);
-  add('Markets Reached', row.marketsReached);
-  add('Contact Designation', row.designation);
-  add('Programs Participated', row.programsParticipated);
-  add('Major Milestones', row.majorMilestones);
-  add('Support Needed', row.supportNeeded);
-  add('Priority Support Area', row.prioritySupportArea);
-  add('Remarks', row.remarks);
-  add('Previous Startup (if applicable)', row.previousStartup);
-  if (mobileUnparseable) add('Mobile Number (unparseable, kept as-is)', mobileUnparseable);
-  if (row.lastUpdated) {
-    const t = excelOrIsoToTimestamp(row.lastUpdated);
-    add('Last Updated (source sheet)', t ? new Date(t).toISOString().slice(0, 10) : row.lastUpdated);
-  }
-  return lines.length > 1 ? lines.join('\n') : null;
-}
-
-// ── Pipeline ─────────────────────────────────────────────────────────────
-
-interface MappedCompany {
-  row: RawRow;
-  contactEmail: string;
-  contactFirstName: string;
-  contactLastName: string;
-  contactMobile: string | null;
-  enterprise: EnterpriseFields;
-}
 
 function loadAndDedupe(): { winners: RawRow[]; corrupted: RawRow[] } {
   const raw: RawRow[] = JSON.parse(readFileSync(join(__dirname, 'migration-data', 'longlist-raw.json'), 'utf8'));
@@ -269,50 +63,6 @@ function loadAndDedupe(): { winners: RawRow[]; corrupted: RawRow[] } {
   return { winners: [...best.values()], corrupted };
 }
 
-function mapRow(row: RawRow, warnings: string[]): MappedCompany | { error: string } {
-  if (!row.emailAddress || !row.emailAddress.includes('@')) {
-    return { error: `missing/invalid email address` };
-  }
-
-  const { firstName, lastName } = splitContactName(row.primaryContactPerson);
-  const { phone: businessPhone, unparseableRaw: mobileUnparseable } = cleanMobile(row.mobileNumber);
-  const social = splitSocialLinks(row.socialMediaLink);
-
-  const enterpriseFields = {
-    businessName: row.startup.trim(),
-    industrySector: mapIndustry(row.industry, warnings, row.startup),
-    description: row.shortDescription,
-    yearEstablished: typeof row.yearFounded === 'number' ? row.yearFounded
-      : (row.yearFounded && /^\d{4}$/.test(String(row.yearFounded)) ? Number(row.yearFounded) : null),
-    province: row.province,
-    cityMunicipality: cleanCity(row.city),
-    businessEmail: row.emailAddress,
-    businessPhone,
-    websiteUrl: cleanWebsite(row.website),
-    socialMediaFacebook: social.facebook,
-    socialMediaLinkedIn: social.linkedin,
-    socialMediaInstagram: social.instagram,
-    socialMediaOthers: social.others,
-    stage: mapStage(row.startupStage),
-    businessIsRegistered: deriveBusinessIsRegistered(row.legalIdentity),
-    notes: buildNotes(row, mobileUnparseable),
-  };
-
-  const parsed = enterpriseFieldsSchema.safeParse(enterpriseFields);
-  if (!parsed.success) {
-    return { error: `validation failed: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` };
-  }
-
-  return {
-    row,
-    contactEmail: row.emailAddress.trim().toLowerCase(),
-    contactFirstName: firstName,
-    contactLastName: lastName,
-    contactMobile: businessPhone,
-    enterprise: parsed.data,
-  };
-}
-
 async function main() {
   console.log(`=== DTI Longlist → CPMS Enterprise migration ${DRY_RUN ? '(DRY RUN)' : '(LIVE)'} ===\n`);
 
@@ -336,7 +86,7 @@ async function main() {
   const manifest: Array<{ enterpriseId: string; userId: string; businessName: string; userWasCreated: boolean }> = [];
 
   for (const row of winners) {
-    const mapped = mapRow(row, warnings);
+    const mapped = mapRow(row, warnings, SOURCE_LABEL);
     if ('error' in mapped) {
       skippedValidation.push(`"${row.startup}" (Startup ID ${row.startupId}): ${mapped.error}`);
       continue;
